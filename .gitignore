@@ -6,6 +6,7 @@ build
 .turbo
 .cache
 coverage
+*.tsbuildinfo
 .env
 .env.*
 !.env.example
