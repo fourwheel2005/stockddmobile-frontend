@@ -1,0 +1,85 @@
+import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios';
+import { useAuthStore } from '@/stores/authStore';
+
+const baseURL = import.meta.env.VITE_API_BASE_URL ?? '/api/v1';
+
+export const api = axios.create({
+  baseURL,
+  headers: { 'Content-Type': 'application/json' },
+});
+
+// ─── Request interceptor: attach Bearer ──────────────────────────────────
+api.interceptors.request.use((config) => {
+  const token = useAuthStore.getState().accessToken;
+  if (token && config.headers) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// ─── Response interceptor: auto-refresh on 401 ───────────────────────────
+let refreshPromise: Promise<string> | null = null;
+
+async function performRefresh(): Promise<string> {
+  const refreshToken = useAuthStore.getState().refreshToken;
+  if (!refreshToken) throw new Error('No refresh token');
+
+  const { data } = await axios.post(
+    `${baseURL}/auth/refresh`,
+    { refreshToken },
+    { headers: { 'Content-Type': 'application/json' } }
+  );
+  useAuthStore.getState().setSession({
+    accessToken: data.accessToken,
+    refreshToken: data.refreshToken,
+    user: data.user,
+  });
+  return data.accessToken;
+}
+
+interface RetriableConfig extends InternalAxiosRequestConfig {
+  _retry?: boolean;
+}
+
+api.interceptors.response.use(
+  (res) => res,
+  async (err: AxiosError) => {
+    const original = err.config as RetriableConfig | undefined;
+    if (!original) return Promise.reject(err);
+
+    const isAuthEndpoint = original.url?.includes('/auth/login')
+      || original.url?.includes('/auth/refresh');
+
+    if (err.response?.status === 401 && !original._retry && !isAuthEndpoint) {
+      original._retry = true;
+      try {
+        refreshPromise = refreshPromise ?? performRefresh();
+        const newToken = await refreshPromise;
+        refreshPromise = null;
+        if (original.headers) {
+          original.headers.Authorization = `Bearer ${newToken}`;
+        }
+        return api(original);
+      } catch (e) {
+        refreshPromise = null;
+        useAuthStore.getState().clear();
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login';
+        }
+        return Promise.reject(e);
+      }
+    }
+    return Promise.reject(err);
+  }
+);
+
+export function extractErrorMessage(err: unknown): string {
+  if (axios.isAxiosError(err)) {
+    const data = err.response?.data as { message?: string; errors?: Array<{ field: string; message: string }> } | undefined;
+    if (data?.errors?.length) {
+      return data.errors.map((e) => `${e.field}: ${e.message}`).join(', ');
+    }
+    return data?.message ?? err.message;
+  }
+  return err instanceof Error ? err.message : String(err);
+}

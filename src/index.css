@@ -1,0 +1,92 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  @apply bg-slate-50 text-slate-900 antialiased;
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+}
+
+/* shared form controls */
+.input {
+  @apply w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm
+         shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30;
+}
+
+.btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium
+         transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+}
+.btn-primary { @apply btn bg-brand-600 text-white hover:bg-brand-700; }
+.btn-secondary { @apply btn bg-slate-200 text-slate-800 hover:bg-slate-300; }
+.btn-danger { @apply btn bg-red-600 text-white hover:bg-red-700; }
+.btn-ghost { @apply btn text-slate-700 hover:bg-slate-100; }
+
+.card { @apply rounded-lg border border-slate-200 bg-white shadow-sm; }
+.card-header { @apply border-b border-slate-200 px-5 py-3 font-semibold; }
+.card-body { @apply p-5; }
+
+.badge { @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium; }
+.badge-green { @apply badge bg-emerald-100 text-emerald-800; }
+.badge-red { @apply badge bg-red-100 text-red-800; }
+.badge-amber { @apply badge bg-amber-100 text-amber-800; }
+.badge-slate { @apply badge bg-slate-100 text-slate-700; }
+.badge-blue { @apply badge bg-blue-100 text-blue-800; }
+
+/* ─── Receipt Print ───────────────────────────────────────────────────── */
+.receipt-print { display: none; }
+
+@media print {
+  body * { visibility: hidden; }
+  .receipt-print, .receipt-print * { visibility: visible; }
+  .receipt-print {
+    display: block !important;
+    position: absolute;
+    top: 0; left: 0;
+    width: 80mm;
+    padding: 4mm;
+    font-family: 'Sarabun', monospace;
+    font-size: 11pt;
+    color: #000;
+  }
+  .receipt-print table { width: 100%; border-collapse: collapse; }
+  @page { size: 80mm auto; margin: 0; }
+}
+
+/* ─── Barcode Labels Print (A4 / 24-up = 3 cols × 8 rows) ──────────── */
+.labels-print { display: none; }
+
+@media print {
+  body * { visibility: hidden; }
+  .labels-print, .labels-print * { visibility: visible; }
+  .labels-print {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2mm;
+    position: absolute;
+    top: 0; left: 0;
+    width: 210mm;            /* A4 width */
+    padding: 8mm;
+    box-sizing: border-box;
+  }
+  .label-cell {
+    border: 1px dashed #94a3b8;
+    padding: 2mm;
+    text-align: center;
+    height: 32mm;
+    overflow: hidden;
+    page-break-inside: avoid;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+  }
+  .label-name { font-size: 9pt; font-weight: bold; line-height: 1.1; }
+  .label-detail { font-size: 7pt; color: #475569; margin-bottom: 1mm; }
+  .label-price { font-size: 9pt; font-weight: bold; color: #0f766e; margin-top: 1mm; }
+  @page { size: A4 portrait; margin: 8mm; }
+}
