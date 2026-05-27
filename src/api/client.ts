@@ -5,7 +5,10 @@ const baseURL = import.meta.env.VITE_API_BASE_URL ?? '/api/v1';
 
 export const api = axios.create({
   baseURL,
-  headers: { 'Content-Type': 'application/json' },
+  headers: {
+    'Content-Type': 'application/json',
+    'ngrok-skip-browser-warning': 'true',
+  },
 });
 
 // ─── Request interceptor: attach Bearer ──────────────────────────────────
@@ -27,7 +30,12 @@ async function performRefresh(): Promise<string> {
   const { data } = await axios.post(
     `${baseURL}/auth/refresh`,
     { refreshToken },
-    { headers: { 'Content-Type': 'application/json' } }
+    {
+      headers: {
+        'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': 'true',
+      },
+    }
   );
   useAuthStore.getState().setSession({
     accessToken: data.accessToken,
