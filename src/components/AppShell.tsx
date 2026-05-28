@@ -7,12 +7,13 @@ import { WsStatusIndicator } from '@/components/WsStatusIndicator';
 import {
   LayoutDashboard, Boxes, Package, ArrowDownToLine, ArrowUpFromLine,
   History, BellRing, LogOut, SlidersHorizontal, ScanLine, Users, Layers, Receipt,
-  BarChart3, ShieldCheck, Tag,
+  BarChart3, ShieldCheck, Tag, Wrench,
 } from 'lucide-react';
 
 const navItems = [
   { to: '/',             label: 'Dashboard',     icon: LayoutDashboard },
   { to: '/pos',          label: 'POS ขายหน้าร้าน', icon: ScanLine },
+  { to: '/repairs',      label: 'งานซ่อม',        icon: Wrench },
   { to: '/inventory',    label: 'คลังสต็อก',     icon: Boxes },
   { to: '/products',     label: 'สินค้า',        icon: Package },
   { to: '/inbound',      label: 'รับสินค้า',     icon: ArrowDownToLine },

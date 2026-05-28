@@ -12,6 +12,7 @@ import { TransactionsPage } from '@/pages/TransactionsPage';
 import { AlertsPage } from '@/pages/AlertsPage';
 import { AdjustmentPage } from '@/pages/AdjustmentPage';
 import { PosTerminalPage } from '@/pages/PosTerminalPage';
+import { RepairListPage } from '@/pages/RepairListPage';
 import { CustomersPage } from '@/pages/CustomersPage';
 import { LotsPage } from '@/pages/LotsPage';
 import { SalesHistoryPage } from '@/pages/SalesHistoryPage';
@@ -34,6 +35,7 @@ export default function App() {
           <Route path="/inbound" element={<InboundPage />} />
           <Route path="/outbound" element={<OutboundPage />} />
           <Route path="/pos" element={<PosTerminalPage />} />
+          <Route path="/repairs" element={<RepairListPage />} />
           <Route path="/customers" element={<CustomersPage />} />
           <Route path="/warranty" element={<WarrantyPage />} />
           <Route path="/scanner-test" element={<ScannerTestPage />} />

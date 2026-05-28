@@ -70,9 +70,12 @@ export function ReportsPage() {
       {/* KPI Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard icon={<TrendingUp className="h-5 w-5" />}
-                 label="ยอดขายรวม"
+                 label="รายได้รวม (ขาย + ซ่อม)"
                  value={formatTHB(summary.data?.totalRevenue ?? 0)}
-                 sub={`${formatNumber(summary.data?.totalOrders ?? 0)} บิล`}
+                 sub={`${formatNumber(summary.data?.totalOrders ?? 0)} บิล`
+                   + ((summary.data?.repairRevenue ?? 0) > 0
+                       ? ` · ค่าซ่อม ${formatTHB(summary.data!.repairRevenue)} (${formatNumber(summary.data!.repairCount)} งาน)`
+                       : '')}
                  color="bg-emerald-100 text-emerald-700" />
         <KpiCard icon={<Wallet className="h-5 w-5" />}
                  label="กำไรรวม"

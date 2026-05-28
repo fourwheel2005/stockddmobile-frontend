@@ -8,11 +8,12 @@ import { extractErrorMessage } from '@/api/client';
 import { formatTHB } from '@/lib/format';
 import { CustomerPickerModal } from '@/components/CustomerPickerModal';
 import { ImeiPickerModal } from '@/components/ImeiPickerModal';
-import { RepairServiceModal } from '@/components/RepairServiceModal';
+import { RepairIntakeModal } from '@/components/RepairIntakeModal';
 import { ReceiptPrintView } from '@/components/ReceiptPrintView';
+import { RepairBillPrintView } from '@/components/RepairBillPrintView';
 import type {
   CartScanResponse, Customer, InStockItem,
-  PaymentMethod, SalesOrderResponse,
+  PaymentMethod, RepairTicket, SalesOrderResponse,
 } from '@/types/api';
 
 interface CartLine {
@@ -57,6 +58,7 @@ export function PosTerminalPage() {
   const [showCustomerPicker, setShowCustomerPicker] = useState(false);
   const [showImeiPicker, setShowImeiPicker] = useState(false);
   const [showRepair, setShowRepair] = useState(false);
+  const [repairToPrint, setRepairToPrint] = useState<RepairTicket | null>(null);
 
   // ─── Installment-only state ─────────────────────────────────────────
   const [installmentMonths, setInstallmentMonths] = useState<number>(6);
@@ -81,6 +83,13 @@ export function PosTerminalPage() {
       return () => clearTimeout(t);
     }
   }, [showCustomerPicker, showImeiPicker, showRepair]);
+
+  // เมื่อสร้างใบรับซ่อมเสร็จ → เคลียร์ใบเสร็จขายเดิมออกจาก DOM แล้วสั่งพิมพ์ใบรับซ่อม
+  useEffect(() => {
+    if (!repairToPrint) return;
+    const t = setTimeout(() => window.print(), 200);
+    return () => clearTimeout(t);
+  }, [repairToPrint]);
 
   // Track whether the scan input is focused (for the "ready" visual cue)
   const [scanReady, setScanReady] = useState(false);
@@ -520,11 +529,17 @@ export function PosTerminalPage() {
         />
       )}
       {showRepair && (
-        <RepairServiceModal onClose={() => setShowRepair(false)} />
+        <RepairIntakeModal
+          onClose={() => setShowRepair(false)}
+          onCreated={(ticket) => { setLastBill(null); setRepairToPrint(ticket); }}
+        />
       )}
 
-      {/* Hidden receipt — only visible when window.print() fires */}
-      {lastBill && <ReceiptPrintView order={lastBill} />}
+      {/* Hidden printouts — only visible when window.print() fires.
+          แสดงครั้งละหนึ่งใบเท่านั้น (ใบเสร็จขาย หรือ ใบรับซ่อม) เพื่อกันพิมพ์ซ้อน */}
+      {repairToPrint
+        ? <RepairBillPrintView ticket={repairToPrint} />
+        : lastBill && <ReceiptPrintView order={lastBill} />}
     </div>
   );
 }

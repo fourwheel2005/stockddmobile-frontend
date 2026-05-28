@@ -34,6 +34,18 @@ export function ProductsPage() {
         )}
       </div>
 
+      {/* ขั้นตอนการตั้งของเข้าระบบ — อธิบายให้พนักงานเข้าใจว่าทำไมต้อง 3 ขั้น */}
+      <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+        <div className="mb-2 font-semibold">📦 ลำดับการนำสินค้าเข้าระบบ (ทำครั้งเดียวต่อรุ่น แล้วรับเข้าได้เรื่อย ๆ)</div>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
+          <Step n={1} title="สร้างรุ่น (Product)" desc="เช่น iPhone 11 — รุ่นใหม่/รุ่น Pro สร้างแยกกัน" />
+          <Arrow />
+          <Step n={2} title="เพิ่มรุ่นย่อย (Variant)" desc="สี + ความจุ + ราคา + บาร์โค้ด (ตัวที่ขายได้จริง)" />
+          <Arrow />
+          <Step n={3} title="รับสินค้าเข้า (Inbound)" desc="บันทึกของจริงเข้าสต็อก / IMEI — ทำทุกล็อต" />
+        </div>
+      </div>
+
       <div className="card">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -92,6 +104,22 @@ export function ProductsPage() {
       {showModal && <CreateProductModal onClose={() => setShowModal(false)} />}
     </div>
   );
+}
+
+function Step({ n, title, desc }: { n: number; title: string; desc: string }) {
+  return (
+    <div className="flex-1 rounded-md bg-white px-3 py-2 ring-1 ring-blue-100">
+      <div className="flex items-center gap-2">
+        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">{n}</span>
+        <span className="font-medium">{title}</span>
+      </div>
+      <div className="mt-1 text-xs text-blue-700">{desc}</div>
+    </div>
+  );
+}
+
+function Arrow() {
+  return <div className="hidden items-center justify-center text-blue-400 sm:flex">→</div>;
 }
 
 function CreateProductModal({ onClose }: { onClose: () => void }) {

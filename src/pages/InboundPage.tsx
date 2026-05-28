@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useFieldArray, useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
@@ -45,6 +46,8 @@ function defaultLotNo(): string {
 
 export function InboundPage() {
   const qc = useQueryClient();
+  const [searchParams] = useSearchParams();
+  const initialProductId = searchParams.get('product') ?? undefined;
   const [selectedVariant, setSelectedVariant] = useState<{
     serialized: boolean; productName: string; sku: string; sellingPrice: number;
   } | null>(null);
@@ -187,7 +190,8 @@ export function InboundPage() {
           <div className="card-body space-y-4">
             <VariantSelector register={register} errors={errors}
                              products={products.data?.content ?? []}
-                             onChange={handleProductChange} watch={watch} />
+                             onChange={handleProductChange} watch={watch}
+                             initialProductId={initialProductId} />
 
             {selectedVariant && (
               <div className="rounded-md bg-slate-50 px-3 py-2 text-sm">
@@ -347,12 +351,14 @@ export function InboundPage() {
   );
 }
 
-function VariantSelector({ register, errors, products, onChange, watch }: {
+function VariantSelector({ register, errors, products, onChange, watch, initialProductId }: {
   register: ReturnType<typeof useForm<FormValues>>['register'];
   errors: ReturnType<typeof useForm<FormValues>>['formState']['errors'];
   products: Array<{ id: string; name: string }>;
   onChange: (variantId: string) => void;
   watch: ReturnType<typeof useForm<FormValues>>['watch'];
+  /** ถ้ามากับ query param ?product=<id> ให้เลือกสินค้านี้ + โหลด variant ให้อัตโนมัติ */
+  initialProductId?: string;
 }) {
   const [variantOptions, setVariantOptions] = useState<Array<{ id: string; label: string }>>([]);
   const [selectedProductId, setSelectedProductId] = useState('');
@@ -371,6 +377,12 @@ function VariantSelector({ register, errors, products, onChange, watch }: {
       );
     } catch { /* ignore */ }
   };
+
+  // Preselect product จาก quick action "รับเข้า" — โหลด variant ของรุ่นนี้ให้พร้อมเลือก
+  useEffect(() => {
+    if (initialProductId) handleProductChange(initialProductId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialProductId]);
 
   return (
     <div className="grid grid-cols-2 gap-3">

@@ -385,6 +385,8 @@ export interface SalesSummaryResponse {
   totalProfit: number;
   avgOrderValue: number;
   profitMargin: number;
+  repairCount: number;
+  repairRevenue: number;
 }
 
 export interface DailySalesPoint {
@@ -433,6 +435,59 @@ export interface InStockItem {
   storage: string | null;
   sellingPrice: number;
   receivedAt: string;
+}
+
+// ─── Repair Tickets (รับซ่อม/เคลมเครื่องลูกค้า) ─────────────────────────────
+
+export type RepairStatus = 'RECEIVED' | 'IN_PROGRESS' | 'DONE' | 'PICKED_UP' | 'CANCELLED';
+
+export interface RepairTicket {
+  id: string;
+  ticketNo: string;
+  status: RepairStatus;
+  customerId: string | null;
+  customerName: string;
+  customerPhone: string | null;
+  deviceBrand: string | null;
+  deviceModel: string;
+  deviceColor: string | null;
+  imei: string | null;
+  serialNumber: string | null;
+  reportedSymptom: string;
+  workDescription: string | null;
+  estimatedCost: number | null;
+  repairCost: number;
+  depositAmount: number;
+  balanceDue: number;
+  paymentMethod: PaymentMethod | null;
+  receivedBy: string;
+  receivedAt: string;
+  doneAt: string | null;
+  pickedUpAt: string | null;
+  note: string | null;
+  createdAt: string;
+}
+
+export interface CreateRepairRequest {
+  customerId?: string;
+  customerName: string;
+  customerPhone?: string;
+  deviceBrand?: string;
+  deviceModel: string;
+  deviceColor?: string;
+  imei?: string;
+  serialNumber?: string;
+  reportedSymptom: string;
+  estimatedCost?: number;
+  depositAmount?: number;
+  note?: string;
+}
+
+export interface UpdateRepairStatusRequest {
+  status: RepairStatus;
+  repairCost?: number;
+  workDescription?: string;
+  paymentMethod?: PaymentMethod;
 }
 
 export interface WarrantyLookup {

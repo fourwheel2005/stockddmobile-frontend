@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Plus, X } from 'lucide-react';
+import { ArrowLeft, Plus, X, ArrowDownToLine } from 'lucide-react';
 import { productsApi } from '@/api/products';
 import { extractErrorMessage } from '@/api/client';
 import { useAuthStore } from '@/stores/authStore';
@@ -51,12 +51,19 @@ export function ProductDetailPage() {
 
       <div className="card">
         <div className="card-header flex items-center justify-between">
-          <span>Variants ({product.variants.length})</span>
-          {canEdit && (
-            <button className="btn-primary" onClick={() => setShowAddVariant(true)}>
-              <Plus className="h-4 w-4" /> เพิ่ม Variant
-            </button>
-          )}
+          <span>รุ่นย่อย / Variants ({product.variants.length})</span>
+          <div className="flex gap-2">
+            {product.variants.length > 0 && (
+              <Link to={`/inbound?product=${product.id}`} className="btn-secondary">
+                <ArrowDownToLine className="h-4 w-4" /> รับสินค้าเข้า
+              </Link>
+            )}
+            {canEdit && (
+              <button className="btn-primary" onClick={() => setShowAddVariant(true)}>
+                <Plus className="h-4 w-4" /> เพิ่ม Variant
+              </button>
+            )}
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -70,6 +77,7 @@ export function ProductDetailPage() {
                 <th className="px-5 py-2.5 text-right">Cost</th>
                 <th className="px-5 py-2.5 text-right">Selling</th>
                 <th className="px-5 py-2.5 text-right">Reorder</th>
+                <th className="px-5 py-2.5"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -86,10 +94,30 @@ export function ProductDetailPage() {
                   <td className="px-5 py-3 text-right">{formatTHB(v.costPrice)}</td>
                   <td className="px-5 py-3 text-right font-semibold">{formatTHB(v.sellingPrice)}</td>
                   <td className="px-5 py-3 text-right">{v.reorderPoint}</td>
+                  <td className="px-5 py-3 text-right">
+                    <Link to={`/inbound?product=${product.id}`}
+                          className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs text-emerald-700 hover:bg-emerald-50"
+                          title="รับสินค้าเข้าสต็อกสำหรับรุ่นย่อยนี้">
+                      <ArrowDownToLine className="h-3.5 w-3.5" /> รับเข้า
+                    </Link>
+                  </td>
                 </tr>
               ))}
               {product.variants.length === 0 && (
-                <tr><td colSpan={8} className="px-5 py-8 text-center text-slate-400">ยังไม่มี variant</td></tr>
+                <tr><td colSpan={9} className="px-5 py-10 text-center">
+                  <div className="mx-auto max-w-md space-y-2">
+                    <div className="text-base font-medium text-slate-700">ยังไม่มีรุ่นย่อย (Variant)</div>
+                    <p className="text-sm text-slate-500">
+                      รุ่นนี้ <strong>ยังขายและรับเข้าสต็อกไม่ได้</strong> — ราคา บาร์โค้ด และสต็อก
+                      จะอยู่ที่ระดับรุ่นย่อย ต้องเพิ่มอย่างน้อย 1 รุ่นย่อย (สี/ความจุ) ก่อน
+                    </p>
+                    {canEdit && (
+                      <button className="btn-primary" onClick={() => setShowAddVariant(true)}>
+                        <Plus className="h-4 w-4" /> เพิ่มรุ่นย่อยตอนนี้
+                      </button>
+                    )}
+                  </div>
+                </td></tr>
               )}
             </tbody>
           </table>
@@ -189,6 +217,13 @@ function AddVariantModal({ productId, onClose }: { productId: string; onClose: (
               บาร์โค้ด <span className="text-xs font-normal text-slate-500">(ถ้ามี — ส่วนใหญ่บนกล่องสินค้า)</span>
             </label>
             <input className="input" placeholder="เว้นว่างได้ถ้าไม่มี" {...register('barcode')} />
+            <div className="mt-1 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              💡 <strong>ไม่มีเครื่องยิงบาร์โค้ด / กล่องไม่มีบาร์โค้ด?</strong> เว้นว่างได้
+              <ul className="mt-1 list-disc space-y-0.5 pl-4">
+                <li><strong>มือถือ (IMEI):</strong> ใช้เลข IMEI เป็นบาร์โค้ดในตัว — พิมพ์ Label จากเมนู “พิมพ์ Label” ได้เลย</li>
+                <li><strong>อุปกรณ์เสริม:</strong> ที่ POS พิมพ์ <strong>SKU</strong> มือแทนการยิงได้ (ระบบค้นเจอทั้ง SKU และบาร์โค้ด)</li>
+              </ul>
+            </div>
           </div>
           <div className="grid grid-cols-3 gap-3">
             <div>
