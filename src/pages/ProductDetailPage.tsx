@@ -53,7 +53,7 @@ export function ProductDetailPage() {
         <div className="card-header flex items-center justify-between">
           <span>รุ่นย่อย / Variants ({product.variants.length})</span>
           <div className="flex gap-2">
-            {product.variants.length > 0 && (
+            {canEdit && product.variants.length > 0 && (
               <Link to={`/inbound?product=${product.id}`} className="btn-secondary">
                 <ArrowDownToLine className="h-4 w-4" /> รับสินค้าเข้า
               </Link>
@@ -91,15 +91,22 @@ export function ProductDetailPage() {
                   <td className="px-5 py-3">{v.storage ?? '-'}</td>
                   <td className="px-5 py-3">{v.network ?? '-'}</td>
                   <td className="px-5 py-3 font-mono text-xs">{v.barcode ?? '-'}</td>
-                  <td className="px-5 py-3 text-right">{formatTHB(v.costPrice)}</td>
+                  <td className="px-5 py-3 text-right">
+                    {v.costPrice != null
+                      ? formatTHB(v.costPrice)
+                      : <span className="font-mono font-semibold tracking-wider text-slate-500"
+                              title="รหัสต้นทุน (เฉพาะผู้จัดการเห็นตัวเลขจริง)">{v.costCode ?? '-'}</span>}
+                  </td>
                   <td className="px-5 py-3 text-right font-semibold">{formatTHB(v.sellingPrice)}</td>
                   <td className="px-5 py-3 text-right">{v.reorderPoint}</td>
                   <td className="px-5 py-3 text-right">
-                    <Link to={`/inbound?product=${product.id}`}
-                          className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs text-emerald-700 hover:bg-emerald-50"
-                          title="รับสินค้าเข้าสต็อกสำหรับรุ่นย่อยนี้">
-                      <ArrowDownToLine className="h-3.5 w-3.5" /> รับเข้า
-                    </Link>
+                    {canEdit && (
+                      <Link to={`/inbound?product=${product.id}`}
+                            className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs text-emerald-700 hover:bg-emerald-50"
+                            title="รับสินค้าเข้าสต็อกสำหรับรุ่นย่อยนี้">
+                        <ArrowDownToLine className="h-3.5 w-3.5" /> รับเข้า
+                      </Link>
+                    )}
                   </td>
                 </tr>
               ))}

@@ -32,7 +32,6 @@ export default function App() {
           <Route path="/inventory" element={<InventoryPage />} />
           <Route path="/products" element={<ProductsPage />} />
           <Route path="/products/:id" element={<ProductDetailPage />} />
-          <Route path="/inbound" element={<InboundPage />} />
           <Route path="/outbound" element={<OutboundPage />} />
           <Route path="/pos" element={<PosTerminalPage />} />
           <Route path="/repairs" element={<RepairListPage />} />
@@ -45,6 +44,7 @@ export default function App() {
 
       <Route element={<ProtectedRoute roles={['ADMIN', 'MANAGER']} />}>
         <Route element={<AppShell />}>
+          <Route path="/inbound" element={<InboundPage />} />
           <Route path="/adjustment" element={<AdjustmentPage />} />
           <Route path="/transactions" element={<TransactionsPage />} />
           <Route path="/alerts" element={<AlertsPage />} />

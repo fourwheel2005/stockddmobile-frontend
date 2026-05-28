@@ -59,7 +59,8 @@ export interface VariantResponse {
   storage: string | null;
   network: string | null;
   barcode: string | null;
-  costPrice: number;
+  costPrice: number | null;   // null สำหรับ STAFF (เห็นได้เฉพาะ ADMIN/MANAGER)
+  costCode: string | null;    // รหัสตัวอักษรของต้นทุน (แสดงให้ STAFF)
   sellingPrice: number;
   reorderPoint: number;
   imageUrl: string | null;
@@ -139,6 +140,7 @@ export interface SerializedItemResponse {
   soldAt: string | null;
   warrantyExpire: string | null;
   purchasePrice: number | null;
+  purchasePriceCode: string | null;   // รหัสต้นทุน (แสดงให้ STAFF)
   batteryHealth: number | null;
   acquisitionType: AcquisitionType | null;
   serviceState: ServiceState | null;
@@ -500,6 +502,7 @@ export interface WarrantyLookup {
   color: string | null;
   storage: string | null;
   purchasePrice: number | null;
+  purchasePriceCode: string | null;   // รหัสต้นทุน (แสดงให้ STAFF)
   sellingPrice: number;
   receivedAt: string;
   soldAt: string | null;

@@ -16,7 +16,7 @@ const navItems = [
   { to: '/repairs',      label: 'งานซ่อม',        icon: Wrench },
   { to: '/inventory',    label: 'คลังสต็อก',     icon: Boxes },
   { to: '/products',     label: 'สินค้า',        icon: Package },
-  { to: '/inbound',      label: 'รับสินค้า',     icon: ArrowDownToLine },
+  { to: '/inbound',      label: 'รับสินค้า',     icon: ArrowDownToLine,   roles: ['ADMIN', 'MANAGER'] as const },
   { to: '/outbound',     label: 'จ่ายสินค้า',     icon: ArrowUpFromLine },
   { to: '/warranty',     label: 'เช็คประกัน',     icon: ShieldCheck },
   { to: '/labels',       label: 'พิมพ์ Label',    icon: Tag },
