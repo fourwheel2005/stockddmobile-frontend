@@ -1,12 +1,14 @@
 import { useState, useRef, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { ScanLine, Trash2, ShoppingCart, Receipt, Search, ListChecks, UserCircle2, Printer } from 'lucide-react';
+import { ScanLine, Trash2, ShoppingCart, Receipt, Search, ListChecks, UserCircle2, Printer, Upload, X, Wrench } from 'lucide-react';
 import { posApi } from '@/api/pos';
+import { filesApi } from '@/api/files';
 import { extractErrorMessage } from '@/api/client';
 import { formatTHB } from '@/lib/format';
 import { CustomerPickerModal } from '@/components/CustomerPickerModal';
 import { ImeiPickerModal } from '@/components/ImeiPickerModal';
+import { RepairServiceModal } from '@/components/RepairServiceModal';
 import { ReceiptPrintView } from '@/components/ReceiptPrintView';
 import type {
   CartScanResponse, Customer, InStockItem,
@@ -54,6 +56,7 @@ export function PosTerminalPage() {
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [showCustomerPicker, setShowCustomerPicker] = useState(false);
   const [showImeiPicker, setShowImeiPicker] = useState(false);
+  const [showRepair, setShowRepair] = useState(false);
 
   // ─── Installment-only state ─────────────────────────────────────────
   const [installmentMonths, setInstallmentMonths] = useState<number>(6);
@@ -62,17 +65,22 @@ export function PosTerminalPage() {
   const [downCash, setDownCash] = useState<number>(0);
   const [downTransfer, setDownTransfer] = useState<number>(0);
 
+  // ─── Transfer slip state ────────────────────────────────────────────
+  const [slipFileId, setSlipFileId] = useState<string | null>(null);
+  const [slipPreview, setSlipPreview] = useState<string | null>(null);
+  const [slipUploading, setSlipUploading] = useState(false);
+
   // Auto-focus on mount so scanner gun input works immediately
   useEffect(() => { inputRef.current?.focus(); }, []);
 
   // Re-focus the scan input whenever modals close, so the scanner gun keeps working.
   useEffect(() => {
-    if (!showCustomerPicker && !showImeiPicker) {
+    if (!showCustomerPicker && !showImeiPicker && !showRepair) {
       // small delay to ensure modal unmount complete
       const t = setTimeout(() => inputRef.current?.focus(), 50);
       return () => clearTimeout(t);
     }
-  }, [showCustomerPicker, showImeiPicker]);
+  }, [showCustomerPicker, showImeiPicker, showRepair]);
 
   // Track whether the scan input is focused (for the "ready" visual cue)
   const [scanReady, setScanReady] = useState(false);
@@ -172,6 +180,27 @@ export function PosTerminalPage() {
     toast.success(`เพิ่มแล้ว: ${item.sku}`, { duration: 1500 });
   }
 
+  // Upload transfer slip
+  async function handleSlipUpload(file: File) {
+    setSlipUploading(true);
+    try {
+      const uploaded = await filesApi.upload(file);
+      setSlipFileId(uploaded.id);
+      setSlipPreview(URL.createObjectURL(file));
+      toast.success('แนบสลิปแล้ว');
+    } catch (e) {
+      toast.error(extractErrorMessage(e));
+    } finally {
+      setSlipUploading(false);
+    }
+  }
+
+  function clearSlip() {
+    if (slipPreview) URL.revokeObjectURL(slipPreview);
+    setSlipFileId(null);
+    setSlipPreview(null);
+  }
+
   const checkout = useMutation({
     mutationFn: () => {
       const isInstallment = paymentMethod === 'INSTALLMENT';
@@ -186,6 +215,7 @@ export function PosTerminalPage() {
         })),
         paymentMethod,
         paymentReference: paymentRef || undefined,
+        paymentSlipFileId: paymentMethod === 'TRANSFER' ? (slipFileId ?? undefined) : undefined,
         discountAmount: discount || undefined,
         note: note || undefined,
         ...(isInstallment ? {
@@ -211,10 +241,15 @@ export function PosTerminalPage() {
       setSplitDown(false);
       setDownCash(0);
       setDownTransfer(0);
+      clearSlip();
       inputRef.current?.focus();
     },
     onError: (e) => toast.error(extractErrorMessage(e)),
   });
+
+  // โอนเงินต้องแนบสลิปก่อนปิดบิล
+  const needSlip = paymentMethod === 'TRANSFER';
+  const slipMissing = needSlip && !slipFileId;
 
   return (
     <div className="space-y-4">
@@ -228,6 +263,9 @@ export function PosTerminalPage() {
         <div className="flex items-center gap-2">
           <button className="btn-secondary" onClick={() => setShowImeiPicker(true)}>
             <ListChecks className="h-4 w-4" /> เลือก IMEI จากรายการ
+          </button>
+          <button className="btn-secondary text-amber-700" onClick={() => setShowRepair(true)}>
+            <Wrench className="h-4 w-4" /> ส่งซ่อม / เคลม
           </button>
           <button className="btn-secondary" onClick={() => setShowCustomerPicker(true)}>
             <UserCircle2 className="h-4 w-4" />
@@ -305,6 +343,37 @@ export function PosTerminalPage() {
                        value={paymentRef} onChange={(e) => setPaymentRef(e.target.value)} />
               );
             })()}
+
+            {/* Slip upload — required when paying by TRANSFER */}
+            {needSlip && (
+              <div className={`rounded-md border p-2 ${slipMissing ? 'border-red-300 bg-red-50' : 'border-emerald-300 bg-emerald-50'}`}>
+                <div className="mb-1 text-xs font-semibold">
+                  📎 แนบสลิปโอนเงิน {slipMissing && <span className="text-red-600">* จำเป็น</span>}
+                </div>
+                {slipPreview ? (
+                  <div className="flex items-center gap-2">
+                    <img src={slipPreview} alt="slip" className="h-16 w-16 rounded object-cover" />
+                    <span className="text-xs text-emerald-700">✓ แนบแล้ว</span>
+                    <button type="button" className="ml-auto rounded p-1 text-red-600 hover:bg-red-100"
+                            onClick={clearSlip}>
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex cursor-pointer items-center justify-center gap-2 rounded border border-dashed border-slate-300 bg-white px-3 py-3 text-sm text-slate-600 hover:bg-slate-50">
+                    <Upload className="h-4 w-4" />
+                    {slipUploading ? 'กำลังอัปโหลด...' : 'เลือกรูปสลิป (JPG/PNG/PDF)'}
+                    <input type="file" accept="image/*,application/pdf" className="hidden"
+                           disabled={slipUploading}
+                           onChange={(e) => {
+                             const f = e.target.files?.[0];
+                             if (f) handleSlipUpload(f);
+                             e.target.value = '';
+                           }} />
+                  </label>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -420,10 +489,13 @@ export function PosTerminalPage() {
             </div>
             <button
               className="btn-primary w-full bg-emerald-600 hover:bg-emerald-700 text-base"
-              disabled={cart.length === 0 || checkout.isPending}
+              disabled={cart.length === 0 || checkout.isPending || slipMissing}
+              title={slipMissing ? 'ต้องแนบสลิปโอนเงินก่อน' : undefined}
               onClick={() => checkout.mutate()}>
               <Receipt className="h-5 w-5" />
-              {checkout.isPending ? 'กำลังปิดบิล...' : 'ปิดบิล'}
+              {checkout.isPending ? 'กำลังปิดบิล...'
+                : slipMissing ? 'แนบสลิปก่อนปิดบิล'
+                : 'ปิดบิล'}
             </button>
             {lastBill && (
               <button className="btn-secondary w-full" onClick={() => window.print()}>
@@ -446,6 +518,9 @@ export function PosTerminalPage() {
           onSelect={(item) => addImeiToCart(item)}
           onClose={() => setShowImeiPicker(false)}
         />
+      )}
+      {showRepair && (
+        <RepairServiceModal onClose={() => setShowRepair(false)} />
       )}
 
       {/* Hidden receipt — only visible when window.print() fires */}

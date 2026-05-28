@@ -122,6 +122,10 @@ export interface InventoryResponse {
 export type SerializedStatus =
   | 'IN_STOCK' | 'RESERVED' | 'SOLD' | 'DEFECTIVE' | 'RETURNED' | 'TRANSFERRED';
 
+export type AcquisitionType = 'PURCHASE' | 'TRADE_IN' | 'OUTRIGHT';
+export type ServiceState = 'AWAITING_REPAIR' | 'SENT_CLAIM';
+export type SerializedCondition = 'NEW' | 'SECOND_HAND' | 'LIKE_NEW' | 'REFURBISHED' | 'DEFECTIVE';
+
 export interface SerializedItemResponse {
   id: string;
   variantId: string;
@@ -135,6 +139,15 @@ export interface SerializedItemResponse {
   soldAt: string | null;
   warrantyExpire: string | null;
   purchasePrice: number | null;
+  batteryHealth: number | null;
+  acquisitionType: AcquisitionType | null;
+  serviceState: ServiceState | null;
+  defectNote: string | null;
+}
+
+export interface ServiceActionRequest {
+  serviceState: ServiceState;
+  defectNote?: string;
 }
 
 export type StockTxType =
@@ -257,6 +270,8 @@ export interface LotInboundRequest {
     imei?: string;
     imei2?: string;
     condition?: string;
+    batteryHealth?: number;
+    acquisitionType?: AcquisitionType;
     warrantyTerms?: string;
     deviceColor?: string;
     purchasePrice?: number;
@@ -315,6 +330,7 @@ export interface CheckoutRequest {
   discountAmount?: number;
   vatAmount?: number;
   paymentReference?: string;
+  paymentSlipFileId?: string;        // required when paymentMethod=TRANSFER
   // Installment fields (used only when paymentMethod=INSTALLMENT)
   installmentMonths?: number;
   downPaymentAmount?: number;
@@ -349,6 +365,7 @@ export interface SalesOrderResponse {
   paymentMethod: PaymentMethod | null;
   installmentMonths: number | null;
   downPaymentAmount: number | null;
+  paymentSlipUrl: string | null;
   note: string | null;
   createdBy: string;
   createdAt: string;

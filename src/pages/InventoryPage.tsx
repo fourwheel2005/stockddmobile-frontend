@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Search } from 'lucide-react';
+import { Search, Smartphone } from 'lucide-react';
 import { inventoryApi } from '@/api/inventory';
+import { SerialsModal } from '@/components/SerialsModal';
 import { formatNumber, formatDateTime } from '@/lib/format';
 
 export function InventoryPage() {
@@ -9,6 +10,7 @@ export function InventoryPage() {
   const [lowStockOnly, setLowStockOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [scanResult, setScanResult] = useState<string | null>(null);
+  const [serialsFor, setSerialsFor] = useState<{ variantId: string; productName: string; sku: string } | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['inventory', { page, lowStockOnly }],
@@ -80,11 +82,12 @@ export function InventoryPage() {
                 <th className="px-5 py-2.5 text-right">Reorder</th>
                 <th className="px-5 py-2.5">Status</th>
                 <th className="px-5 py-2.5">Updated</th>
+                <th className="px-5 py-2.5 text-right">เครื่อง</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {isLoading && (
-                <tr><td colSpan={9} className="px-5 py-8 text-center text-slate-400">กำลังโหลด...</td></tr>
+                <tr><td colSpan={10} className="px-5 py-8 text-center text-slate-400">กำลังโหลด...</td></tr>
               )}
               {data?.content.map((row) => (
                 <tr key={row.variantId} className="hover:bg-slate-50">
@@ -101,10 +104,20 @@ export function InventoryPage() {
                     {row.lowStock ? <span className="badge-amber">Low Stock</span> : <span className="badge-green">OK</span>}
                   </td>
                   <td className="px-5 py-3 text-xs text-slate-500">{formatDateTime(row.updatedAt)}</td>
+                  <td className="px-5 py-3 text-right">
+                    <button
+                      className="rounded p-1.5 text-brand-600 hover:bg-brand-50"
+                      title="ดูเครื่องทีละชิ้น (IMEI) + ส่งซ่อม/เคลม"
+                      onClick={() => setSerialsFor({
+                        variantId: row.variantId, productName: row.productName, sku: row.sku,
+                      })}>
+                      <Smartphone className="h-4 w-4" />
+                    </button>
+                  </td>
                 </tr>
               ))}
               {data && data.content.length === 0 && (
-                <tr><td colSpan={9} className="px-5 py-8 text-center text-slate-400">ไม่พบข้อมูล</td></tr>
+                <tr><td colSpan={10} className="px-5 py-8 text-center text-slate-400">ไม่พบข้อมูล</td></tr>
               )}
             </tbody>
           </table>
@@ -120,6 +133,15 @@ export function InventoryPage() {
           </div>
         )}
       </div>
+
+      {serialsFor && (
+        <SerialsModal
+          variantId={serialsFor.variantId}
+          productName={serialsFor.productName}
+          sku={serialsFor.sku}
+          onClose={() => setSerialsFor(null)}
+        />
+      )}
     </div>
   );
 }

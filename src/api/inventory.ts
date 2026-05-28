@@ -6,6 +6,7 @@ import type {
   OutboundRequest,
   PageResponse,
   SerializedItemResponse,
+  ServiceActionRequest,
   StockMovementResponse,
   StockTransactionResponse,
   StockTxType,
@@ -42,4 +43,10 @@ export const inventoryApi = {
 
   adjustment: (req: AdjustmentRequest) =>
     api.post<StockMovementResponse>('/inventory/adjustment', req).then((r) => r.data),
+
+  sendToService: (serialItemId: string, req: ServiceActionRequest) =>
+    api.post<SerializedItemResponse>(`/inventory/serials/${serialItemId}/service`, req).then((r) => r.data),
+
+  backToStock: (serialItemId: string) =>
+    api.post<SerializedItemResponse>(`/inventory/serials/${serialItemId}/back-to-stock`).then((r) => r.data),
 };

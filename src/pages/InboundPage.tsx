@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import { ArrowDownToLine, Plus, Trash2 } from 'lucide-react';
 import { productsApi } from '@/api/products';
 import { inventoryApi } from '@/api/inventory';
+import { lotsApi } from '@/api/lots';
 import { extractErrorMessage } from '@/api/client';
 import { formatNumber, formatTHB } from '@/lib/format';
 
@@ -12,12 +13,34 @@ interface FormValues {
   variantId: string;
   quantity: number;
   referenceNo: string;
+  lotNo: string;
+  importDate: string;
   note: string;
   serializedItems: Array<{
     serialNumber: string;
     imei: string;
     purchasePrice: number | '';
+    condition: 'NEW' | 'SECOND_HAND';
+    batteryHealth: number | '';
+    acquisitionType: 'PURCHASE' | 'TRADE_IN' | 'OUTRIGHT';
   }>;
+}
+
+const EMPTY_SERIAL_ROW = {
+  serialNumber: '', imei: '', purchasePrice: '' as const,
+  condition: 'NEW' as const, batteryHealth: '' as const, acquisitionType: 'PURCHASE' as const,
+};
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function defaultLotNo(): string {
+  // LOT-yyyyMMdd-HHmmss → unique + human-readable
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `LOT-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`
+       + `-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
 }
 
 export function InboundPage() {
@@ -27,7 +50,11 @@ export function InboundPage() {
   } | null>(null);
 
   const { register, control, handleSubmit, reset, watch, formState: { errors } } = useForm<FormValues>({
-    defaultValues: { quantity: 1, referenceNo: '', note: '', serializedItems: [{ serialNumber: '', imei: '', purchasePrice: '' }] },
+    defaultValues: {
+      quantity: 1, referenceNo: '', note: '',
+      lotNo: defaultLotNo(), importDate: todayIso(),
+      serializedItems: [{ ...EMPTY_SERIAL_ROW }],
+    },
   });
 
   const { fields, append, remove } = useFieldArray({ control, name: 'serializedItems' });
@@ -37,17 +64,46 @@ export function InboundPage() {
     queryFn: () => productsApi.list({ size: 100, active: true }),
   });
 
-  const inbound = useMutation({
+  /** Bulk inbound (non-serialized) — no lot tracking. */
+  const bulkInbound = useMutation({
     mutationFn: inventoryApi.inbound,
     onSuccess: (data) => {
       toast.success(`รับสินค้าเข้าสำเร็จ — qty ${data.qtyBefore} → ${data.qtyAfter} (TX: ${data.transactionNo})`);
       qc.invalidateQueries({ queryKey: ['inventory'] });
       qc.invalidateQueries({ queryKey: ['alerts'] });
-      reset({ variantId: '', quantity: 1, referenceNo: '', note: '', serializedItems: [{ serialNumber: '', imei: '', purchasePrice: '' }] });
+      reset({
+        variantId: '', quantity: 1, referenceNo: '', note: '',
+        lotNo: defaultLotNo(), importDate: todayIso(),
+        serializedItems: [{ ...EMPTY_SERIAL_ROW }],
+      });
       setSelectedVariant(null);
     },
     onError: (e) => toast.error(extractErrorMessage(e)),
   });
+
+  /** Serialized (IMEI) inbound — creates a Stock Lot record automatically. */
+  const lotInbound = useMutation({
+    mutationFn: lotsApi.inbound,
+    onSuccess: (data) => {
+      const first = data[0];
+      toast.success(
+        `รับเข้าล็อตสำเร็จ — ${data.reduce((s, d) => s + (d.qtyAfter - d.qtyBefore), 0)} ชิ้น`
+        + (first ? ` (TX: ${first.transactionNo})` : '')
+      );
+      qc.invalidateQueries({ queryKey: ['inventory'] });
+      qc.invalidateQueries({ queryKey: ['alerts'] });
+      qc.invalidateQueries({ queryKey: ['lots'] });
+      reset({
+        variantId: '', quantity: 1, referenceNo: '', note: '',
+        lotNo: defaultLotNo(), importDate: todayIso(),
+        serializedItems: [{ ...EMPTY_SERIAL_ROW }],
+      });
+      setSelectedVariant(null);
+    },
+    onError: (e) => toast.error(extractErrorMessage(e)),
+  });
+
+  const submitting = bulkInbound.isPending || lotInbound.isPending;
 
   const onSubmit = (data: FormValues) => {
     if (!data.variantId) {
@@ -61,18 +117,29 @@ export function InboundPage() {
         toast.error('สินค้านี้ต้องระบุ Serial Number อย่างน้อย 1 ชิ้น');
         return;
       }
-      inbound.mutate({
-        variantId: data.variantId,
-        referenceNo: data.referenceNo || undefined,
-        note: data.note || undefined,
-        serializedItems: items.map((it) => ({
+      if (!data.lotNo.trim()) {
+        toast.error('กรุณาระบุเลขล็อต');
+        return;
+      }
+      // Serialized → use /inbound/lot so a StockLot row is created
+      lotInbound.mutate({
+        lotNo: data.lotNo.trim(),
+        importDate: data.importDate,
+        note: [data.referenceNo && `Ref: ${data.referenceNo}`, data.note]
+                .filter(Boolean).join(' | ') || undefined,
+        items: items.map((it) => ({
+          variantId: data.variantId,
           serialNumber: it.serialNumber.trim(),
           imei: it.imei.trim() || undefined,
+          condition: it.condition,
+          batteryHealth: it.batteryHealth === '' ? undefined : Number(it.batteryHealth),
+          acquisitionType: it.acquisitionType,
           purchasePrice: it.purchasePrice === '' ? undefined : Number(it.purchasePrice),
         })),
       });
     } else {
-      inbound.mutate({
+      // Bulk (accessory) → no lot tracking needed
+      bulkInbound.mutate({
         variantId: data.variantId,
         quantity: Number(data.quantity),
         referenceNo: data.referenceNo || undefined,
@@ -133,6 +200,35 @@ export function InboundPage() {
               </div>
             )}
 
+            {/* Lot tracking (Serialized only) */}
+            {selectedVariant?.serialized && (
+              <div className="rounded-md border border-purple-200 bg-purple-50 p-3">
+                <div className="mb-2 text-xs font-semibold uppercase text-purple-800">
+                  📦 ข้อมูลล็อต (สำหรับมือถือ — บันทึกใน Stock Lots)
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="mb-1 block text-sm font-medium">
+                      เลขล็อต (Lot No) <span className="text-red-500">*</span>
+                    </label>
+                    <input className="input font-mono text-xs"
+                           placeholder="LOT-yyyyMMdd-HHmmss"
+                           {...register('lotNo', { required: 'จำเป็น' })} />
+                    <p className="mt-1 text-xs text-slate-500">
+                      ระบบสร้างให้อัตโนมัติ — แก้เป็นเลขจริงของ supplier ได้
+                    </p>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium">
+                      วันที่นำเข้า <span className="text-red-500">*</span>
+                    </label>
+                    <input type="date" className="input"
+                           {...register('importDate', { required: true })} />
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="mb-1 block text-sm font-medium">
@@ -152,7 +248,9 @@ export function InboundPage() {
 
             <div className="rounded-md bg-blue-50 px-3 py-2 text-xs text-blue-800">
               💡 <strong>เลขเอกสารอ้างอิง</strong> เอาจากใบ PO / Invoice / ใบส่งของที่ supplier ออกให้คุณ
-              (ลอกตัวเลขมาใส่) — ถ้าไม่มีเอกสาร <strong>เว้นว่างได้</strong>
+              {selectedVariant?.serialized
+                ? ' — จะถูกบันทึกใน "หมายเหตุล็อต" เพื่อ trace กลับได้'
+                : ' — ถ้าไม่มีเอกสาร เว้นว่างได้'}
             </div>
 
             <div>
@@ -172,42 +270,76 @@ export function InboundPage() {
             <div className="card-header flex items-center justify-between">
               <span>รายการ Serial / IMEI ({formatNumber(fields.length)} ชิ้น)</span>
               <button type="button" className="btn-secondary"
-                      onClick={() => append({ serialNumber: '', imei: '', purchasePrice: '' })}>
+                      onClick={() => append({ ...EMPTY_SERIAL_ROW })}>
                 <Plus className="h-4 w-4" /> เพิ่มเครื่อง
               </button>
             </div>
             <div className="card-body space-y-3">
-              {fields.map((field, idx) => (
-                <div key={field.id} className="grid grid-cols-12 gap-2 rounded-md border border-slate-200 p-3">
-                  <div className="col-span-4">
-                    <label className="text-xs text-slate-500">Serial Number *</label>
-                    <input className="input" autoFocus={idx === fields.length - 1}
-                           {...register(`serializedItems.${idx}.serialNumber` as const)} />
+              {fields.map((field, idx) => {
+                const isUsed = watch(`serializedItems.${idx}.condition`) === 'SECOND_HAND';
+                return (
+                <div key={field.id} className="space-y-2 rounded-md border border-slate-200 p-3">
+                  {/* row 1: SN + IMEI + remove */}
+                  <div className="grid grid-cols-12 gap-2">
+                    <div className="col-span-5">
+                      <label className="text-xs text-slate-500">Serial Number *</label>
+                      <input className="input" autoFocus={idx === fields.length - 1}
+                             {...register(`serializedItems.${idx}.serialNumber` as const)} />
+                    </div>
+                    <div className="col-span-6">
+                      <label className="text-xs text-slate-500">IMEI (Optional)</label>
+                      <input className="input" {...register(`serializedItems.${idx}.imei` as const)} />
+                    </div>
+                    <div className="col-span-1 flex items-end justify-center">
+                      <button type="button" className="rounded p-2 text-red-600 hover:bg-red-50"
+                              onClick={() => remove(idx)} disabled={fields.length === 1}>
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
                   </div>
-                  <div className="col-span-4">
-                    <label className="text-xs text-slate-500">IMEI (Optional)</label>
-                    <input className="input" {...register(`serializedItems.${idx}.imei` as const)} />
-                  </div>
-                  <div className="col-span-3">
-                    <label className="text-xs text-slate-500">Purchase Price</label>
-                    <input type="number" step="0.01" className="input"
-                           {...register(`serializedItems.${idx}.purchasePrice` as const)} />
-                  </div>
-                  <div className="col-span-1 flex items-end justify-center">
-                    <button type="button" className="rounded p-2 text-red-600 hover:bg-red-50"
-                            onClick={() => remove(idx)} disabled={fields.length === 1}>
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                  {/* row 2: condition + battery + acquisition + price */}
+                  <div className="grid grid-cols-12 gap-2">
+                    <div className="col-span-3">
+                      <label className="text-xs text-slate-500">สภาพเครื่อง</label>
+                      <select className="input" {...register(`serializedItems.${idx}.condition` as const)}>
+                        <option value="NEW">มือ 1 (NEW)</option>
+                        <option value="SECOND_HAND">มือ 2 (Used)</option>
+                      </select>
+                    </div>
+                    <div className="col-span-3">
+                      <label className="text-xs text-slate-500">
+                        สุขภาพแบต % {isUsed && <span className="text-amber-600">(แนะนำ)</span>}
+                      </label>
+                      <input type="number" min={0} max={100} className="input"
+                             placeholder={isUsed ? 'เช่น 87' : '100'}
+                             {...register(`serializedItems.${idx}.batteryHealth` as const)} />
+                    </div>
+                    <div className="col-span-3">
+                      <label className="text-xs text-slate-500">ที่มาเครื่อง</label>
+                      <select className="input" {...register(`serializedItems.${idx}.acquisitionType` as const)}>
+                        <option value="PURCHASE">ซื้อมา</option>
+                        <option value="TRADE_IN">เทิร์น</option>
+                        <option value="OUTRIGHT">ซื้อขายขาด</option>
+                      </select>
+                    </div>
+                    <div className="col-span-3">
+                      <label className="text-xs text-slate-500">ราคาทุน</label>
+                      <input type="number" step="0.01" className="input"
+                             {...register(`serializedItems.${idx}.purchasePrice` as const)} />
+                    </div>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
 
         <div className="flex justify-end gap-2">
-          <button type="submit" className="btn-primary" disabled={inbound.isPending}>
-            {inbound.isPending ? 'กำลังบันทึก...' : 'บันทึกการรับเข้า'}
+          <button type="submit" className="btn-primary" disabled={submitting}>
+            {submitting ? 'กำลังบันทึก...'
+              : selectedVariant?.serialized ? 'บันทึกล็อตการรับเข้า'
+              : 'บันทึกการรับเข้า'}
           </button>
         </div>
       </form>
