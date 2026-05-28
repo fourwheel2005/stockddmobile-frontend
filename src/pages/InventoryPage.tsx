@@ -31,7 +31,7 @@ export function InventoryPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Inventory</h1>
+          <h1 className="page-title">Inventory</h1>
           <p className="text-sm text-slate-500">รายการสต็อกทั้งหมด</p>
         </div>
         <label className="flex items-center gap-2 text-sm">

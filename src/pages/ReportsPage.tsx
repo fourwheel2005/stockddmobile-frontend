@@ -49,7 +49,7 @@ export function ReportsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="flex items-center gap-2 text-2xl font-bold">
+          <h1 className="flex items-center gap-2 page-title">
             <BarChart3 className="h-6 w-6 text-brand-600" /> รายงาน & วิเคราะห์
           </h1>
           <p className="text-sm text-slate-500">
@@ -216,12 +216,12 @@ function KpiCard({ icon, label, value, sub, color }: {
   icon: React.ReactNode; label: string; value: string; sub?: string; color: string;
 }) {
   return (
-    <div className="card">
+    <div className="card group transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
       <div className="card-body flex items-start gap-4">
-        <div className={`flex h-12 w-12 items-center justify-center rounded-lg ${color}`}>{icon}</div>
+        <div className={`flex h-12 w-12 items-center justify-center rounded-xl transition-transform duration-200 group-hover:scale-105 ${color}`}>{icon}</div>
         <div className="min-w-0">
           <div className="text-xs text-slate-500">{label}</div>
-          <div className="truncate text-2xl font-bold">{value}</div>
+          <div className="truncate font-display text-2xl font-bold tracking-tight">{value}</div>
           {sub && <div className="mt-1 text-xs text-slate-500">{sub}</div>}
         </div>
       </div>

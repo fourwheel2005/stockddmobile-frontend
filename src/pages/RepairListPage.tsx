@@ -80,7 +80,7 @@ export function RepairListPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="flex items-center gap-2 text-2xl font-bold">
+        <h1 className="flex items-center gap-2 page-title">
           <Wrench className="h-6 w-6 text-amber-600" /> งานซ่อม / เคลม (Repair Tickets)
         </h1>
         <p className="text-sm text-slate-500">ติดตามงานรับซ่อมเครื่องของลูกค้า</p>

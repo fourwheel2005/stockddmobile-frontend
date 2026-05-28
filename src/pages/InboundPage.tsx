@@ -179,7 +179,7 @@ export function InboundPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="flex items-center gap-2 text-2xl font-bold">
+        <h1 className="flex items-center gap-2 page-title">
           <ArrowDownToLine className="h-6 w-6 text-emerald-600" /> รับสินค้าเข้าสต็อก
         </h1>
         <p className="text-sm text-slate-500">บันทึกการรับสินค้าเข้า (Inbound)</p>

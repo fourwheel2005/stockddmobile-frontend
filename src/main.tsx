@@ -12,7 +12,9 @@ const queryClient = new QueryClient({
     queries: {
       staleTime: 10_000,
       retry: 1,
-      refetchOnWindowFocus: false,
+      // อัปเดตข้อมูลให้สดเหมือน real-time:
+      refetchOnWindowFocus: true,   // กลับมาที่แท็บ → รีเฟรช
+      refetchOnReconnect: true,     // เน็ตกลับมา → รีเฟรช
     },
   },
 });

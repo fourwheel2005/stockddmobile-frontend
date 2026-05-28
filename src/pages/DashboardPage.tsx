@@ -45,7 +45,7 @@ export function DashboardPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Dashboard</h1>
+          <h1 className="page-title">Dashboard</h1>
           <p className="text-sm text-slate-500">ภาพรวมระบบสต็อก</p>
         </div>
         {justUpdated && (
@@ -142,12 +142,12 @@ function StatCard({ icon, label, value, color }: {
   color: string;
 }) {
   return (
-    <div className="card">
+    <div className="card group transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
       <div className="card-body flex items-center gap-4">
-        <div className={`flex h-12 w-12 items-center justify-center rounded-lg ${color}`}>{icon}</div>
+        <div className={`flex h-12 w-12 items-center justify-center rounded-xl transition-transform duration-200 group-hover:scale-105 ${color}`}>{icon}</div>
         <div>
           <div className="text-xs text-slate-500">{label}</div>
-          <div className="text-2xl font-bold">{value}</div>
+          <div className="font-display text-2xl font-bold tracking-tight">{value}</div>
         </div>
       </div>
     </div>

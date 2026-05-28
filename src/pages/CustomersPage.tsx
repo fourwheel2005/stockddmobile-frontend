@@ -20,7 +20,7 @@ export function CustomersPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="flex items-center gap-2 text-2xl font-bold">
+          <h1 className="flex items-center gap-2 page-title">
             <Users className="h-6 w-6 text-brand-600" /> ลูกค้า (Customers)
           </h1>
           <p className="text-sm text-slate-500">จัดการข้อมูลลูกค้า</p>

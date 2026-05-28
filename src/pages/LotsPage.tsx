@@ -14,7 +14,7 @@ export function LotsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="flex items-center gap-2 text-2xl font-bold">
+        <h1 className="flex items-center gap-2 page-title">
           <Layers className="h-6 w-6 text-brand-600" /> ล็อตการนำเข้า (Stock Lots)
         </h1>
         <p className="text-sm text-slate-500">ประวัติการรับสินค้าเข้าแบบเป็นล็อต</p>

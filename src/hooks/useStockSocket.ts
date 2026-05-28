@@ -11,6 +11,26 @@ const devLog = (...args: unknown[]) => {
 };
 
 /**
+ * query keys ที่ควร refresh เมื่อสต็อกเปลี่ยน — ครอบทุกหน้าที่อิงข้อมูลสต็อก/ยอดขาย
+ * (invalidateQueries จับแบบ prefix → ['inventory'] ครอบ ['inventory',{...}] ด้วย)
+ */
+const STOCK_INVALIDATION_KEYS: Array<readonly unknown[]> = [
+  ['inventory'],
+  ['transactions'],
+  ['products'],
+  ['in-stock-items'],
+  ['serials'],
+  ['lots'],
+  ['sales-orders'],
+  ['report-summary'],
+  ['report-daily'],
+  ['report-top'],
+  ['report-inv'],
+  ['report-payments'],
+  ['alerts'],
+];
+
+/**
  * Connects to backend STOMP WebSocket and subscribes to topics that drive
  * real-time UI updates:
  *  - /topic/stock-updates → invalidate inventory + transactions caches
@@ -56,8 +76,10 @@ export function useStockSocket() {
           const payload: StockUpdatedMessage = JSON.parse(msg.body);
           devLog('[WS] 📡 stock-update', payload);
           recordEvent();
-          queryClient.invalidateQueries({ queryKey: ['inventory'] });
-          queryClient.invalidateQueries({ queryKey: ['transactions'] });
+          // อัปเดตสดทุกหน้าที่อาจได้รับผลจากการเปลี่ยนสต็อก
+          STOCK_INVALIDATION_KEYS.forEach((key) =>
+            queryClient.invalidateQueries({ queryKey: key })
+          );
           queryClient.invalidateQueries({ queryKey: ['product', payload.variantId] });
 
           toast(
@@ -71,6 +93,7 @@ export function useStockSocket() {
           devLog('[WS] 🔔 alert', payload);
           recordEvent();
           queryClient.invalidateQueries({ queryKey: ['alerts'] });
+          queryClient.invalidateQueries({ queryKey: ['inventory'] });
           toast.error(
             `⚠️ Low Stock: ${payload.productName} (${payload.sku}) เหลือ ${payload.currentQty}/${payload.thresholdQty}`,
             { duration: 6000 }

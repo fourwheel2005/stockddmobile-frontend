@@ -24,7 +24,7 @@ export function ProductsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">สินค้า (Products)</h1>
+          <h1 className="page-title">สินค้า (Products)</h1>
           <p className="text-sm text-slate-500">จัดการสินค้าและรุ่นย่อย (Variants)</p>
         </div>
         {canEdit && (

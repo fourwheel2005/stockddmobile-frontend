@@ -35,7 +35,7 @@ export function ProductDetailPage() {
         <div className="card-body space-y-3">
           <div className="flex items-start justify-between">
             <div>
-              <h1 className="text-2xl font-bold">{product.name}</h1>
+              <h1 className="page-title">{product.name}</h1>
               <div className="mt-1 text-sm text-slate-500">
                 {product.brand} {product.modelNumber && `· ${product.modelNumber}`} · {product.category.name}
               </div>

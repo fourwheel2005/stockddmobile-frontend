@@ -8,27 +8,37 @@ html, body, #root {
 
 body {
   @apply bg-slate-50 text-slate-900 antialiased;
-  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  font-family: 'IBM Plex Sans Thai', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 
 /* shared form controls */
 .input {
-  @apply w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm
-         shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30;
+  @apply w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm
+         shadow-sm outline-none transition-all duration-200
+         placeholder:text-slate-400
+         focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15;
 }
 
 .btn {
-  @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium
-         transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+  @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium
+         transition-all duration-200 active:scale-[0.97]
+         disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100;
 }
-.btn-primary { @apply btn bg-brand-600 text-white hover:bg-brand-700; }
-.btn-secondary { @apply btn bg-slate-200 text-slate-800 hover:bg-slate-300; }
-.btn-danger { @apply btn bg-red-600 text-white hover:bg-red-700; }
+.btn-primary { @apply btn bg-brand-600 text-white shadow-sm shadow-brand-600/20 hover:bg-brand-700 hover:shadow-brand-700/25; }
+.btn-secondary { @apply btn border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50 hover:text-slate-900; }
+.btn-danger { @apply btn bg-red-600 text-white shadow-sm shadow-red-600/20 hover:bg-red-700; }
 .btn-ghost { @apply btn text-slate-700 hover:bg-slate-100; }
 
-.card { @apply rounded-lg border border-slate-200 bg-white shadow-sm; }
-.card-header { @apply border-b border-slate-200 px-5 py-3 font-semibold; }
+.card { @apply rounded-xl border border-slate-200/80 bg-white shadow-sm; }
+.card-header { @apply border-b border-slate-200/80 px-5 py-3 font-semibold; }
 .card-body { @apply p-5; }
+
+/* entrance animation สำหรับเนื้อหาแต่ละหน้า */
+.page-enter { @apply animate-fade-up; }
+
+/* หัวเรื่องหน้า (ใช้ร่วมกันทุกหน้า) */
+.page-title { @apply font-display text-2xl font-bold tracking-tight text-slate-900; }
+.page-subtitle { @apply mt-0.5 text-sm text-slate-500; }
 
 .badge { @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium; }
 .badge-green { @apply badge bg-emerald-100 text-emerald-800; }
