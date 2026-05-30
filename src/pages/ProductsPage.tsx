@@ -28,9 +28,9 @@ export function ProductsPage() {
           <p className="text-sm text-slate-500">จัดการสินค้าและรุ่นย่อย (Variants)</p>
         </div>
         {canEdit && (
-          <button className="btn-primary" onClick={() => setShowModal(true)}>
-            <Plus className="h-4 w-4" /> เพิ่มสินค้า
-          </button>
+          <Link to="/products/new" className="btn-primary">
+            <Plus className="h-4 w-4" /> เพิ่มสินค้า (หน้าเดียว)
+          </Link>
         )}
       </div>
 

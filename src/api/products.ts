@@ -6,6 +6,7 @@ import type {
   PageResponse,
   ProductDetail,
   ProductSummary,
+  ProductWizardRequest,
   VariantResponse,
 } from '@/types/api';
 
@@ -18,6 +19,10 @@ export const productsApi = {
 
   create: (req: CreateProductRequest) =>
     api.post<ProductDetail>('/products', req).then((r) => r.data),
+
+  /** One-page wizard — สร้าง Product + Variant + รับสต็อกครั้งแรก ในธุรกรรมเดียว (atomic) */
+  createWizard: (req: ProductWizardRequest) =>
+    api.post<ProductDetail>('/products/wizard', req).then((r) => r.data),
 
   update: (id: string, req: CreateProductRequest & { active: boolean }) =>
     api.put<ProductDetail>(`/products/${id}`, req).then((r) => r.data),

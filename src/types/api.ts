@@ -104,6 +104,53 @@ export interface CreateVariantRequest {
   imageUrl?: string;
 }
 
+// ─── Product Wizard (สร้างหน้าเดียว — atomic, รองรับหลาย variants) ────
+export interface WizardVariantSpec {
+  sku: string;
+  color?: string;
+  storage?: string;
+  network?: string;
+  barcode?: string;
+  costPrice: number;
+  sellingPrice: number;
+  reorderPoint: number;
+  imageUrl?: string;
+}
+
+export interface WizardInitialItem {
+  serialNumber: string;
+  imei?: string;
+  imei2?: string;
+  condition?: 'NEW' | 'SECOND_HAND' | 'LIKE_NEW' | 'REFURBISHED' | 'DEFECTIVE';
+  batteryHealth?: number;
+  acquisitionType?: AcquisitionType;
+  purchasePrice?: number;
+  warrantyTerms?: string;
+}
+
+export interface WizardVariantBlock {
+  spec: WizardVariantSpec;
+  // เลือกอย่างใดอย่างหนึ่ง:
+  quantity?: number;              // bulk
+  items?: WizardInitialItem[];    // serialized
+}
+
+export interface ProductWizardRequest {
+  // Product
+  categoryId: string;
+  name: string;
+  brand?: string;
+  modelNumber?: string;
+  description?: string;
+  serialized: boolean;
+  // ≥1 variants
+  variants: WizardVariantBlock[];
+  // shared lot info (serialized only, optional)
+  lotNo?: string;
+  importDate?: string;   // YYYY-MM-DD
+  note?: string;
+}
+
 // ─── Inventory ────────────────────────────────────────────────────────────
 
 export interface InventoryResponse {

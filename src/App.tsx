@@ -6,6 +6,7 @@ import { DashboardPage } from '@/pages/DashboardPage';
 import { InventoryPage } from '@/pages/InventoryPage';
 import { ProductsPage } from '@/pages/ProductsPage';
 import { ProductDetailPage } from '@/pages/ProductDetailPage';
+import { ProductWizardPage } from '@/pages/ProductWizardPage';
 import { InboundPage } from '@/pages/InboundPage';
 import { OutboundPage } from '@/pages/OutboundPage';
 import { TransactionsPage } from '@/pages/TransactionsPage';
@@ -31,6 +32,7 @@ export default function App() {
           <Route path="/" element={<DashboardPage />} />
           <Route path="/inventory" element={<InventoryPage />} />
           <Route path="/products" element={<ProductsPage />} />
+          <Route path="/products/new" element={<ProductWizardPage />} />
           <Route path="/products/:id" element={<ProductDetailPage />} />
           <Route path="/outbound" element={<OutboundPage />} />
           <Route path="/pos" element={<PosTerminalPage />} />
