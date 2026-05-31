@@ -9,6 +9,8 @@ import { inventoryApi } from '@/api/inventory';
 import { lotsApi } from '@/api/lots';
 import { extractErrorMessage } from '@/api/client';
 import { formatNumber, formatTHB } from '@/lib/format';
+import { ACQ_INFO, ACQ_ORDER } from '@/lib/acquisition';
+import type { AcquisitionType } from '@/types/api';
 
 interface FormValues {
   variantId: string;
@@ -23,7 +25,7 @@ interface FormValues {
     purchasePrice: number | '';
     condition: 'NEW' | 'SECOND_HAND';
     batteryHealth: number | '';
-    acquisitionType: 'PURCHASE' | 'TRADE_IN' | 'OUTRIGHT';
+    acquisitionType: AcquisitionType;
   }>;
 }
 
@@ -321,9 +323,16 @@ export function InboundPage() {
                     <div className="col-span-3">
                       <label className="text-xs text-slate-500">ที่มาเครื่อง</label>
                       <select className="input" {...register(`serializedItems.${idx}.acquisitionType` as const)}>
-                        <option value="PURCHASE">ซื้อมา</option>
-                        <option value="TRADE_IN">เทิร์น</option>
-                        <option value="OUTRIGHT">ซื้อขายขาด</option>
+                        <optgroup label="ประเภทธุรกรรม">
+                          {ACQ_ORDER.filter((k) => ACQ_INFO[k].group === 'TXN').map((k) => (
+                            <option key={k} value={k} title={ACQ_INFO[k].help}>{ACQ_INFO[k].th}</option>
+                          ))}
+                        </optgroup>
+                        <optgroup label="ซัพพลายเออร์">
+                          {ACQ_ORDER.filter((k) => ACQ_INFO[k].group === 'SUPPLIER').map((k) => (
+                            <option key={k} value={k} title={ACQ_INFO[k].help}>{ACQ_INFO[k].th}</option>
+                          ))}
+                        </optgroup>
                       </select>
                     </div>
                     <div className="col-span-3">

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   type Control, type UseFormGetValues, type UseFormRegister, type UseFormSetValue,
@@ -15,7 +15,8 @@ import { categoriesApi, productsApi } from '@/api/products';
 import { filesApi } from '@/api/files';
 import { extractErrorMessage } from '@/api/client';
 import { formatTHB } from '@/lib/format';
-import type { ProductWizardRequest } from '@/types/api';
+import { ACQ_INFO, ACQ_ORDER } from '@/lib/acquisition';
+import type { AddVariantWithStockRequest, ProductWizardRequest } from '@/types/api';
 
 /* ─── datalists ────────────────────────────────────────────────────────── */
 const STORAGE_SUGGESTIONS = ['64GB', '128GB', '256GB', '512GB', '1TB'];
@@ -26,13 +27,9 @@ const COLOR_SUGGESTIONS = [
 ];
 
 type Condition = 'NEW' | 'SECOND_HAND';
-type Acq = 'PURCHASE' | 'TRADE_IN' | 'OUTRIGHT';
-
-const ACQ_LABELS: Record<Acq, { th: string; help: string }> = {
-  PURCHASE:  { th: 'ซื้อปกติ',   help: 'ซื้อเครื่องเข้าร้านจากซัพพลายเออร์' },
-  TRADE_IN:  { th: 'รับเทิร์น',  help: 'รับเทิร์นจากลูกค้า (มักเป็นมือ 2)' },
-  OUTRIGHT:  { th: 'ซื้อขาด',   help: 'ซื้อขายขาด — ไม่รับคืน/เคลม' },
-};
+type Acq =
+  | 'PURCHASE' | 'TRADE_IN' | 'OUTRIGHT'
+  | 'ICE' | 'BORROW' | 'P_GREEN' | 'GREETER' | 'RED_HEAT' | 'AMP_MOBILE';
 
 interface ItemRow {
   serialNumber: string;
@@ -101,9 +98,31 @@ function generateSku(name: string, color: string, storage: string, network: stri
 
 /* ══════════════════════════════════════════════════════════════════════ */
 
+type WizardMode = 'CREATE_NEW' | 'ADD_VARIANT' | 'CLONE_TO_NEW';
+
 export function ProductWizardPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
+
+  /* ─── Mode detection from URL ──────────────────────────────────────── */
+  const params = useParams<{ productId?: string }>();
+  const [searchParams] = useSearchParams();
+  const addVariantProductId = params.productId;
+  const cloneProductId = searchParams.get('cloneProduct') ?? undefined;
+  const cloneFromVariantId = searchParams.get('cloneFrom') ?? undefined;
+
+  const mode: WizardMode =
+    addVariantProductId ? 'ADD_VARIANT' :
+    cloneProductId ? 'CLONE_TO_NEW' : 'CREATE_NEW';
+
+  /* ─── Fetch source product (สำหรับ ADD_VARIANT หรือ CLONE_TO_NEW) ─── */
+  const sourceProductId = addVariantProductId ?? cloneProductId;
+  const sourceProductQuery = useQuery({
+    queryKey: ['product', sourceProductId],
+    queryFn: () => productsApi.get(sourceProductId!),
+    enabled: !!sourceProductId,
+  });
+  const sourceProduct = sourceProductQuery.data;
 
   const { register, control, handleSubmit, watch, setValue, getValues, reset, formState: { errors } } = useForm<FormValues>({
     defaultValues: {
@@ -187,6 +206,55 @@ export function ProductWizardPage() {
     setProductImageUrl('');
   };
 
+  /* ─── Pre-fill form when source product loads (ADD_VARIANT / CLONE) ─ */
+  const prefilledRef = useRef(false);
+  useEffect(() => {
+    if (!sourceProduct || prefilledRef.current) return;
+    prefilledRef.current = true;
+
+    // หา source variant (สำหรับ ADD_VARIANT + cloneFrom หรือ CLONE_TO_NEW = variant แรก)
+    const sourceVariant = cloneFromVariantId
+      ? sourceProduct.variants.find((v) => v.id === cloneFromVariantId)
+      : sourceProduct.variants[0];
+
+    const baseVariant: VariantBlockForm = {
+      spec: {
+        sku: '',                                              // clear (auto-gen ใหม่)
+        color: sourceVariant?.color ?? '',
+        storage: sourceVariant?.storage ?? '',
+        network: sourceVariant?.network ?? '',
+        barcode: '',                                          // clear (unique)
+        costPrice: sourceVariant?.costPrice ?? '',
+        sellingPrice: sourceVariant?.sellingPrice ?? '',
+        reorderPoint: sourceVariant?.reorderPoint ?? (sourceProduct.serialized ? 2 : 5),
+      },
+      quantity: '',                                           // reset stock
+      items: [{ ...EMPTY_ROW }],                              // reset IMEIs
+    };
+
+    reset({
+      categoryId: sourceProduct.category.id,
+      // CLONE_TO_NEW: ให้ user ตั้งชื่อใหม่ (ห้ามชื่อซ้ำ Product)
+      // ADD_VARIANT: ชื่อใช้ของเดิม (read-only summary)
+      name: mode === 'ADD_VARIANT' ? sourceProduct.name : '',
+      brand: sourceProduct.brand,
+      modelNumber: sourceProduct.modelNumber ?? '',
+      description: sourceProduct.description ?? '',
+      serialized: sourceProduct.serialized,
+      variants: [baseVariant],
+      lotNo: '',
+      importDate: todayIso(),
+      lotNote: '',
+      withInitialStock: true,
+    });
+
+    if (sourceVariant?.imageUrl) {
+      setProductImageUrl(sourceVariant.imageUrl);
+      setImagePreview(sourceVariant.imageUrl);   // server URL ใช้แสดง preview ได้ (ผ่าน proxy)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sourceProduct]);
+
   /* ─── Smart reorder default when serialized toggles ────────────────── */
   useEffect(() => {
     variantFields.forEach((_, idx) => {
@@ -257,7 +325,7 @@ export function ProductWizardPage() {
             <div>
               <div className="font-semibold">สร้างสินค้าสำเร็จ</div>
               <div className="text-xs text-slate-500">
-                {product.name} · {product.variants?.length ?? 0} รุ่นย่อย
+                {product.name} · {product.variants?.length ?? 0} รายการ
               </div>
             </div>
             <button onClick={() => { toast.dismiss(t.id); resetForNew(); }}
@@ -269,6 +337,21 @@ export function ProductWizardPage() {
         { duration: 5000 }
       );
       navigate(`/products/${product.id}`);
+    },
+    onError: (e) => toast.error(extractErrorMessage(e)),
+  });
+
+  /** Submit สำหรับ ADD_VARIANT mode — เพิ่ม SKU ใหม่ใน Product ที่มีอยู่ + รับสต็อก. */
+  const submitAddVariant = useMutation({
+    mutationFn: (req: AddVariantWithStockRequest) =>
+      productsApi.addVariantWithStock(addVariantProductId!, req),
+    onSuccess: (variant) => {
+      qc.invalidateQueries({ queryKey: ['product', addVariantProductId] });
+      qc.invalidateQueries({ queryKey: ['products'] });
+      qc.invalidateQueries({ queryKey: ['inventory'] });
+      qc.invalidateQueries({ queryKey: ['lots'] });
+      toast.success(`เพิ่ม SKU ${variant.sku} แล้ว`, { duration: 2500 });
+      navigate(`/products/${addVariantProductId}`);
     },
     onError: (e) => toast.error(extractErrorMessage(e)),
   });
@@ -381,10 +464,26 @@ export function ProductWizardPage() {
     };
   };
 
+  /** แปลง wizard payload → AddVariantWithStockRequest (single variant). */
+  const buildAddVariantPayload = (req: ProductWizardRequest): AddVariantWithStockRequest => ({
+    variant: req.variants[0],
+    lotNo: req.lotNo,
+    importDate: req.importDate,
+    note: req.note,
+  });
+
   const onSubmit = (d: FormValues) => {
     const req = buildPayload(d);
     if (!req) return;
-    // confirm modal if items > 5 or variants > 1
+
+    if (mode === 'ADD_VARIANT') {
+      // SKU เดียว → ส่งไป endpoint /products/{id}/variants-with-stock
+      if (summary.count > 5) { setShowConfirm(true); return; }
+      submitAddVariant.mutate(buildAddVariantPayload(req));
+      return;
+    }
+
+    // CREATE_NEW / CLONE_TO_NEW → wizard endpoint
     if (summary.count > 5 || req.variants.length > 1) {
       setShowConfirm(true);
       return;
@@ -397,7 +496,11 @@ export function ProductWizardPage() {
     const req = buildPayload(d);
     if (!req) return;
     setShowConfirm(false);
-    submit.mutate(req);
+    if (mode === 'ADD_VARIANT') {
+      submitAddVariant.mutate(buildAddVariantPayload(req));
+    } else {
+      submit.mutate(req);
+    }
   };
 
   /* ─── Progress steps ──────────────────────────────────────────────── */
@@ -428,15 +531,22 @@ export function ProductWizardPage() {
       <header className="space-y-3">
         <div>
           <h1 className="page-title flex items-center gap-2">
-            <Sparkles className="h-6 w-6 text-brand-600" /> สร้างสินค้าใหม่
+            <Sparkles className="h-6 w-6 text-brand-600" />
+            {mode === 'ADD_VARIANT' ? 'เพิ่มสี/ความจุของรุ่นนี้'
+             : mode === 'CLONE_TO_NEW' ? 'สร้างสินค้าใหม่ (คัดลอกจากรุ่นเดิม)'
+             : 'สร้างสินค้าใหม่'}
           </h1>
           <p className="page-subtitle">
-            สร้าง 1 รุ่น + หลายรุ่นย่อย + รับสต็อก ครั้งเดียวจบ · ทำในธุรกรรมเดียว ล้มที่ไหน rollback ทั้งหมด
+            {mode === 'ADD_VARIANT'
+              ? 'เพิ่ม SKU ใหม่ของรุ่นเดิม (เช่น สีอื่น/ความจุอื่น) + รับเข้าสต็อก ครั้งเดียวจบ'
+              : mode === 'CLONE_TO_NEW'
+              ? 'คัดลอกข้อมูลจากรุ่นเดิมเป็นเทมเพลต — ตั้งชื่อใหม่และแก้ตามต้องการ'
+              : 'กรอกข้อมูลสินค้า + ราคา + รับสต็อก ในฟอร์มเดียว กดบันทึกครั้งเดียวจบ'}
           </p>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <ol className="flex flex-wrap items-center gap-2 text-xs">
-            {['ข้อมูลรุ่น', 'รุ่นย่อย & ราคา', 'รับเข้าสต็อก'].map((label, i) => (
+            {['ข้อมูลสินค้า', 'ราคา & SKU', 'รับเข้าสต็อก'].map((label, i) => (
               <li key={label} className="flex items-center gap-2">
                 <span className={`grid h-6 w-6 place-items-center rounded-full text-[11px] font-bold transition-all ${
                   steps[i] ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-500'
@@ -467,9 +577,42 @@ export function ProductWizardPage() {
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         {/* ─── 1. ข้อมูลรุ่น ─────────────────────────────────────────── */}
+        {mode === 'ADD_VARIANT' && sourceProduct ? (
+          <section className="card border-brand-200 bg-brand-50/40">
+            <div className="card-body flex flex-wrap items-start gap-4">
+              {(imagePreview || productImageUrl) && (
+                <img src={imagePreview || productImageUrl} alt={sourceProduct.name}
+                     className="h-16 w-16 shrink-0 rounded-lg object-cover ring-1 ring-slate-200" />
+              )}
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-semibold uppercase tracking-wide text-brand-700">
+                  กำลังเพิ่ม SKU ในรุ่นนี้
+                </div>
+                <div className="mt-1 text-lg font-bold text-slate-900">{sourceProduct.name}</div>
+                <div className="text-sm text-slate-500">
+                  {sourceProduct.brand}
+                  {sourceProduct.modelNumber && ` · ${sourceProduct.modelNumber}`}
+                  {' · '}{sourceProduct.category.name}
+                  {' · '}{sourceProduct.serialized ? 'นับชิ้น (IMEI)' : 'นับจำนวน (Bulk)'}
+                </div>
+                <div className="mt-2 text-xs text-slate-500">
+                  มี {sourceProduct.variants.length} SKU อยู่แล้ว — กรอกด้านล่างเพื่อเพิ่ม SKU ที่ {sourceProduct.variants.length + 1}
+                </div>
+              </div>
+              <Link to={`/products/${sourceProduct.id}`} className="btn-ghost text-xs">
+                <ArrowLeft className="h-3.5 w-3.5" /> กลับไปดูรุ่น
+              </Link>
+            </div>
+          </section>
+        ) : (
         <section className="card">
           <div className="card-header flex items-center gap-2">
-            <Package className="h-4 w-4 text-brand-600" /> 1. ข้อมูลรุ่น (ใช้ร่วมกันทุกรุ่นย่อย)
+            <Package className="h-4 w-4 text-brand-600" />
+            {mode === 'CLONE_TO_NEW'
+              ? '1. ข้อมูลสินค้า (คัดลอกแล้ว — ตั้งชื่อใหม่)'
+              : variantFields.length === 1
+              ? '1. ข้อมูลสินค้า'
+              : '1. ข้อมูลรุ่น (ใช้ร่วมกันทุก SKU)'}
           </div>
           <div className="card-body grid gap-4 md:grid-cols-2">
             <div className="md:col-span-2">
@@ -589,16 +732,28 @@ export function ProductWizardPage() {
             </>)}
           </div>
         </section>
+        )}
 
         {/* ─── 2. Variants list ──────────────────────────────────────── */}
         <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="font-display text-lg font-bold text-slate-800">
-              {expressMode
-                ? 'ข้อมูลเครื่อง + ราคา'
-                : <>2. รุ่นย่อย <span className="text-sm font-normal text-slate-500">({variantFields.length} รายการ)</span></>}
-            </h2>
-            {!expressMode && (
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="font-display text-lg font-bold text-slate-800">
+                {expressMode
+                  ? 'ข้อมูลเครื่อง + ราคา'
+                  : mode === 'ADD_VARIANT'
+                  ? 'SKU ใหม่ + ราคา + รับสต็อก'
+                  : variantFields.length === 1
+                  ? '2. ราคา + รับเข้าสต็อก'
+                  : <>2. สี/ความจุที่มี <span className="text-sm font-normal text-slate-500">({variantFields.length} SKU)</span></>}
+              </h2>
+              {!expressMode && mode === 'CREATE_NEW' && variantFields.length === 1 && (
+                <p className="mt-0.5 text-xs text-slate-500">
+                  💡 ขายสี/ความจุเดียว → กรอกแค่นี้พอ · มีหลายแบบ กด <strong>"+ เพิ่มสี/ความจุอื่น"</strong> ด้านล่าง
+                </p>
+              )}
+            </div>
+            {!expressMode && mode !== 'ADD_VARIANT' && (
               <div className="flex gap-2">
                 <button type="button"
                         onClick={() => {
@@ -616,7 +771,7 @@ export function ProductWizardPage() {
                 <button type="button"
                         onClick={() => appendVariant(newVariant(serialized ? 2 : 5))}
                         className="btn-primary">
-                  <Plus className="h-4 w-4" /> เพิ่มรุ่นย่อย
+                  <Plus className="h-4 w-4" /> เพิ่มสี/ความจุอื่น
                 </button>
               </div>
             )}
@@ -680,9 +835,16 @@ export function ProductWizardPage() {
                     <div className="flex flex-wrap items-center gap-2 text-sm">
                       <span className="font-semibold">ที่มา:</span>
                       <select className="input w-auto py-1 text-sm" value={defaultAcq} onChange={(e) => setDefaultAcq(e.target.value as Acq)}>
-                        {(Object.keys(ACQ_LABELS) as Acq[]).map((k) => (
-                          <option key={k} value={k}>{ACQ_LABELS[k].th}</option>
-                        ))}
+                        <optgroup label="ประเภทธุรกรรม">
+                          {ACQ_ORDER.filter((k) => ACQ_INFO[k].group === 'TXN').map((k) => (
+                            <option key={k} value={k}>{ACQ_INFO[k].th}</option>
+                          ))}
+                        </optgroup>
+                        <optgroup label="ซัพพลายเออร์">
+                          {ACQ_ORDER.filter((k) => ACQ_INFO[k].group === 'SUPPLIER').map((k) => (
+                            <option key={k} value={k}>{ACQ_INFO[k].th}</option>
+                          ))}
+                        </optgroup>
                       </select>
                       <button type="button" onClick={() => applyDefaultsToAll('acq')} className="btn-secondary py-1 text-xs">ปรับทุกเครื่อง</button>
                     </div>
@@ -740,10 +902,16 @@ export function ProductWizardPage() {
             )}
           </div>
           <div className="flex gap-2">
-            <Link to="/products" className="btn-secondary">ยกเลิก</Link>
-            <button type="submit" disabled={submit.isPending} className="btn-primary">
+            <Link to={mode === 'ADD_VARIANT' ? `/products/${addVariantProductId}` : '/products'}
+                  className="btn-secondary">ยกเลิก</Link>
+            <button type="submit"
+                    disabled={submit.isPending || submitAddVariant.isPending}
+                    className="btn-primary">
               <Save className="h-4 w-4" />
-              {submit.isPending ? 'กำลังบันทึก...' : 'สร้างสินค้า'}
+              {(submit.isPending || submitAddVariant.isPending)
+                ? 'กำลังบันทึก...'
+                : mode === 'ADD_VARIANT' ? 'เพิ่ม SKU นี้'
+                : 'สร้างสินค้า'}
             </button>
           </div>
         </div>
@@ -1200,9 +1368,16 @@ function ItemRowInputs({ varIdx, itemIdx, simplified, register, control, onRemov
       <div>
         <label className="mb-0.5 block text-xs font-semibold text-slate-500 md:hidden">ที่มา</label>
         <select className="input text-sm" {...register(`variants.${varIdx}.items.${itemIdx}.acquisitionType`)}>
-          {(Object.keys(ACQ_LABELS) as Acq[]).map((k) => (
-            <option key={k} value={k} title={ACQ_LABELS[k].help}>{ACQ_LABELS[k].th}</option>
-          ))}
+          <optgroup label="ประเภทธุรกรรม">
+            {ACQ_ORDER.filter((k) => ACQ_INFO[k].group === 'TXN').map((k) => (
+              <option key={k} value={k} title={ACQ_INFO[k].help}>{ACQ_INFO[k].th}</option>
+            ))}
+          </optgroup>
+          <optgroup label="ซัพพลายเออร์">
+            {ACQ_ORDER.filter((k) => ACQ_INFO[k].group === 'SUPPLIER').map((k) => (
+              <option key={k} value={k} title={ACQ_INFO[k].help}>{ACQ_INFO[k].th}</option>
+            ))}
+          </optgroup>
         </select>
       </div>
       <div>

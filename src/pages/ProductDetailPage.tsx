@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Plus, X, ArrowDownToLine } from 'lucide-react';
+import { ArrowLeft, Plus, X, ArrowDownToLine, Copy } from 'lucide-react';
 import { productsApi } from '@/api/products';
 import { extractErrorMessage } from '@/api/client';
 import { useAuthStore } from '@/stores/authStore';
@@ -50,18 +50,27 @@ export function ProductDetailPage() {
       </div>
 
       <div className="card">
-        <div className="card-header flex items-center justify-between">
-          <span>รุ่นย่อย / Variants ({product.variants.length})</span>
-          <div className="flex gap-2">
+        <div className="card-header flex flex-wrap items-center justify-between gap-2">
+          <span>สี / ความจุ ที่มี <span className="font-normal text-slate-500">({product.variants.length} SKU)</span></span>
+          <div className="flex flex-wrap gap-2">
             {canEdit && product.variants.length > 0 && (
               <Link to={`/inbound?product=${product.id}`} className="btn-secondary">
                 <ArrowDownToLine className="h-4 w-4" /> รับสินค้าเข้า
               </Link>
             )}
+            {canEdit && product.variants.length > 0 && (
+              <Link to={`/products/new?cloneProduct=${product.id}`}
+                    className="btn-secondary"
+                    title="คัดลอกรุ่นนี้เป็น Product ใหม่ทั้งหมด">
+                <Copy className="h-4 w-4" /> คัดลอกเป็นรุ่นใหม่
+              </Link>
+            )}
             {canEdit && (
-              <button className="btn-primary" onClick={() => setShowAddVariant(true)}>
-                <Plus className="h-4 w-4" /> เพิ่ม Variant
-              </button>
+              <Link to={`/products/${product.id}/variants/new`}
+                    className="btn-primary"
+                    title="เพิ่ม SKU ใหม่ของรุ่นเดียวกัน (เช่นสีอื่น/ความจุอื่น)">
+                <Plus className="h-4 w-4" /> เพิ่มสี/ความจุ
+              </Link>
             )}
           </div>
         </div>
@@ -101,11 +110,18 @@ export function ProductDetailPage() {
                   <td className="px-5 py-3 text-right">{v.reorderPoint}</td>
                   <td className="px-5 py-3 text-right">
                     {canEdit && (
-                      <Link to={`/inbound?product=${product.id}`}
-                            className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs text-emerald-700 hover:bg-emerald-50"
-                            title="รับสินค้าเข้าสต็อกสำหรับรุ่นย่อยนี้">
-                        <ArrowDownToLine className="h-3.5 w-3.5" /> รับเข้า
-                      </Link>
+                      <div className="flex justify-end gap-1">
+                        <Link to={`/products/${product.id}/variants/new?cloneFrom=${v.id}`}
+                              className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs text-brand-700 hover:bg-brand-50"
+                              title="คัดลอก SKU นี้ — สร้าง SKU ใหม่จากเทมเพลตเดียวกัน (แก้สี/ความจุ)">
+                          <Copy className="h-3.5 w-3.5" /> คัดลอก
+                        </Link>
+                        <Link to={`/inbound?product=${product.id}`}
+                              className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs text-emerald-700 hover:bg-emerald-50"
+                              title="รับสินค้าเข้าสต็อกสำหรับ SKU นี้">
+                          <ArrowDownToLine className="h-3.5 w-3.5" /> รับเข้า
+                        </Link>
+                      </div>
                     )}
                   </td>
                 </tr>
@@ -113,15 +129,16 @@ export function ProductDetailPage() {
               {product.variants.length === 0 && (
                 <tr><td colSpan={9} className="px-5 py-10 text-center">
                   <div className="mx-auto max-w-md space-y-2">
-                    <div className="text-base font-medium text-slate-700">ยังไม่มีรุ่นย่อย (Variant)</div>
+                    <div className="text-base font-medium text-slate-700">ยังไม่มี SKU สำหรับขาย</div>
                     <p className="text-sm text-slate-500">
                       รุ่นนี้ <strong>ยังขายและรับเข้าสต็อกไม่ได้</strong> — ราคา บาร์โค้ด และสต็อก
-                      จะอยู่ที่ระดับรุ่นย่อย ต้องเพิ่มอย่างน้อย 1 รุ่นย่อย (สี/ความจุ) ก่อน
+                      จะอยู่ที่ระดับ SKU (เช่น "iPhone 11 สีดำ 256GB" = 1 SKU)
+                      <br />ต้องเพิ่มอย่างน้อย 1 สี/ความจุก่อน
                     </p>
                     {canEdit && (
-                      <button className="btn-primary" onClick={() => setShowAddVariant(true)}>
-                        <Plus className="h-4 w-4" /> เพิ่มรุ่นย่อยตอนนี้
-                      </button>
+                      <Link to={`/products/${product.id}/variants/new`} className="btn-primary inline-flex">
+                        <Plus className="h-4 w-4" /> เพิ่มสี/ความจุแรก
+                      </Link>
                     )}
                   </div>
                 </td></tr>

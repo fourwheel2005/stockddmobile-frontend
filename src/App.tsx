@@ -33,6 +33,7 @@ export default function App() {
           <Route path="/inventory" element={<InventoryPage />} />
           <Route path="/products" element={<ProductsPage />} />
           <Route path="/products/new" element={<ProductWizardPage />} />
+          <Route path="/products/:productId/variants/new" element={<ProductWizardPage />} />
           <Route path="/products/:id" element={<ProductDetailPage />} />
           <Route path="/outbound" element={<OutboundPage />} />
           <Route path="/pos" element={<PosTerminalPage />} />

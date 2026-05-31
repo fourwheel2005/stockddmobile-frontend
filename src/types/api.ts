@@ -151,6 +151,14 @@ export interface ProductWizardRequest {
   note?: string;
 }
 
+/** เพิ่ม SKU ใหม่ใน Product ที่มีอยู่ + รับสต็อกล็อตแรก (Clone Flow). */
+export interface AddVariantWithStockRequest {
+  variant: WizardVariantBlock;
+  lotNo?: string;
+  importDate?: string;
+  note?: string;
+}
+
 // ─── Inventory ────────────────────────────────────────────────────────────
 
 export interface InventoryResponse {
@@ -170,7 +178,11 @@ export interface InventoryResponse {
 export type SerializedStatus =
   | 'IN_STOCK' | 'RESERVED' | 'SOLD' | 'DEFECTIVE' | 'RETURNED' | 'TRANSFERRED';
 
-export type AcquisitionType = 'PURCHASE' | 'TRADE_IN' | 'OUTRIGHT';
+export type AcquisitionType =
+  // ประเภทธุรกรรม
+  | 'PURCHASE' | 'TRADE_IN' | 'OUTRIGHT'
+  // ซัพพลายเออร์หน้าร้าน
+  | 'ICE' | 'BORROW' | 'P_GREEN' | 'GREETER' | 'RED_HEAT' | 'AMP_MOBILE';
 export type ServiceState = 'AWAITING_REPAIR' | 'SENT_CLAIM';
 export type SerializedCondition = 'NEW' | 'SECOND_HAND' | 'LIKE_NEW' | 'REFURBISHED' | 'DEFECTIVE';
 

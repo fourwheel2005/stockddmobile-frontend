@@ -5,6 +5,7 @@ import { X, Wrench, ShieldAlert, Undo2, BatteryMedium } from 'lucide-react';
 import { inventoryApi } from '@/api/inventory';
 import { extractErrorMessage } from '@/api/client';
 import { formatDate } from '@/lib/format';
+import { acqLabel } from '@/lib/acquisition';
 import type { SerializedStatus, ServiceState } from '@/types/api';
 
 interface Props {
@@ -140,11 +141,7 @@ export function SerialsModal({ variantId, productName, sku, onClose }: Props) {
                         </span>
                       : '-'}
                   </td>
-                  <td className="px-4 py-2 text-xs">
-                    {s.acquisitionType === 'TRADE_IN' ? 'เทิร์น'
-                      : s.acquisitionType === 'OUTRIGHT' ? 'ซื้อขายขาด'
-                      : 'ซื้อมา'}
-                  </td>
+                  <td className="px-4 py-2 text-xs">{acqLabel(s.acquisitionType)}</td>
                   <td className="px-4 py-2">
                     <span className={STATUS_BADGE[s.status]}>{STATUS_TH[s.status]}</span>
                     {s.serviceState && (

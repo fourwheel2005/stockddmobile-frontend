@@ -1,5 +1,6 @@
 import { api } from './client';
 import type {
+  AddVariantWithStockRequest,
   Category,
   CreateProductRequest,
   CreateVariantRequest,
@@ -32,6 +33,10 @@ export const productsApi = {
 
   addVariant: (productId: string, req: CreateVariantRequest) =>
     api.post<VariantResponse>(`/products/${productId}/variants`, req).then((r) => r.data),
+
+  /** เพิ่ม SKU ใหม่ใน Product เดิม + รับสต็อกล็อตแรก (Clone Flow — atomic). */
+  addVariantWithStock: (productId: string, req: AddVariantWithStockRequest) =>
+    api.post<VariantResponse>(`/products/${productId}/variants-with-stock`, req).then((r) => r.data),
 
   lookupVariant: (q: string) =>
     api.get<VariantResponse>('/products/variants/lookup', { params: { q } }).then((r) => r.data),
