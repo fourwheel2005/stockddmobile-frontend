@@ -54,22 +54,16 @@ export function ProductDetailPage() {
           <span>สี / ความจุ ที่มี <span className="font-normal text-slate-500">({product.variants.length} SKU)</span></span>
           <div className="flex flex-wrap gap-2">
             {canEdit && product.variants.length > 0 && (
-              <Link to={`/inbound?product=${product.id}`} className="btn-secondary">
+              <Link to={`/inbound?product=${product.id}`} className="btn-secondary"
+                    title="เพิ่มสต็อกให้ SKU ที่มีอยู่">
                 <ArrowDownToLine className="h-4 w-4" /> รับสินค้าเข้า
               </Link>
             )}
             {canEdit && product.variants.length > 0 && (
               <Link to={`/products/new?cloneProduct=${product.id}`}
-                    className="btn-secondary"
-                    title="คัดลอกรุ่นนี้เป็น Product ใหม่ทั้งหมด">
-                <Copy className="h-4 w-4" /> คัดลอกเป็นรุ่นใหม่
-              </Link>
-            )}
-            {canEdit && (
-              <Link to={`/products/${product.id}/variants/new`}
                     className="btn-primary"
-                    title="เพิ่ม SKU ใหม่ของรุ่นเดียวกัน (เช่นสีอื่น/ความจุอื่น)">
-                <Plus className="h-4 w-4" /> เพิ่มสี/ความจุ
+                    title="คัดลอกข้อมูลรุ่นนี้ → เปิดหน้าลงทะเบียนสินค้า แก้สี/ความจุ + ใส่ IMEI → สร้างสินค้าใหม่ 1 รายการ">
+                <Copy className="h-4 w-4" /> คัดลอกสร้างสินค้าใหม่
               </Link>
             )}
           </div>
@@ -111,14 +105,14 @@ export function ProductDetailPage() {
                   <td className="px-5 py-3 text-right">
                     {canEdit && (
                       <div className="flex justify-end gap-1">
-                        <Link to={`/products/${product.id}/variants/new?cloneFrom=${v.id}`}
+                        <Link to={`/products/new?cloneProduct=${product.id}&cloneFrom=${v.id}`}
                               className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs text-brand-700 hover:bg-brand-50"
-                              title="คัดลอก SKU นี้ — สร้าง SKU ใหม่จากเทมเพลตเดียวกัน (แก้สี/ความจุ)">
+                              title="คัดลอก SKU นี้ → สร้างสินค้าใหม่ที่มีข้อมูลเหมือนกัน (แก้ IMEI/สี/ความจุได้)">
                           <Copy className="h-3.5 w-3.5" /> คัดลอก
                         </Link>
                         <Link to={`/inbound?product=${product.id}`}
                               className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs text-emerald-700 hover:bg-emerald-50"
-                              title="รับสินค้าเข้าสต็อกสำหรับ SKU นี้">
+                              title="รับเครื่องเข้าสต็อกของ SKU นี้">
                           <ArrowDownToLine className="h-3.5 w-3.5" /> รับเข้า
                         </Link>
                       </div>
@@ -136,8 +130,8 @@ export function ProductDetailPage() {
                       <br />ต้องเพิ่มอย่างน้อย 1 สี/ความจุก่อน
                     </p>
                     {canEdit && (
-                      <Link to={`/products/${product.id}/variants/new`} className="btn-primary inline-flex">
-                        <Plus className="h-4 w-4" /> เพิ่มสี/ความจุแรก
+                      <Link to={`/products/new?cloneProduct=${product.id}`} className="btn-primary inline-flex">
+                        <Plus className="h-4 w-4" /> สร้างสินค้าใหม่จากรุ่นนี้
                       </Link>
                     )}
                   </div>

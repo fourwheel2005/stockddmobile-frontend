@@ -7,6 +7,7 @@ import { InventoryPage } from '@/pages/InventoryPage';
 import { ProductsPage } from '@/pages/ProductsPage';
 import { ProductDetailPage } from '@/pages/ProductDetailPage';
 import { ProductWizardPage } from '@/pages/ProductWizardPage';
+import { ProductRegisterPage } from '@/pages/ProductRegisterPage';
 import { InboundPage } from '@/pages/InboundPage';
 import { OutboundPage } from '@/pages/OutboundPage';
 import { TransactionsPage } from '@/pages/TransactionsPage';
@@ -32,7 +33,10 @@ export default function App() {
           <Route path="/" element={<DashboardPage />} />
           <Route path="/inventory" element={<InventoryPage />} />
           <Route path="/products" element={<ProductsPage />} />
-          <Route path="/products/new" element={<ProductWizardPage />} />
+          {/* หน้าใหม่ — แบบ tab ง่ายๆ สำหรับ 1 SKU (ใช้ default) */}
+          <Route path="/products/new" element={<ProductRegisterPage />} />
+          {/* หน้าเดิม wizard — สำหรับ multi-variant / clone / add-variant */}
+          <Route path="/products/new/advanced" element={<ProductWizardPage />} />
           <Route path="/products/:productId/variants/new" element={<ProductWizardPage />} />
           <Route path="/products/:id" element={<ProductDetailPage />} />
           <Route path="/outbound" element={<OutboundPage />} />
