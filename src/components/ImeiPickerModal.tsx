@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Search, X, Smartphone, CheckCircle2 } from 'lucide-react';
 import { posApi } from '@/api/pos';
 import { formatTHB, formatDate } from '@/lib/format';
+import { useModalChrome, backdropCloseHandler } from '@/hooks/useModalChrome';
 import type { InStockItem } from '@/types/api';
 
 interface Props {
@@ -23,6 +24,7 @@ interface Props {
  */
 export function ImeiPickerModal({ selectedIds = [], onSelect, onClose }: Props) {
   const [q, setQ] = useState('');
+  useModalChrome(onClose);
 
   const { data, isLoading } = useQuery({
     queryKey: ['in-stock-items', q],
@@ -32,14 +34,22 @@ export function ImeiPickerModal({ selectedIds = [], onSelect, onClose }: Props) 
   const selectedSet = new Set(selectedIds);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-3xl rounded-lg bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b px-5 py-3">
-          <h2 className="flex items-center gap-2 font-semibold">
+    <div
+      onClick={backdropCloseHandler(onClose)}
+      className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/60 p-4 pt-[5vh] backdrop-blur-sm animate-modal-fade-in">
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="flex max-h-[90vh] w-full max-w-3xl flex-col rounded-xl bg-white shadow-2xl animate-modal-zoom-in">
+        <div className="flex shrink-0 items-center justify-between border-b px-5 py-3.5">
+          <h2 className="flex items-center gap-2 text-base font-semibold">
             <Smartphone className="h-5 w-5 text-brand-600" />
             เลือก IMEI จากรายการ (เครื่องที่มีในสต็อก)
           </h2>
-          <button onClick={onClose} className="rounded p-1 hover:bg-slate-100" title="ปิด">
+          <button
+            onClick={onClose}
+            className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+            aria-label="ปิด"
+            title="ปิด (Esc)">
             <X className="h-4 w-4" />
           </button>
         </div>

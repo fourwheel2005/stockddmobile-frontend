@@ -5,6 +5,7 @@ import { X, Wrench, UserCircle2, Save } from 'lucide-react';
 import { repairApi } from '@/api/repair';
 import { extractErrorMessage } from '@/api/client';
 import { CustomerPickerModal } from '@/components/CustomerPickerModal';
+import { useModalChrome, backdropCloseHandler } from '@/hooks/useModalChrome';
 import type { Customer, CreateRepairRequest, RepairTicket } from '@/types/api';
 
 interface Props {
@@ -31,6 +32,7 @@ export function RepairIntakeModal({ onClose, onCreated }: Props) {
   const [customerId, setCustomerId] = useState<string | undefined>(undefined);
   const [showCustomerPicker, setShowCustomerPicker] = useState(false);
 
+  useModalChrome(onClose);
   useEffect(() => { firstRef.current?.focus(); }, []);
 
   const set = <K extends keyof CreateRepairRequest>(k: K, v: CreateRepairRequest[K]) =>
@@ -79,13 +81,21 @@ export function RepairIntakeModal({ onClose, onCreated }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="flex max-h-[92vh] w-full max-w-2xl flex-col rounded-lg bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b px-5 py-3">
-          <h2 className="flex items-center gap-2 font-semibold">
+    <div
+      onClick={backdropCloseHandler(onClose)}
+      className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/60 p-4 pt-[5vh] backdrop-blur-sm animate-modal-fade-in">
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="flex max-h-[90vh] w-full max-w-3xl flex-col rounded-xl bg-white shadow-2xl animate-modal-zoom-in">
+        <div className="flex shrink-0 items-center justify-between border-b px-5 py-3.5">
+          <h2 className="flex items-center gap-2 text-base font-semibold">
             <Wrench className="h-5 w-5 text-amber-600" /> รับซ่อม / เคลม เครื่องลูกค้า
           </h2>
-          <button onClick={onClose} className="rounded p-1 hover:bg-slate-100">
+          <button
+            onClick={onClose}
+            className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+            aria-label="ปิด"
+            title="ปิด (Esc)">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -187,12 +197,17 @@ export function RepairIntakeModal({ onClose, onCreated }: Props) {
           </div>
         </form>
 
-        <div className="flex justify-end gap-2 border-t px-5 py-3">
-          <button type="button" className="btn-secondary" onClick={onClose}>ยกเลิก</button>
-          <button className="btn-primary" disabled={create.isPending} onClick={handleSubmit}>
-            <Save className="h-4 w-4" />
-            {create.isPending ? 'กำลังบันทึก...' : 'บันทึกใบรับซ่อม + พิมพ์'}
-          </button>
+        <div className="flex shrink-0 items-center justify-between gap-2 border-t bg-slate-50/50 px-5 py-3 rounded-b-xl">
+          <span className="hidden text-xs text-slate-500 sm:block">
+            กด <kbd className="rounded border bg-white px-1.5 py-0.5 font-mono text-[10px]">Esc</kbd> เพื่อปิด
+          </span>
+          <div className="ml-auto flex gap-2">
+            <button type="button" className="btn-secondary" onClick={onClose}>ยกเลิก</button>
+            <button className="btn-primary" disabled={create.isPending} onClick={handleSubmit}>
+              <Save className="h-4 w-4" />
+              {create.isPending ? 'กำลังบันทึก...' : 'บันทึก + พิมพ์'}
+            </button>
+          </div>
         </div>
       </div>
 
