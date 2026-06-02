@@ -135,6 +135,12 @@ export interface WizardVariantBlock {
   // เลือกอย่างใดอย่างหนึ่ง:
   quantity?: number;              // bulk
   items?: WizardInitialItem[];    // serialized
+  // bulk lot info (ใช้เฉพาะกรณีอุปกรณ์เสริม)
+  acquisitionType?: AcquisitionType;
+  unitCost?: number;
+  supplierRef?: string;
+  invoiceNo?: string;
+  lotNote?: string;
 }
 
 export interface ProductWizardRequest {
@@ -398,6 +404,84 @@ export type ShippingPartner =
 
 export type OrderChannel = 'WALK_IN' | 'ONLINE';
 
+export type PaidFrom = 'REGISTER' | 'OWNER_GRANDPA' | 'OWNER_GRANDMA' | 'CUSTOMER';
+
+export type CashMovementType =
+  | 'SALE_CASH' | 'REFUND_CASH' | 'PAYOUT_SHIPPING' | 'PAYOUT_EXPENSE'
+  | 'CASH_IN' | 'SAFE_DROP' | 'PETTY_CASH_FROM_OWNER' | 'OPENING_FLOAT' | 'ADJUSTMENT';
+
+export type SessionStatus = 'OPEN' | 'CLOSED';
+
+export interface CashMovementLine {
+  id: string;
+  type: CashMovementType;
+  amount: number;
+  paidFrom: PaidFrom;
+  referenceType: string | null;
+  referenceNo: string | null;
+  note: string | null;
+  createdBy: string | null;
+  createdAt: string;
+}
+
+export interface CashSessionResponse {
+  id: string;
+  sessionNo: string;
+  registerId: string;
+  registerName: string;
+  status: SessionStatus;
+  openedBy: string;
+  openedAt: string;
+  openingFloat: number;
+  closedBy: string | null;
+  closedAt: string | null;
+  expectedClose: number | null;
+  actualClose: number | null;
+  variance: number | null;
+  note: string | null;
+  movements: CashMovementLine[] | null;
+}
+
+export interface OpenSessionRequest {
+  registerId?: string;
+  openingFloat: number;
+  note?: string;
+}
+
+export interface CloseSessionRequest {
+  actualClose: number;
+  note?: string;
+}
+
+export interface CashMovementRequest {
+  type: CashMovementType;
+  amount: number;
+  paidFrom?: PaidFrom;
+  referenceType?: string;
+  referenceNo?: string;
+  note?: string;
+}
+
+export interface OwnerLedgerEntry {
+  id: string;
+  createdAt: string;
+  paidFrom: PaidFrom;
+  amount: number;
+  referenceType: string | null;
+  referenceNo: string | null;
+  note: string | null;
+  createdBy: string | null;
+}
+
+export interface OwnerLedgerResponse {
+  fromDate: string;
+  toDate: string;
+  totalGrandpa: number;
+  totalGrandma: number;
+  totalAll: number;
+  entries: OwnerLedgerEntry[];
+}
+
 export interface CheckoutRequest {
   customerId?: string;
   items: CheckoutLine[];
@@ -421,6 +505,7 @@ export interface CheckoutRequest {
   shippingTrackingNo?: string;
   shippingAddress?: string;
   orderChannel?: OrderChannel;
+  shippingPaidFrom?: PaidFrom;
 }
 
 export interface SalesOrderItemResponse {
@@ -456,6 +541,8 @@ export interface SalesOrderResponse {
   shippingTrackingNo: string | null;
   shippingAddress: string | null;
   orderChannel: OrderChannel | null;
+  shippingPaidFrom: PaidFrom | null;
+  cashSessionId: string | null;
   note: string | null;
   createdBy: string;
   createdAt: string;

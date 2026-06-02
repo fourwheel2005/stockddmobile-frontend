@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { ScanLine, Trash2, ShoppingCart, Receipt, Search, ListChecks, UserCircle2, Printer, Upload, X, Wrench, Truck, Globe, Store } from 'lucide-react';
 import { posApi } from '@/api/pos';
@@ -12,9 +12,12 @@ import { RepairIntakeModal } from '@/components/RepairIntakeModal';
 import { ReceiptPrintView } from '@/components/ReceiptPrintView';
 import { RepairBillPrintView } from '@/components/RepairBillPrintView';
 import type {
-  CartScanResponse, Customer, InStockItem, OrderChannel,
+  CartScanResponse, Customer, InStockItem, OrderChannel, PaidFrom,
   PaymentMethod, RepairTicket, SalesOrderResponse, ShippingPartner,
 } from '@/types/api';
+import { cashRegisterApi } from '@/api/cashRegister';
+import { OpenSessionModal } from '@/components/OpenSessionModal';
+import { Link } from 'react-router-dom';
 
 const SHIPPING_PARTNER_OPTIONS: { value: ShippingPartner; label: string; icon: string }[] = [
   { value: 'ICE',        label: 'น้ำแข็ง',       icon: '🧊' },
@@ -94,6 +97,16 @@ export function PosTerminalPage() {
   const [shippingPartner, setShippingPartner] = useState<ShippingPartner | ''>('');
   const [shippingTrackingNo, setShippingTrackingNo] = useState('');
   const [shippingAddress, setShippingAddress] = useState('');
+  const [shippingPaidFrom, setShippingPaidFrom] = useState<PaidFrom>('REGISTER');
+  const [showOpenSession, setShowOpenSession] = useState(false);
+
+  // ─── Cash session check (block checkout if no session) ──────────────
+  const sessionQuery = useQuery({
+    queryKey: ['cash-session', 'current'],
+    queryFn: cashRegisterApi.current,
+    refetchInterval: 60_000,
+  });
+  const hasOpenSession = !!sessionQuery.data;
 
   // Auto-focus on mount so scanner gun input works immediately
   useEffect(() => { inputRef.current?.focus(); }, []);
@@ -269,6 +282,7 @@ export function PosTerminalPage() {
         shippingPartner: shippingPartner || undefined,
         shippingTrackingNo: shippingTrackingNo.trim() || undefined,
         shippingAddress: shippingAddress.trim() || undefined,
+        shippingPaidFrom: (Number(shippingFee) > 0) ? shippingPaidFrom : undefined,
         ...(isInstallment ? {
           installmentMonths,
           downPaymentAmount: downAmount,
@@ -300,7 +314,9 @@ export function PosTerminalPage() {
       setShippingPartner('');
       setShippingTrackingNo('');
       setShippingAddress('');
+      setShippingPaidFrom('REGISTER');
       clearSlip();
+      qc.invalidateQueries({ queryKey: ['cash-session'] });
       inputRef.current?.focus();
     },
     onError: (e) => toast.error(extractErrorMessage(e)),
@@ -318,6 +334,7 @@ export function PosTerminalPage() {
   const onlineNeedsIdentity = isOnline && !hasCustomerIdentity;
   const installmentNeedsIdentity = paymentMethod === 'INSTALLMENT' && !hasCustomerIdentity;
   const checkoutBlockedReason =
+    !hasOpenSession ? 'กรุณาเปิดเก๊ะก่อน' :
     cart.length === 0 ? 'ยังไม่มีสินค้าในตะกร้า' :
     slipMissing ? 'ต้องแนบสลิปโอนเงินก่อน' :
     discountExceedsSubtotal ? 'ส่วนลดเกินยอดรวมสินค้า' :
@@ -329,6 +346,29 @@ export function PosTerminalPage() {
 
   return (
     <div className="space-y-4">
+      {/* Session banner */}
+      {!hasOpenSession && (
+        <div className="rounded-lg border-2 border-amber-300 bg-amber-50 p-4">
+          <div className="flex items-start gap-3">
+            <span className="text-2xl">⚠️</span>
+            <div className="flex-1">
+              <h3 className="font-semibold text-amber-900">ยังไม่ได้เปิดเก๊ะ</h3>
+              <p className="text-sm text-amber-800">
+                ต้องเปิดเก๊ะก่อนปิดบิล — ระบบจะปฏิเสธการขายจนกว่าจะเปิด session
+              </p>
+            </div>
+            <button
+              onClick={() => setShowOpenSession(true)}
+              className="btn-primary bg-emerald-600 hover:bg-emerald-700 shrink-0">
+              เปิดเก๊ะ
+            </button>
+            <Link to="/cash-register" className="btn-secondary shrink-0">
+              จัดการเก๊ะ
+            </Link>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="flex items-center gap-2 page-title">
@@ -631,6 +671,37 @@ export function PosTerminalPage() {
               />
             </div>
           )}
+
+          {/* ใครออกค่าส่ง — แสดงเฉพาะเมื่อมีค่าส่ง > 0 */}
+          {shippingFee > 0 && (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">
+                💰 ใครออกค่าส่ง (จำเป็นเพื่อ track ledger)
+              </label>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {([
+                  { v: 'REGISTER',      l: '🏪 เก๊ะ',     hint: 'จากเงินในเก๊ะ' },
+                  { v: 'OWNER_GRANDPA', l: '👴 ตา',       hint: 'ตาออกเงินสด' },
+                  { v: 'OWNER_GRANDMA', l: '👵 ยาย',      hint: 'ยายออกเงินสด' },
+                  { v: 'CUSTOMER',      l: '🧑 ลูกค้า',  hint: 'ลูกค้าออกเอง' },
+                ] as { v: PaidFrom; l: string; hint: string }[]).map((opt) => (
+                  <button
+                    type="button"
+                    key={opt.v}
+                    onClick={() => setShippingPaidFrom(opt.v)}
+                    title={opt.hint}
+                    className={`flex flex-col items-start gap-0.5 rounded-md border px-3 py-2 text-sm transition ${
+                      shippingPaidFrom === opt.v
+                        ? 'border-amber-500 bg-amber-100 font-semibold text-amber-800'
+                        : 'border-slate-200 hover:border-slate-300'
+                    }`}>
+                    <span>{opt.l}</span>
+                    <span className="text-[10px] text-slate-500">{opt.hint}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -815,6 +886,9 @@ export function PosTerminalPage() {
           onClose={() => setShowRepair(false)}
           onCreated={(ticket) => { setLastBill(null); setRepairToPrint(ticket); }}
         />
+      )}
+      {showOpenSession && (
+        <OpenSessionModal onClose={() => setShowOpenSession(false)} />
       )}
 
       {/* Hidden printouts — only visible when window.print() fires.

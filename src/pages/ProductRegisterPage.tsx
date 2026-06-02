@@ -63,6 +63,11 @@ interface FormValues {
   lotNo: string;
   importDate: string;
   lotNote: string;
+  // อุปกรณ์เสริม — lot info
+  lotAcquisitionType: AcquisitionType;
+  lotUnitCost: number | '';
+  lotSupplierRef: string;
+  lotInvoiceNo: string;
 }
 
 const EMPTY_ITEM: ItemRow = {
@@ -104,6 +109,10 @@ export function ProductRegisterPage() {
       quantity: '',
       items: [{ ...EMPTY_ITEM }],
       lotNo: '', importDate: todayIso(), lotNote: '',
+      lotAcquisitionType: 'PURCHASE',
+      lotUnitCost: '',
+      lotSupplierRef: '',
+      lotInvoiceNo: '',
     },
   });
 
@@ -145,6 +154,10 @@ export function ProductRegisterPage() {
       quantity: '',                                              // reset stock
       items: [{ ...EMPTY_ITEM }],                                // reset IMEIs
       lotNo: '', importDate: todayIso(), lotNote: '',
+      lotAcquisitionType: 'PURCHASE',
+      lotUnitCost: '',
+      lotSupplierRef: '',
+      lotInvoiceNo: '',
     });
 
     if (sv?.imageUrl) {
@@ -394,7 +407,16 @@ export function ProductRegisterPage() {
           reorderPoint: Number(d.reorderPoint),
           ...(productImageUrl ? { imageUrl: productImageUrl } : {}),
         },
-        ...(d.serialized ? { items: validItems } : { quantity: qty }),
+        ...(d.serialized
+          ? { items: validItems }
+          : {
+              quantity: qty,
+              acquisitionType: d.lotAcquisitionType || 'PURCHASE',
+              unitCost: d.lotUnitCost === '' ? undefined : Number(d.lotUnitCost),
+              supplierRef: blank(d.lotSupplierRef),
+              invoiceNo: blank(d.lotInvoiceNo),
+              lotNote: blank(d.lotNote),
+            }),
       }],
       ...(d.serialized ? {
         lotNo: blank(d.lotNo),
@@ -600,12 +622,44 @@ export function ProductRegisterPage() {
             </span>
           </div>
           <div className="card-body space-y-5">
-              {!serialized ? (
-                <FieldRow label="จำนวนรับเข้า" required hint="หน่วย: ชิ้น">
-                  <input type="number" className="input" placeholder="10"
-                         {...register('quantity', { min: 1 })} />
+              {!serialized ? (<>
+                <FieldRow label="จำนวนรับเข้า" required hint="หน่วย: ชิ้น · กดปุ่ม +/− หรือพิมพ์เลย">
+                  <BulkQtyInput
+                    value={Number(getValues('quantity')) || 0}
+                    onChange={(v) => setValue('quantity', v, { shouldDirty: true, shouldValidate: true })}
+                  />
                 </FieldRow>
-              ) : (<>
+
+                <FieldRow label="ที่มาของ lot" hint="ระบบจะบันทึก lot history พร้อมที่มา + ทุน">
+                  <select className="input" {...register('lotAcquisitionType')}>
+                    <optgroup label="ประเภทธุรกรรม">
+                      {ACQ_ORDER.filter((k) => ACQ_INFO[k].group === 'TXN').map((k) => (
+                        <option key={k} value={k}>{ACQ_INFO[k].th}</option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="ซัพพลายเออร์">
+                      {ACQ_ORDER.filter((k) => ACQ_INFO[k].group === 'SUPPLIER').map((k) => (
+                        <option key={k} value={k}>{ACQ_INFO[k].th}</option>
+                      ))}
+                    </optgroup>
+                  </select>
+                </FieldRow>
+
+                <FieldRow label="ทุนต่อชิ้น (lot นี้)" hint="ถ้าเว้น = ใช้ราคาทุน · ระบบจะจำราคา lot นี้แยก">
+                  <input type="number" step="0.01" min={0} className="input"
+                         placeholder="ใช้ราคาทุนถ้าเว้น"
+                         {...register('lotUnitCost')} />
+                </FieldRow>
+
+                <FieldRow label="ผู้ขาย / ใบกำกับ" hint="optional — เก็บไว้สำหรับ audit">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <input className="input" placeholder="ชื่อร้าน/Supplier"
+                           {...register('lotSupplierRef')} />
+                    <input className="input font-mono" placeholder="เลขใบกำกับภาษี"
+                           {...register('lotInvoiceNo')} />
+                  </div>
+                </FieldRow>
+              </>) : (<>
                 <FieldRow label="สภาพเริ่มต้น" hint="ใช้กับเครื่องที่เพิ่มใหม่ — เปลี่ยนรายตัวได้">
                   <div className="flex gap-4 text-sm">
                     <label className="inline-flex items-center gap-1">
@@ -763,6 +817,59 @@ export function ProductRegisterPage() {
 }
 
 /* ─── helper components ───────────────────────────────────────────────── */
+
+/** จำนวนรับเข้า bulk — ปุ่ม +/- + input number + quick presets */
+function BulkQtyInput({ value, onChange }: { value: number; onChange: (n: number) => void }) {
+  const safe = Math.max(0, Math.floor(value || 0));
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => onChange(Math.max(0, safe - 1))}
+          disabled={safe <= 0}
+          className="grid h-12 w-12 place-items-center rounded-lg border-2 border-slate-200 bg-white text-2xl font-bold text-slate-700 transition hover:border-rose-400 hover:bg-rose-50 hover:text-rose-700 disabled:opacity-40">
+          −
+        </button>
+        <input
+          type="number"
+          min={0}
+          step={1}
+          inputMode="numeric"
+          value={safe || ''}
+          onChange={(e) => onChange(Math.max(0, Number(e.target.value) || 0))}
+          placeholder="0"
+          className="input flex-1 text-center text-2xl font-bold"
+        />
+        <button
+          type="button"
+          onClick={() => onChange(safe + 1)}
+          className="grid h-12 w-12 place-items-center rounded-lg border-2 border-slate-200 bg-white text-2xl font-bold text-slate-700 transition hover:border-emerald-400 hover:bg-emerald-50 hover:text-emerald-700">
+          +
+        </button>
+      </div>
+      <div className="flex flex-wrap gap-1">
+        {[5, 10, 20, 50, 100].map((v) => (
+          <button
+            type="button"
+            key={v}
+            onClick={() => onChange(safe + v)}
+            className="rounded border border-slate-200 px-2 py-1 text-xs text-slate-600 transition hover:border-brand-400 hover:bg-brand-50">
+            + {v}
+          </button>
+        ))}
+        {safe > 0 && (
+          <button
+            type="button"
+            onClick={() => onChange(0)}
+            className="ml-auto rounded border border-rose-200 px-2 py-1 text-xs text-rose-600 hover:bg-rose-50">
+            ล้าง
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function FieldRow({
   label, children, required, hint,

@@ -1,0 +1,32 @@
+import { api } from './client';
+import type {
+  CashMovementRequest,
+  CashSessionResponse,
+  CloseSessionRequest,
+  OpenSessionRequest,
+  OwnerLedgerResponse,
+} from '@/types/api';
+
+export const cashRegisterApi = {
+  /** Get current OPEN session (HTTP 204 if none) */
+  current: () =>
+    api.get<CashSessionResponse | ''>('/cash-register/current')
+       .then((r) => (r.status === 204 ? null : (r.data as CashSessionResponse))),
+
+  get: (id: string) =>
+    api.get<CashSessionResponse>(`/cash-register/${id}`).then((r) => r.data),
+
+  open: (req: OpenSessionRequest) =>
+    api.post<CashSessionResponse>('/cash-register/open', req).then((r) => r.data),
+
+  addMovement: (id: string, req: CashMovementRequest) =>
+    api.post<CashSessionResponse>(`/cash-register/${id}/movements`, req).then((r) => r.data),
+
+  close: (id: string, req: CloseSessionRequest) =>
+    api.post<CashSessionResponse>(`/cash-register/${id}/close`, req).then((r) => r.data),
+
+  ownerLedger: (from?: string, to?: string) =>
+    api.get<OwnerLedgerResponse>('/cash-register/owner-ledger', {
+      params: { from, to },
+    }).then((r) => r.data),
+};

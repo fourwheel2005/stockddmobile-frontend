@@ -22,6 +22,7 @@ import { ReportsPage } from '@/pages/ReportsPage';
 import { WarrantyPage } from '@/pages/WarrantyPage';
 import { ScannerTestPage } from '@/pages/ScannerTestPage';
 import { PrintLabelsPage } from '@/pages/PrintLabelsPage';
+import { CashRegisterPage } from '@/pages/CashRegisterPage';
 
 export default function App() {
   return (
@@ -41,6 +42,7 @@ export default function App() {
           <Route path="/products/:id" element={<ProductDetailPage />} />
           <Route path="/outbound" element={<OutboundPage />} />
           <Route path="/pos" element={<PosTerminalPage />} />
+          <Route path="/cash-register" element={<CashRegisterPage />} />
           <Route path="/repairs" element={<RepairListPage />} />
           <Route path="/customers" element={<CustomersPage />} />
           <Route path="/warranty" element={<WarrantyPage />} />

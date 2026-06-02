@@ -5,9 +5,11 @@ import { Boxes, Package, AlertTriangle, TrendingDown, Zap } from 'lucide-react';
 import { inventoryApi } from '@/api/inventory';
 import { productsApi } from '@/api/products';
 import { alertsApi } from '@/api/alerts';
+import { cashRegisterApi } from '@/api/cashRegister';
 import { formatNumber } from '@/lib/format';
 import { useAuthStore } from '@/stores/authStore';
 import { useWsStore } from '@/stores/wsStore';
+import { OpenSessionModal } from '@/components/OpenSessionModal';
 
 export function DashboardPage() {
   const user = useAuthStore((s) => s.user);
@@ -31,6 +33,21 @@ export function DashboardPage() {
 
   const lowStockCount = inventory.data?.content.filter((i) => i.lowStock).length ?? 0;
 
+  // Cash session check — auto prompt เปิดเก๊ะถ้ายังไม่มี
+  const session = useQuery({
+    queryKey: ['cash-session', 'current'],
+    queryFn: cashRegisterApi.current,
+    refetchInterval: 60_000,
+  });
+  const [showOpenSession, setShowOpenSession] = useState(false);
+  const [autoPromptShown, setAutoPromptShown] = useState(false);
+  useEffect(() => {
+    if (!autoPromptShown && session.isFetched && !session.data) {
+      setShowOpenSession(true);
+      setAutoPromptShown(true);
+    }
+  }, [session.isFetched, session.data, autoPromptShown]);
+
   // Flash a "Just updated" pulse for 2s every time a WS event arrives
   const lastEventAt = useWsStore((s) => s.lastEventAt);
   const [justUpdated, setJustUpdated] = useState(false);
@@ -43,6 +60,9 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      {showOpenSession && (
+        <OpenSessionModal onClose={() => setShowOpenSession(false)} />
+      )}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="page-title">Dashboard</h1>
