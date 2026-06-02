@@ -386,6 +386,18 @@ export interface CheckoutLine {
   sellPrice: number;
 }
 
+export type ShippingPartner =
+  | 'ICE'
+  | 'YUEM_MAI'
+  | 'PEE_KEAW'
+  | 'GREATER'
+  | 'RED_HEAT'
+  | 'AMP_MOBILE'
+  | 'PICKUP'
+  | 'OTHER';
+
+export type OrderChannel = 'WALK_IN' | 'ONLINE';
+
 export interface CheckoutRequest {
   customerId?: string;
   items: CheckoutLine[];
@@ -400,6 +412,15 @@ export interface CheckoutRequest {
   downPaymentCashAmount?: number;
   downPaymentTransferAmount?: number;
   note?: string;
+  // Walk-in customer (used when customerId not picked — also drives LINE name)
+  walkInCustomerName?: string;
+  walkInCustomerPhone?: string;
+  // Shipping
+  shippingFee?: number;
+  shippingPartner?: ShippingPartner;
+  shippingTrackingNo?: string;
+  shippingAddress?: string;
+  orderChannel?: OrderChannel;
 }
 
 export interface SalesOrderItemResponse {
@@ -420,15 +441,21 @@ export interface SalesOrderResponse {
   status: SalesOrderStatus;
   customerId: string | null;
   customerName: string | null;
+  customerPhone: string | null;
   subtotal: number;
   discountAmount: number;
   vatAmount: number;
+  shippingFee: number;
   grandTotal: number;
   paidAmount: number;
   paymentMethod: PaymentMethod | null;
   installmentMonths: number | null;
   downPaymentAmount: number | null;
   paymentSlipUrl: string | null;
+  shippingPartner: ShippingPartner | null;
+  shippingTrackingNo: string | null;
+  shippingAddress: string | null;
+  orderChannel: OrderChannel | null;
   note: string | null;
   createdBy: string;
   createdAt: string;
@@ -516,6 +543,7 @@ export interface RepairTicket {
   deviceColor: string | null;
   imei: string | null;
   serialNumber: string | null;
+  screenCode: string | null;
   reportedSymptom: string;
   workDescription: string | null;
   estimatedCost: number | null;
@@ -540,6 +568,7 @@ export interface CreateRepairRequest {
   deviceColor?: string;
   imei?: string;
   serialNumber?: string;
+  screenCode?: string;
   reportedSymptom: string;
   estimatedCost?: number;
   depositAmount?: number;

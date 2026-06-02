@@ -27,7 +27,7 @@ const COLOR_OPTIONS = [
 const BRAND_OPTIONS = ['Apple', 'Samsung', 'Xiaomi', 'OPPO', 'Vivo', 'Google', 'Huawei', 'realme'];
 
 type Condition = 'NEW' | 'SECOND_HAND';
-type Tab = 'general' | 'price' | 'stock' | 'other';
+type ProductKind = 'phone' | 'accessory';
 
 interface ItemRow {
   serialNumber: string;
@@ -154,7 +154,11 @@ export function ProductRegisterPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sourceProduct]);
 
-  const [activeTab, setActiveTab] = useState<Tab>('general');
+  /** UI-only: แยกประเภทสินค้าที่เลือก (มือถือ / อุปกรณ์เสริม).
+   *  - phone     → serialized=true เสมอ
+   *  - accessory → toggle accessorySerialOn เพื่อสลับ serialized true/false */
+  const [productKind, setProductKind] = useState<ProductKind>('phone');
+  const [accessorySerialOn, setAccessorySerialOn] = useState(false);
   const [defaultCondition, setDefaultCondition] = useState<Condition>('NEW');
   const [defaultAcq, setDefaultAcq] = useState<AcquisitionType>('PURCHASE');
   const [scannerMode, setScannerMode] = useState(false);
@@ -212,6 +216,41 @@ export function ProductRegisterPage() {
     if (rp === 2 || rp === 5) setValue('reorderPoint', serialized ? 2 : 5);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serialized]);
+
+  /* Sync serialized from UI productKind + accessorySerialOn.
+   * เมื่อปิด accessorySerial: ถ้ามี items ที่มี IMEI/Serial → confirm ก่อน drop กัน data loss. */
+  useEffect(() => {
+    const wantSerialized = productKind === 'phone' || accessorySerialOn;
+    const current = getValues('serialized');
+    if (current === wantSerialized) return;
+
+    // กำลังจะปิด serialized — ตรวจว่าผู้ใช้ใส่ข้อมูลใน items แล้วหรือยัง
+    if (current && !wantSerialized) {
+      const items = getValues('items') ?? [];
+      const hasData = items.some((it) => (it.imei || it.serialNumber || '').trim());
+      if (hasData) {
+        const ok = window.confirm(
+          `คุณกำลังปิดโหมด "ระบุ Serial รายชิ้น" — ข้อมูล ${items.length} แถวที่กรอกไว้จะถูกล้าง\nยืนยันหรือไม่?`,
+        );
+        if (!ok) {
+          // ผู้ใช้ยกเลิก — กลับ checkbox เป็น on
+          setAccessorySerialOn(true);
+          return;
+        }
+      }
+      // ล้าง items เหลือแถวว่าง 1 แถว
+      setValue('items', [{ ...EMPTY_ITEM }], { shouldDirty: true });
+    }
+    setValue('serialized', wantSerialized, { shouldDirty: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productKind, accessorySerialOn]);
+
+  /* Scroll helper — แทนการสลับ tab */
+  const scrollToSection = (id: string) => {
+    requestAnimationFrame(() => {
+      document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  };
 
   /* Scanner auto-focus */
   useEffect(() => { if (scannerMode) scannerRef.current?.focus(); }, [scannerMode]);
@@ -323,15 +362,15 @@ export function ProductRegisterPage() {
           warrantyExpire: blank(it.warrantyExpire),
         }));
       if (validItems.length === 0) {
-        toast.error('ใส่อย่างน้อย 1 เครื่อง (IMEI หรือ Serial)');
-        setActiveTab('stock');
+        toast.error('ใส่อย่างน้อย 1 ชิ้น (IMEI หรือ Serial)');
+        scrollToSection('section-stock');
         return null;
       }
     } else {
       qty = Number(d.quantity) || 0;
       if (qty <= 0) {
         toast.error('ใส่จำนวนรับเข้าให้มากกว่า 0');
-        setActiveTab('stock');
+        scrollToSection('section-stock');
         return null;
       }
     }
@@ -368,7 +407,7 @@ export function ProductRegisterPage() {
   const onSubmit = (d: FormValues) => {
     if (skuStatus === 'taken') {
       toast.error('รหัสสินค้านี้ใช้แล้ว — กรุณาเปลี่ยน');
-      setActiveTab('other');
+      scrollToSection('section-other');
       return;
     }
     const req = buildPayload(d);
@@ -385,14 +424,6 @@ export function ProductRegisterPage() {
     const q = Number(quantityW) || 0;
     return { count: q, totalCost: q * cost, totalSell: q * sell };
   }, [serialized, itemsW, quantityW, cost, sell]);
-
-  /* tab badge — ✓ ถ้าครบ, ❌ ถ้าขาด */
-  const tabStatus = useMemo(() => ({
-    general: !!(name && getValues('categoryId')),
-    price: cost > 0 && sell > 0,
-    stock: summary.count > 0,
-    other: true,
-  }), [name, cost, sell, summary.count, getValues]);
 
   /* render */
   return (
@@ -413,43 +444,51 @@ export function ProductRegisterPage() {
         </p>
       </header>
 
-      {/* Tabs */}
-      <div className="flex flex-wrap gap-0 overflow-x-auto border-b border-slate-200 bg-white">
-        <TabButton active={activeTab === 'general'} ok={tabStatus.general}
-                   onClick={() => setActiveTab('general')}>ทั่วไป</TabButton>
-        <TabButton active={activeTab === 'price'} ok={tabStatus.price}
-                   onClick={() => setActiveTab('price')}>ราคา</TabButton>
-        <TabButton active={activeTab === 'stock'} ok={tabStatus.stock}
-                   onClick={() => setActiveTab('stock')}>สต็อก</TabButton>
-        <TabButton active={activeTab === 'other'} ok={tabStatus.other}
-                   onClick={() => setActiveTab('other')}>อื่นๆ</TabButton>
-      </div>
-
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        <div className="card">
-          <div className="card-body space-y-5">
 
-            {/* ─── Tab: ทั่วไป ─────────────────────────────────── */}
-            {activeTab === 'general' && (<>
+        {/* ═════════ Section: ทั่วไป ═════════ */}
+        <div id="section-general" className="card scroll-mt-4">
+          <div className="card-header flex items-center gap-2">
+            <span className="grid h-6 w-6 place-items-center rounded-full bg-brand-100 text-xs font-bold text-brand-700">1</span>
+            <span className="font-semibold">ทั่วไป</span>
+            <span className="text-xs text-slate-500">— ประเภท · ชื่อรุ่น · ยี่ห้อ · สี · ความจุ · รูป</span>
+          </div>
+          <div className="card-body space-y-5">
               <FieldRow label="ประเภทสินค้า" required>
                 <div className="grid gap-2 sm:grid-cols-2">
                   <label className={`flex cursor-pointer items-start gap-2 rounded-xl border p-3 transition-all
-                                     ${serialized ? 'border-brand-500 bg-brand-50/50 ring-2 ring-brand-500/20' : 'border-slate-200 hover:bg-slate-50'}`}>
-                    <input type="radio" className="mt-1" checked={serialized} onChange={() => setValue('serialized', true)} />
+                                     ${productKind === 'phone' ? 'border-brand-500 bg-brand-50/50 ring-2 ring-brand-500/20' : 'border-slate-200 hover:bg-slate-50'}`}>
+                    <input type="radio" className="mt-1" checked={productKind === 'phone'}
+                           onChange={() => { setProductKind('phone'); setAccessorySerialOn(false); }} />
                     <div>
                       <div className="flex items-center gap-1 font-semibold"><ScanLine className="h-4 w-4" /> เครื่อง (มี IMEI)</div>
                       <div className="text-xs text-slate-500">มือถือ · นับทีละเครื่อง</div>
                     </div>
                   </label>
                   <label className={`flex cursor-pointer items-start gap-2 rounded-xl border p-3 transition-all
-                                     ${!serialized ? 'border-brand-500 bg-brand-50/50 ring-2 ring-brand-500/20' : 'border-slate-200 hover:bg-slate-50'}`}>
-                    <input type="radio" className="mt-1" checked={!serialized} onChange={() => setValue('serialized', false)} />
+                                     ${productKind === 'accessory' ? 'border-brand-500 bg-brand-50/50 ring-2 ring-brand-500/20' : 'border-slate-200 hover:bg-slate-50'}`}>
+                    <input type="radio" className="mt-1" checked={productKind === 'accessory'}
+                           onChange={() => setProductKind('accessory')} />
                     <div>
                       <div className="flex items-center gap-1 font-semibold"><Boxes className="h-4 w-4" /> อุปกรณ์เสริม</div>
-                      <div className="text-xs text-slate-500">เคส/สายชาร์จ · นับเป็นจำนวน</div>
+                      <div className="text-xs text-slate-500">เคส/สายชาร์จ · นับเป็นจำนวน หรือระบุ Serial รายชิ้น</div>
                     </div>
                   </label>
                 </div>
+                {productKind === 'accessory' && (
+                  <label className="mt-3 flex items-start gap-2 rounded-md border border-brand-200 bg-brand-50/50 p-3 text-sm">
+                    <input type="checkbox" className="mt-0.5"
+                           checked={accessorySerialOn}
+                           onChange={(e) => setAccessorySerialOn(e.target.checked)} />
+                    <div>
+                      <div className="font-semibold text-brand-800">ระบุ Serial รายชิ้น (สำหรับอุปกรณ์เสริม)</div>
+                      <div className="text-xs text-slate-600">
+                        เปิดเมื่ออุปกรณ์มีเลข Serial เช่น พาวเวอร์แบงค์, หูฟัง, นาฬิกา —
+                        จำนวนรับเข้า = นับจาก Serial ที่ใส่
+                      </div>
+                    </div>
+                  </label>
+                )}
               </FieldRow>
 
               <FieldRow label="หมวดหมู่" required>
@@ -497,10 +536,17 @@ export function ProductRegisterPage() {
                   onSelect={(f) => handleImageFile(f)} onClear={clearImage}
                 />
               </FieldRow>
-            </>)}
+          </div>
+        </div>
 
-            {/* ─── Tab: ราคา ──────────────────────────────────── */}
-            {activeTab === 'price' && (<>
+        {/* ═════════ Section: ราคา ═════════ */}
+        <div id="section-price" className="card scroll-mt-4">
+          <div className="card-header flex items-center gap-2">
+            <span className="grid h-6 w-6 place-items-center rounded-full bg-brand-100 text-xs font-bold text-brand-700">2</span>
+            <span className="font-semibold">ราคา</span>
+            <span className="text-xs text-slate-500">— ทุน · ขาย · กำไร · จุดสั่งใหม่</span>
+          </div>
+          <div className="card-body space-y-5">
               <FieldRow label="ราคาทุน" required hint="หน่วยเป็นบาท">
                 <input type="number" step="0.01" className="input" placeholder="35000"
                        {...register('costPrice', { required: true, min: 0 })} />
@@ -537,10 +583,23 @@ export function ProductRegisterPage() {
               <FieldRow label="จุดสั่งใหม่" hint={`แนะนำ ${serialized ? 2 : 5} — เมื่อสต็อกเหลือ ≤ จำนวนนี้ ระบบเตือนผู้จัดการ`}>
                 <input type="number" className="input" {...register('reorderPoint', { min: 0 })} />
               </FieldRow>
-            </>)}
+          </div>
+        </div>
 
-            {/* ─── Tab: สต็อก ─────────────────────────────────── */}
-            {activeTab === 'stock' && (<>
+        {/* ═════════ Section: สต็อก ═════════ */}
+        <div id="section-stock" className="card scroll-mt-4">
+          <div className="card-header flex items-center gap-2">
+            <span className="grid h-6 w-6 place-items-center rounded-full bg-brand-100 text-xs font-bold text-brand-700">3</span>
+            <span className="font-semibold">สต็อก</span>
+            <span className="text-xs text-slate-500">
+              — {productKind === 'phone'
+                  ? 'ใส่เครื่อง IMEI/Serial รายเครื่อง'
+                  : accessorySerialOn
+                    ? 'ระบุ Serial รายชิ้น (จำนวน = จำนวนแถว)'
+                    : 'นับเป็นจำนวนชิ้น'}
+            </span>
+          </div>
+          <div className="card-body space-y-5">
               {!serialized ? (
                 <FieldRow label="จำนวนรับเข้า" required hint="หน่วย: ชิ้น">
                   <input type="number" className="input" placeholder="10"
@@ -573,44 +632,58 @@ export function ProductRegisterPage() {
                   </select>
                 </FieldRow>
 
-                <FieldRow label="โหมดสแกน" hint="ยิงสแกนเนอร์ทีละเครื่อง หรือวาง IMEI หลายตัวพร้อมกัน">
+                <FieldRow label="โหมดสแกน" hint={`ยิงสแกนเนอร์ทีละ${productKind === 'phone' ? 'เครื่อง' : 'ชิ้น'} หรือวางหลายเลขพร้อมกัน`}>
                   <div className="space-y-2">
                     <button type="button" onClick={() => setScannerMode((v) => !v)}
                             className={`btn text-sm ${scannerMode ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'btn-secondary'}`}>
                       <ScanLine className="h-4 w-4" />
-                      {scannerMode ? `โหมดสแกนเปิด · ${fields.length} เครื่อง` : 'เปิดโหมดยิงสแกน'}
+                      {scannerMode
+                        ? `โหมดสแกนเปิด · ${fields.length} ${productKind === 'phone' ? 'เครื่อง' : 'ชิ้น'}`
+                        : 'เปิดโหมดยิงสแกน'}
                     </button>
                     {scannerMode && (
                       <input ref={scannerRef} type="text" value={scanText}
                              onChange={(e) => setScanText(e.target.value)}
                              onKeyDown={handleScannerKey}
                              onPaste={handleScannerPaste}
-                             placeholder="ยิงเครื่อง → กด Enter เพิ่ม หรือวางหลายบรรทัด"
+                             placeholder={productKind === 'phone'
+                               ? 'ยิงเครื่อง → กด Enter เพิ่ม หรือวางหลายบรรทัด'
+                               : 'ยิง Serial → กด Enter เพิ่ม หรือวางหลายบรรทัด'}
                              className="input font-mono border-emerald-400 focus:border-emerald-500 focus:ring-emerald-500/15" />
                     )}
                   </div>
                 </FieldRow>
 
-                <FieldRow label="รายการเครื่อง" hint={`ตอนนี้ ${fields.length} เครื่อง · เว้น Serial ได้ ระบบจะใช้ IMEI`}>
+                <FieldRow
+                  label={productKind === 'phone' ? 'รายการเครื่อง' : 'รายการ Serial'}
+                  hint={`ตอนนี้ ${fields.length} ${productKind === 'phone' ? 'เครื่อง' : 'ชิ้น'} · เว้น Serial ได้ ระบบจะใช้ IMEI`}>
                   <div className="space-y-2">
                     {fields.map((f, idx) => (
                       <ItemCard key={f.id} idx={idx}
                                 register={register} control={control}
                                 onRemove={() => fields.length > 1 ? remove(idx) : null}
-                                disableRemove={fields.length === 1} />
+                                disableRemove={fields.length === 1}
+                                unitLabel={productKind === 'phone' ? 'เครื่อง' : 'ชิ้น'} />
                     ))}
                     <button type="button"
                             onClick={() => append({ ...EMPTY_ITEM, condition: defaultCondition, acquisitionType: defaultAcq })}
                             className="btn-secondary text-sm">
-                      <Plus className="h-4 w-4" /> เพิ่มเครื่อง
+                      <Plus className="h-4 w-4" /> เพิ่ม{productKind === 'phone' ? 'เครื่อง' : 'ชิ้น'}
                     </button>
                   </div>
                 </FieldRow>
               </>)}
-            </>)}
+          </div>
+        </div>
 
-            {/* ─── Tab: อื่นๆ ──────────────────────────────────── */}
-            {activeTab === 'other' && (<>
+        {/* ═════════ Section: อื่นๆ ═════════ */}
+        <div id="section-other" className="card scroll-mt-4">
+          <div className="card-header flex items-center gap-2">
+            <span className="grid h-6 w-6 place-items-center rounded-full bg-brand-100 text-xs font-bold text-brand-700">4</span>
+            <span className="font-semibold">อื่นๆ</span>
+            <span className="text-xs text-slate-500">— รหัสสินค้า · บาร์โค้ด · ประกัน · ล็อต</span>
+          </div>
+          <div className="card-body space-y-5">
               <FieldRow label="รหัสสินค้า" hint="ระบบสร้างให้จาก ชื่อ + สี + ความจุ + เครือข่าย">
                 <div className="relative">
                   <input className={`input pr-10 font-mono ${
@@ -660,7 +733,6 @@ export function ProductRegisterPage() {
                   <input className="input" {...register('lotNote')} />
                 </FieldRow>
               </>)}
-            </>)}
           </div>
         </div>
 
@@ -668,7 +740,7 @@ export function ProductRegisterPage() {
         <div className="sticky bottom-2 z-10 flex flex-col gap-2 rounded-xl border border-slate-200 bg-white/95 p-3 shadow-lg backdrop-blur sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-3 text-sm">
             <span className="text-slate-500">สรุป:</span>
-            <span className="font-semibold">{summary.count} {serialized ? 'เครื่อง' : 'ชิ้น'}</span>
+            <span className="font-semibold">{summary.count} {productKind === 'phone' ? 'เครื่อง' : 'ชิ้น'}</span>
             {summary.totalCost > 0 && (
               <span className="text-slate-600">ทุนรวม <span className="font-semibold">{formatTHB(summary.totalCost)}</span></span>
             )}
@@ -691,24 +763,6 @@ export function ProductRegisterPage() {
 }
 
 /* ─── helper components ───────────────────────────────────────────────── */
-
-function TabButton({
-  active, ok, onClick, children,
-}: { active: boolean; ok: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button type="button" onClick={onClick}
-            className={`relative inline-flex items-center gap-1.5 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-semibold transition-all ${
-              active
-                ? 'border-brand-600 text-brand-700'
-                : 'border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-            }`}>
-      <span className={`grid h-4 w-4 place-items-center rounded-full text-[10px] font-bold ${
-        ok ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-500'
-      }`}>{ok ? '✓' : '·'}</span>
-      {children}
-    </button>
-  );
-}
 
 function FieldRow({
   label, children, required, hint,
@@ -780,23 +834,25 @@ function ImageDropZone({
 /* ─── card 1 เครื่อง (มือถือ-friendly) ─────────────────────────────────── */
 
 function ItemCard({
-  idx, register, control, onRemove, disableRemove,
+  idx, register, control, onRemove, disableRemove, unitLabel = 'เครื่อง',
 }: {
   idx: number;
   register: UseFormRegister<FormValues>;
   control: Control<FormValues>;
   onRemove: () => void;
   disableRemove: boolean;
+  /** ป้ายหน่วยที่จะแสดงในหัว card — "เครื่อง" สำหรับมือถือ, "ชิ้น" สำหรับอุปกรณ์เสริม */
+  unitLabel?: string;
 }) {
   const condition = useWatch({ control, name: `items.${idx}.condition` }) ?? 'NEW';
 
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-3 transition-shadow hover:shadow-sm">
       <div className="mb-2 flex items-center justify-between">
-        <span className="text-xs font-bold text-slate-500">เครื่องที่ {idx + 1}</span>
+        <span className="text-xs font-bold text-slate-500">{unitLabel}ที่ {idx + 1}</span>
         <button type="button" disabled={disableRemove} onClick={onRemove}
                 className="rounded p-1 text-red-500 transition-colors hover:bg-red-50 disabled:opacity-30"
-                title="ลบเครื่อง">
+                title={`ลบ${unitLabel}`}>
           <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>

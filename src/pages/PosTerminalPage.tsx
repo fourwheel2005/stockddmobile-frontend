@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { ScanLine, Trash2, ShoppingCart, Receipt, Search, ListChecks, UserCircle2, Printer, Upload, X, Wrench } from 'lucide-react';
+import { ScanLine, Trash2, ShoppingCart, Receipt, Search, ListChecks, UserCircle2, Printer, Upload, X, Wrench, Truck, Globe, Store } from 'lucide-react';
 import { posApi } from '@/api/pos';
 import { filesApi } from '@/api/files';
 import { extractErrorMessage } from '@/api/client';
@@ -12,9 +12,20 @@ import { RepairIntakeModal } from '@/components/RepairIntakeModal';
 import { ReceiptPrintView } from '@/components/ReceiptPrintView';
 import { RepairBillPrintView } from '@/components/RepairBillPrintView';
 import type {
-  CartScanResponse, Customer, InStockItem,
-  PaymentMethod, RepairTicket, SalesOrderResponse,
+  CartScanResponse, Customer, InStockItem, OrderChannel,
+  PaymentMethod, RepairTicket, SalesOrderResponse, ShippingPartner,
 } from '@/types/api';
+
+const SHIPPING_PARTNER_OPTIONS: { value: ShippingPartner; label: string; icon: string }[] = [
+  { value: 'ICE',        label: 'น้ำแข็ง',       icon: '🧊' },
+  { value: 'YUEM_MAI',   label: 'ยืมมั้ย',       icon: '🤝' },
+  { value: 'PEE_KEAW',   label: 'พี่เขียว',      icon: '🟢' },
+  { value: 'GREATER',    label: 'กรีทเตอร์',     icon: '⭐' },
+  { value: 'RED_HEAT',   label: 'เรด ฮีท',       icon: '🔥' },
+  { value: 'AMP_MOBILE', label: 'แอมป์ โมบาย',   icon: '📱' },
+  { value: 'PICKUP',     label: 'ลูกค้ารับเอง',  icon: '🏪' },
+  { value: 'OTHER',      label: 'อื่นๆ',          icon: '📌' },
+];
 
 interface CartLine {
   key: string;
@@ -52,6 +63,7 @@ export function PosTerminalPage() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH');
   const [paymentRef, setPaymentRef] = useState('');
   const [discount, setDiscount] = useState<number>(0);
+  const [vatRate, setVatRate] = useState<number>(0); // % (0 = ไม่คิด VAT)
   const [note, setNote] = useState('');
   const [lastBill, setLastBill] = useState<SalesOrderResponse | null>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
@@ -72,8 +84,25 @@ export function PosTerminalPage() {
   const [slipPreview, setSlipPreview] = useState<string | null>(null);
   const [slipUploading, setSlipUploading] = useState(false);
 
+  // ─── Walk-in customer (พิมพ์สด ไม่ต้องมีในระบบ) ─────────────────────
+  const [walkInName, setWalkInName] = useState('');
+  const [walkInPhone, setWalkInPhone] = useState('');
+
+  // ─── Shipping / channel ─────────────────────────────────────────────
+  const [orderChannel, setOrderChannel] = useState<OrderChannel>('WALK_IN');
+  const [shippingFee, setShippingFee] = useState<number>(0);
+  const [shippingPartner, setShippingPartner] = useState<ShippingPartner | ''>('');
+  const [shippingTrackingNo, setShippingTrackingNo] = useState('');
+  const [shippingAddress, setShippingAddress] = useState('');
+
   // Auto-focus on mount so scanner gun input works immediately
   useEffect(() => { inputRef.current?.focus(); }, []);
+
+  // Cleanup blob URL เมื่อ component unmount — กัน memory leak
+  useEffect(() => () => {
+    if (slipPreview) URL.revokeObjectURL(slipPreview);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Re-focus the scan input whenever modals close, so the scanner gun keeps working.
   useEffect(() => {
@@ -163,9 +192,12 @@ export function PosTerminalPage() {
   };
   const removeLine = (key: string) => setCart((prev) => prev.filter((l) => l.key !== key));
 
-  // Totals
+  // Totals — VAT คิดจาก (subtotal − discount) แล้วบวกค่าจัดส่ง
   const subtotal = cart.reduce((s, l) => s + l.sellPrice * l.quantity, 0);
-  const grandTotal = Math.max(0, subtotal - discount);
+  const taxBase = Math.max(0, subtotal - discount);
+  const vatAmount = Math.round(taxBase * (Number(vatRate) || 0)) / 100;
+  const grandTotal = Math.max(0, taxBase + vatAmount + (Number(shippingFee) || 0));
+  const discountExceedsSubtotal = discount > subtotal;
 
   // Add an IMEI from the picker modal to the cart
   function addImeiToCart(item: InStockItem) {
@@ -226,7 +258,17 @@ export function PosTerminalPage() {
         paymentReference: paymentRef || undefined,
         paymentSlipFileId: paymentMethod === 'TRANSFER' ? (slipFileId ?? undefined) : undefined,
         discountAmount: discount || undefined,
+        vatAmount: vatAmount > 0 ? vatAmount : undefined,
         note: note || undefined,
+        // Walk-in (ส่งเฉพาะเมื่อยังไม่ได้เลือกลูกค้าจากระบบ)
+        walkInCustomerName: !customer && walkInName.trim() ? walkInName.trim() : undefined,
+        walkInCustomerPhone: !customer && walkInPhone.trim() ? walkInPhone.trim() : undefined,
+        // Shipping
+        orderChannel,
+        shippingFee: shippingFee > 0 ? shippingFee : undefined,
+        shippingPartner: shippingPartner || undefined,
+        shippingTrackingNo: shippingTrackingNo.trim() || undefined,
+        shippingAddress: shippingAddress.trim() || undefined,
         ...(isInstallment ? {
           installmentMonths,
           downPaymentAmount: downAmount,
@@ -250,6 +292,14 @@ export function PosTerminalPage() {
       setSplitDown(false);
       setDownCash(0);
       setDownTransfer(0);
+      setVatRate(0);
+      setWalkInName('');
+      setWalkInPhone('');
+      setOrderChannel('WALK_IN');
+      setShippingFee(0);
+      setShippingPartner('');
+      setShippingTrackingNo('');
+      setShippingAddress('');
       clearSlip();
       inputRef.current?.focus();
     },
@@ -259,6 +309,23 @@ export function PosTerminalPage() {
   // โอนเงินต้องแนบสลิปก่อนปิดบิล
   const needSlip = paymentMethod === 'TRANSFER';
   const slipMissing = needSlip && !slipFileId;
+
+  // ─── Channel + Shipping gating (ตรงกับ PosService validation) ────────
+  const isOnline = orderChannel === 'ONLINE';
+  const hasCustomerIdentity = !!customer || walkInName.trim().length > 0;
+  const onlineNeedsAddress = isOnline && shippingAddress.trim().length === 0;
+  const onlineNeedsPartner = isOnline && !shippingPartner;
+  const onlineNeedsIdentity = isOnline && !hasCustomerIdentity;
+  const installmentNeedsIdentity = paymentMethod === 'INSTALLMENT' && !hasCustomerIdentity;
+  const checkoutBlockedReason =
+    cart.length === 0 ? 'ยังไม่มีสินค้าในตะกร้า' :
+    slipMissing ? 'ต้องแนบสลิปโอนเงินก่อน' :
+    discountExceedsSubtotal ? 'ส่วนลดเกินยอดรวมสินค้า' :
+    onlineNeedsIdentity ? 'ออนไลน์: ต้องระบุชื่อลูกค้า' :
+    onlineNeedsPartner ? 'ออนไลน์: ต้องเลือกพาร์ทเนอร์จัดส่ง' :
+    onlineNeedsAddress ? 'ออนไลน์: ต้องกรอกที่อยู่จัดส่ง' :
+    installmentNeedsIdentity ? 'ผ่อนชำระ: ต้องระบุชื่อลูกค้า' :
+    null;
 
   return (
     <div className="space-y-4">
@@ -387,6 +454,186 @@ export function PosTerminalPage() {
         </div>
       </div>
 
+      {/* ─── Customer info (walk-in หรือ ระบบ) + ช่องทาง ──────────── */}
+      <div className="card border-2 border-sky-300">
+        <div className="card-header flex items-center gap-2 bg-sky-50">
+          <UserCircle2 className="h-5 w-5 text-sky-700" />
+          <span>ข้อมูลลูกค้า + ช่องทาง</span>
+          {(paymentMethod === 'INSTALLMENT' || isOnline) && (
+            <span className="ml-auto rounded bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">
+              * จำเป็น
+            </span>
+          )}
+        </div>
+        <div className="card-body grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="sm:col-span-1">
+            <label className="mb-1 block text-xs font-medium text-slate-600">ช่องทางการขาย</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setOrderChannel('WALK_IN');
+                  // หน้าร้านมัก = ลูกค้ารับเอง — ถ้ายังไม่เลือกอะไรให้ default PICKUP
+                  if (!shippingPartner) setShippingPartner('PICKUP');
+                }}
+                className={`flex items-center gap-1 rounded-md border px-3 py-2 text-sm transition ${
+                  orderChannel === 'WALK_IN'
+                    ? 'border-sky-500 bg-sky-100 font-semibold text-sky-800'
+                    : 'border-slate-200 hover:border-slate-300'
+                }`}>
+                <Store className="h-4 w-4" /> หน้าร้าน
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setOrderChannel('ONLINE');
+                  // ออนไลน์: เลิก PICKUP เพราะ backend block — ให้ผู้ใช้เลือกใหม่
+                  if (shippingPartner === 'PICKUP') setShippingPartner('');
+                }}
+                className={`flex items-center gap-1 rounded-md border px-3 py-2 text-sm transition ${
+                  orderChannel === 'ONLINE'
+                    ? 'border-sky-500 bg-sky-100 font-semibold text-sky-800'
+                    : 'border-slate-200 hover:border-slate-300'
+                }`}>
+                <Globe className="h-4 w-4" /> ออนไลน์
+              </button>
+            </div>
+          </div>
+
+          <div className="sm:col-span-1">
+            <label className="mb-1 block text-xs font-medium text-slate-600">
+              ชื่อลูกค้า {customer ? '(จากระบบ)' : '(พิมพ์สดได้)'}
+            </label>
+            {customer ? (
+              <div className="flex items-center gap-2 rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm">
+                <span className="font-semibold">{customer.name}</span>
+                {customer.phone && <span className="text-xs text-slate-500">({customer.phone})</span>}
+                <button
+                  type="button"
+                  className="ml-auto text-xs text-red-600 hover:underline"
+                  onClick={() => setCustomer(null)}>
+                  ✕ ล้าง
+                </button>
+              </div>
+            ) : (
+              <input
+                className="input"
+                placeholder="ชื่อลูกค้า (ใช้พิมพ์ใบเสร็จ + แจ้ง LINE)"
+                value={walkInName}
+                onChange={(e) => setWalkInName(e.target.value)}
+                maxLength={120}
+              />
+            )}
+          </div>
+
+          <div className="sm:col-span-1">
+            <label className="mb-1 block text-xs font-medium text-slate-600">เบอร์โทร (optional)</label>
+            {customer ? (
+              <input
+                className="input bg-slate-50"
+                value={customer.phone ?? '-'}
+                disabled
+              />
+            ) : (
+              <input
+                className="input"
+                placeholder="08x-xxx-xxxx"
+                value={walkInPhone}
+                onChange={(e) => setWalkInPhone(e.target.value)}
+                maxLength={30}
+              />
+            )}
+          </div>
+
+          {(installmentNeedsIdentity || onlineNeedsIdentity) && (
+            <div className="sm:col-span-3 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">
+              ⚠️ {paymentMethod === 'INSTALLMENT' ? 'ผ่อนชำระ' : 'ออนไลน์'}: ต้องเลือกลูกค้าจากระบบ
+              หรือกรอกชื่อลูกค้าก่อน
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ─── ค่าจัดส่งพัสดุ + พาร์ทเนอร์ (collapsible สำหรับหน้าร้าน) ── */}
+      <div className="card border-2 border-orange-300">
+        <div className="card-header flex items-center gap-2 bg-orange-50">
+          <Truck className="h-5 w-5 text-orange-700" />
+          <span>ค่าจัดส่งพัสดุ + พาร์ทเนอร์</span>
+          {isOnline && (
+            <span className="ml-auto rounded bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">
+              * จำเป็น (ออนไลน์)
+            </span>
+          )}
+        </div>
+        <div className="card-body space-y-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">ค่าจัดส่ง (บาท)</label>
+              <input
+                type="number" min={0} step="1"
+                className="input text-right font-semibold"
+                value={shippingFee}
+                onChange={(e) => setShippingFee(Math.max(0, Number(e.target.value) || 0))}
+              />
+              <p className="mt-1 text-[11px] text-slate-500">รวมเข้ายอดสุทธิ</p>
+            </div>
+            <div className="sm:col-span-2">
+              <label className="mb-1 block text-xs font-medium text-slate-600">
+                เลขพัสดุ (tracking)
+              </label>
+              <input
+                className="input"
+                placeholder={isOnline ? 'จำเป็นเมื่อออกพัสดุ' : 'optional'}
+                value={shippingTrackingNo}
+                onChange={(e) => setShippingTrackingNo(e.target.value)}
+                maxLength={60}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">
+              พาร์ทเนอร์จัดส่ง {onlineNeedsPartner && <span className="text-red-600">*</span>}
+            </label>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+              {SHIPPING_PARTNER_OPTIONS.map((p) => {
+                const active = shippingPartner === p.value;
+                return (
+                  <button
+                    type="button"
+                    key={p.value}
+                    onClick={() => setShippingPartner(active ? '' : p.value)}
+                    className={`flex items-center gap-1 rounded-md border px-3 py-2 text-sm transition ${
+                      active
+                        ? 'border-orange-500 bg-orange-100 font-semibold text-orange-800'
+                        : 'border-slate-200 hover:border-slate-300'
+                    }`}>
+                    <span className="text-base">{p.icon}</span>
+                    <span className="text-xs">{p.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {isOnline && (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">
+                ที่อยู่จัดส่ง <span className="text-red-600">*</span>
+              </label>
+              <textarea
+                rows={3}
+                className="input"
+                placeholder="ชื่อ-นามสกุล / ที่อยู่ / รหัสไปรษณีย์ / เบอร์โทร"
+                value={shippingAddress}
+                onChange={(e) => setShippingAddress(e.target.value)}
+                maxLength={1000}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* ─── Installment details panel (only for INSTALLMENT) ───────── */}
       {paymentMethod === 'INSTALLMENT' && (
         <InstallmentPanel
@@ -480,9 +727,42 @@ export function PosTerminalPage() {
             </div>
             <div className="flex items-center justify-between text-sm">
               <span className="text-slate-500">ส่วนลด (บาท)</span>
-              <input type="number" step="0.01" className="input w-32 text-right"
-                     value={discount} onChange={(e) => setDiscount(Number(e.target.value) || 0)} />
+              <input type="number" step="0.01" min={0} max={subtotal}
+                     className={`input w-32 text-right ${discountExceedsSubtotal ? 'border-red-400 ring-red-300' : ''}`}
+                     value={discount} onChange={(e) => setDiscount(Math.max(0, Number(e.target.value) || 0))} />
             </div>
+            {discountExceedsSubtotal && (
+              <div className="text-xs text-red-600">⚠️ ส่วนลดเกินยอดรวม</div>
+            )}
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-slate-500">VAT (%)</span>
+              <div className="flex items-center gap-1">
+                {[0, 7].map((r) => (
+                  <button key={r} type="button"
+                          onClick={() => setVatRate(r)}
+                          className={`rounded border px-2 py-1 text-xs ${vatRate === r ? 'border-brand-500 bg-brand-50 font-semibold text-brand-700' : 'border-slate-200 hover:border-slate-300'}`}>
+                    {r}%
+                  </button>
+                ))}
+                <input type="number" step="0.01" min={0} max={100}
+                       className="input w-20 text-right"
+                       value={vatRate} onChange={(e) => setVatRate(Math.min(100, Math.max(0, Number(e.target.value) || 0)))} />
+              </div>
+            </div>
+            {vatAmount > 0 && (
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-500">VAT ที่คำนวณ</span>
+                <span className="font-semibold text-slate-700">+ {formatTHB(vatAmount)}</span>
+              </div>
+            )}
+            {shippingFee > 0 && (
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-500">
+                  ค่าจัดส่ง {shippingPartner ? `(${SHIPPING_PARTNER_OPTIONS.find(p => p.value === shippingPartner)?.label})` : ''}
+                </span>
+                <span className="font-semibold text-orange-700">+ {formatTHB(shippingFee)}</span>
+              </div>
+            )}
             <input className="input" placeholder="หมายเหตุ (optional)"
                    value={note} onChange={(e) => setNote(e.target.value)} />
           </div>
@@ -498,13 +778,14 @@ export function PosTerminalPage() {
             </div>
             <button
               className="btn-primary w-full bg-emerald-600 hover:bg-emerald-700 text-base"
-              disabled={cart.length === 0 || checkout.isPending || slipMissing}
-              title={slipMissing ? 'ต้องแนบสลิปโอนเงินก่อน' : undefined}
+              disabled={checkout.isPending || !!checkoutBlockedReason}
+              title={checkoutBlockedReason ?? undefined}
               onClick={() => checkout.mutate()}>
               <Receipt className="h-5 w-5" />
               {checkout.isPending ? 'กำลังปิดบิล...'
-                : slipMissing ? 'แนบสลิปก่อนปิดบิล'
-                : 'ปิดบิล'}
+                : checkoutBlockedReason
+                  ? checkoutBlockedReason
+                  : 'ปิดบิล'}
             </button>
             {lastBill && (
               <button className="btn-secondary w-full" onClick={() => window.print()}>
@@ -524,6 +805,7 @@ export function PosTerminalPage() {
       )}
       {showImeiPicker && (
         <ImeiPickerModal
+          selectedIds={cart.map((l) => l.serialItemId).filter(Boolean) as string[]}
           onSelect={(item) => addImeiToCart(item)}
           onClose={() => setShowImeiPicker(false)}
         />

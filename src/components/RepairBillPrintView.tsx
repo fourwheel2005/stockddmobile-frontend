@@ -41,6 +41,9 @@ export function RepairBillPrintView({ ticket, shopName = 'Stockdd Mobile' }: Pro
         </div>
         {ticket.imei && <div className="flex justify-between"><span>IMEI:</span><span>{ticket.imei}</span></div>}
         {ticket.serialNumber && <div className="flex justify-between"><span>Serial:</span><span>{ticket.serialNumber}</span></div>}
+        {ticket.screenCode && (
+          <div className="flex justify-between"><span>รหัสหน้าจอ:</span><span className="font-mono">{ticket.screenCode}</span></div>
+        )}
         <div className="mt-1">
           <div className="text-slate-600">อาการที่แจ้ง:</div>
           <div className="whitespace-pre-wrap">{ticket.reportedSymptom}</div>

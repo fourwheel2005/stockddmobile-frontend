@@ -15,7 +15,8 @@ interface Props {
 
 const EMPTY: CreateRepairRequest = {
   customerName: '', customerPhone: '', deviceBrand: '', deviceModel: '',
-  deviceColor: '', imei: '', serialNumber: '', reportedSymptom: '',
+  deviceColor: '', imei: '', serialNumber: '', screenCode: '',
+  reportedSymptom: '',
   estimatedCost: undefined, depositAmount: undefined, note: '',
 };
 
@@ -52,6 +53,7 @@ export function RepairIntakeModal({ onClose, onCreated }: Props) {
         deviceColor: form.deviceColor?.trim() || undefined,
         imei: form.imei?.trim() || undefined,
         serialNumber: form.serialNumber?.trim() || undefined,
+        screenCode: form.screenCode?.trim() || undefined,
         reportedSymptom: form.reportedSymptom.trim(),
         estimatedCost: form.estimatedCost || undefined,
         depositAmount: form.depositAmount || undefined,
@@ -134,10 +136,23 @@ export function RepairIntakeModal({ onClose, onCreated }: Props) {
                 <input className="input" value={form.imei}
                        onChange={(e) => set('imei', e.target.value)} />
               </div>
-              <div className="sm:col-span-2">
+              <div>
                 <label className="mb-1 block text-sm font-medium">Serial Number</label>
                 <input className="input" value={form.serialNumber}
                        onChange={(e) => set('serialNumber', e.target.value)} />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="mb-1 block text-sm font-medium">
+                  รหัสหน้าจอ
+                  <span className="ml-1 font-normal text-slate-400">(passcode / PIN / pattern — สำหรับช่างใช้ปลดล็อกทดสอบ)</span>
+                </label>
+                <input
+                  className="input font-mono"
+                  placeholder="เช่น 1234 หรือ L-pattern"
+                  value={form.screenCode}
+                  onChange={(e) => set('screenCode', e.target.value)}
+                  maxLength={60}
+                />
               </div>
             </div>
           </fieldset>

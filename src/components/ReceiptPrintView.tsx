@@ -1,5 +1,5 @@
 import { formatTHB, formatDateTime } from '@/lib/format';
-import type { PaymentMethod, SalesOrderResponse } from '@/types/api';
+import type { PaymentMethod, SalesOrderResponse, ShippingPartner } from '@/types/api';
 
 const PAYMENT_TH: Record<PaymentMethod, string> = {
   CASH: 'เงินสด',
@@ -7,6 +7,17 @@ const PAYMENT_TH: Record<PaymentMethod, string> = {
   TRANSFER: 'โอนเงิน / QR',
   QR: 'QR / พร้อมเพย์',
   INSTALLMENT: 'ผ่อนชำระรายเดือน',
+};
+
+const PARTNER_TH: Record<ShippingPartner, string> = {
+  ICE: 'น้ำแข็ง',
+  YUEM_MAI: 'ยืมมั้ย',
+  PEE_KEAW: 'พี่เขียว',
+  GREATER: 'กรีทเตอร์',
+  RED_HEAT: 'เรด ฮีท',
+  AMP_MOBILE: 'แอมป์ โมบาย',
+  PICKUP: 'ลูกค้ารับเอง',
+  OTHER: 'อื่นๆ',
 };
 
 interface Props { order: SalesOrderResponse; shopName?: string; }
@@ -31,6 +42,12 @@ export function ReceiptPrintView({ order, shopName = 'Stockdd Mobile' }: Props) 
         <div className="flex justify-between"><span>ผู้ขาย:</span><span>{order.createdBy}</span></div>
         {order.customerName && (
           <div className="flex justify-between"><span>ลูกค้า:</span><span>{order.customerName}</span></div>
+        )}
+        {order.customerPhone && (
+          <div className="flex justify-between"><span>เบอร์โทร:</span><span>{order.customerPhone}</span></div>
+        )}
+        {order.orderChannel === 'ONLINE' && (
+          <div className="flex justify-between"><span>ช่องทาง:</span><span>ออนไลน์</span></div>
         )}
       </div>
 
@@ -71,6 +88,12 @@ export function ReceiptPrintView({ order, shopName = 'Stockdd Mobile' }: Props) 
         {order.vatAmount > 0 && (
           <div className="flex justify-between"><span>ภาษีมูลค่าเพิ่ม:</span><span>{formatTHB(order.vatAmount)}</span></div>
         )}
+        {order.shippingFee > 0 && (
+          <div className="flex justify-between">
+            <span>ค่าจัดส่ง{order.shippingPartner ? ` (${PARTNER_TH[order.shippingPartner]})` : ''}:</span>
+            <span>{formatTHB(order.shippingFee)}</span>
+          </div>
+        )}
         <div className="flex justify-between border-t border-slate-400 pt-1 text-base">
           <strong>ยอดสุทธิ:</strong>
           <strong>{formatTHB(order.grandTotal)}</strong>
@@ -79,6 +102,34 @@ export function ReceiptPrintView({ order, shopName = 'Stockdd Mobile' }: Props) 
           <span>วิธีชำระ:</span>
           <span>{order.paymentMethod ? PAYMENT_TH[order.paymentMethod] : '-'}</span>
         </div>
+        {order.paymentMethod === 'INSTALLMENT' && order.installmentMonths && (
+          <>
+            <div className="flex justify-between">
+              <span>เงินดาวน์:</span>
+              <span>{formatTHB(order.downPaymentAmount ?? 0)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>ผ่อน {order.installmentMonths} เดือน × :</span>
+              <span>
+                {formatTHB(
+                  ((order.grandTotal ?? 0) - (order.downPaymentAmount ?? 0)) /
+                    Math.max(1, order.installmentMonths)
+                )} / เดือน
+              </span>
+            </div>
+          </>
+        )}
+        {(order.shippingTrackingNo || order.shippingAddress) && (
+          <div className="mt-2 border-t border-dashed border-slate-300 pt-2 text-xs">
+            <div className="font-semibold">📦 ข้อมูลจัดส่ง</div>
+            {order.shippingTrackingNo && (
+              <div>เลขพัสดุ: {order.shippingTrackingNo}</div>
+            )}
+            {order.shippingAddress && (
+              <div className="whitespace-pre-line">{order.shippingAddress}</div>
+            )}
+          </div>
+        )}
       </div>
 
       <hr className="my-3 border-dashed border-slate-400" />
