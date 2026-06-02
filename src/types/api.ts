@@ -126,6 +126,8 @@ export interface WizardInitialItem {
   acquisitionType?: AcquisitionType;
   purchasePrice?: number;
   warrantyTerms?: string;
+  /** วันหมดประกัน YYYY-MM-DD */
+  warrantyExpire?: string;
 }
 
 export interface WizardVariantBlock {

@@ -36,6 +36,7 @@ interface ItemRow {
   batteryHealth: number | '';
   acquisitionType: AcquisitionType;
   purchasePrice: number | '';
+  warrantyExpire: string;   // YYYY-MM-DD
 }
 
 interface FormValues {
@@ -68,6 +69,7 @@ const EMPTY_ITEM: ItemRow = {
   serialNumber: '', imei: '',
   condition: 'NEW', batteryHealth: '',
   acquisitionType: 'PURCHASE', purchasePrice: '',
+  warrantyExpire: '',
 };
 
 function todayIso(): string {
@@ -318,6 +320,7 @@ export function ProductRegisterPage() {
           acquisitionType: it.acquisitionType,
           purchasePrice: it.purchasePrice === '' ? undefined : Number(it.purchasePrice),
           warrantyTerms: blank(d.warrantyTerms),
+          warrantyExpire: blank(it.warrantyExpire),
         }));
       if (validItems.length === 0) {
         toast.error('ใส่อย่างน้อย 1 เครื่อง (IMEI หรือ Serial)');
@@ -457,9 +460,9 @@ export function ProductRegisterPage() {
                 {errors.categoryId && <p className="mt-1 text-xs text-red-600">{errors.categoryId.message}</p>}
               </FieldRow>
 
-              <FieldRow label="ชื่อสินค้า" required>
-                <input className="input" placeholder="เช่น iPhone 15 Pro"
-                       {...register('name', { required: 'กรุณาใส่ชื่อสินค้า' })} />
+              <FieldRow label="ชื่อรุ่น (Model)" required hint="ดูได้ที่เครื่อง → เกี่ยวกับ → ชื่อรุ่น · เช่น iPhone Air, iPhone 15 Pro">
+                <input className="input" placeholder="เช่น iPhone Air"
+                       {...register('name', { required: 'กรุณาใส่ชื่อรุ่น' })} />
                 {errors.name && <p className="mt-1 text-xs text-red-600">{errors.name.message}</p>}
               </FieldRow>
 
@@ -477,6 +480,10 @@ export function ProductRegisterPage() {
                 <FieldRow label="ความจุ">
                   <input className="input" list="storage-list" placeholder="เช่น 256GB" {...register('storage')} />
                   <datalist id="storage-list">{STORAGE_OPTIONS.map((s) => <option key={s} value={s} />)}</datalist>
+                </FieldRow>
+
+                <FieldRow label="หมายเลขรุ่น (Model)" hint="เลขรุ่นที่ผู้ผลิตให้ ดูได้ที่เครื่อง → เกี่ยวกับ · เช่น MG2N4ZP/A, A3293">
+                  <input className="input font-mono" placeholder="เช่น MG2N4ZP/A" {...register('modelNumber')} />
                 </FieldRow>
               </>)}
 
@@ -631,10 +638,6 @@ export function ProductRegisterPage() {
                   <datalist id="network-list">{NETWORK_OPTIONS.map((n) => <option key={n} value={n} />)}</datalist>
                 </FieldRow>
               </>)}
-
-              <FieldRow label="หมายเลขรุ่น" hint="เลขรุ่นที่ผู้ผลิตให้ เช่น A3293">
-                <input className="input" {...register('modelNumber')} />
-              </FieldRow>
 
               <FieldRow label="รายละเอียด">
                 <textarea className="input" rows={2} {...register('description')} />
@@ -849,6 +852,15 @@ function ItemCard({
           <label className="mb-0.5 block text-xs font-semibold text-slate-600">ราคาซื้อต่อเครื่อง</label>
           <input type="number" step="0.01" className="input text-sm" placeholder="ใช้ราคาทุนถ้าเว้น"
                  {...register(`items.${idx}.purchasePrice`)} />
+        </div>
+        <div className="sm:col-span-2">
+          <label className="mb-0.5 block text-xs font-semibold text-slate-600">
+            วันหมดประกัน {condition === 'SECOND_HAND' && <span className="text-amber-600">(มือ 2 ควรระบุ)</span>}
+          </label>
+          <input type="date" className="input text-sm" {...register(`items.${idx}.warrantyExpire`)} />
+          <p className="mt-0.5 text-[11px] text-slate-500">
+            💡 ดูได้ที่เครื่อง → เกี่ยวกับ → การรับประกัน · เว้นว่าง = ไม่มีประกัน
+          </p>
         </div>
       </div>
     </div>
