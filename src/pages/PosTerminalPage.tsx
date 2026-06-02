@@ -12,7 +12,7 @@ import { RepairIntakeModal } from '@/components/RepairIntakeModal';
 import { ReceiptPrintView } from '@/components/ReceiptPrintView';
 import { RepairBillPrintView } from '@/components/RepairBillPrintView';
 import type {
-  CartScanResponse, Customer, InStockItem, OrderChannel, PaidFrom,
+  CartScanResponse, Customer, InStockItem, OrderChannel,
   PaymentMethod, RepairTicket, SalesOrderResponse, ShippingPartner,
 } from '@/types/api';
 import { cashRegisterApi } from '@/api/cashRegister';
@@ -97,7 +97,8 @@ export function PosTerminalPage() {
   const [shippingPartner, setShippingPartner] = useState<ShippingPartner | ''>('');
   const [shippingTrackingNo, setShippingTrackingNo] = useState('');
   const [shippingAddress, setShippingAddress] = useState('');
-  const [shippingPaidFrom, setShippingPaidFrom] = useState<PaidFrom>('REGISTER');
+  const [shippingFeeGrandpa, setShippingFeeGrandpa] = useState<number>(0);
+  const [shippingFeeGrandma, setShippingFeeGrandma] = useState<number>(0);
   const [showOpenSession, setShowOpenSession] = useState(false);
 
   // ─── Cash session check (block checkout if no session) ──────────────
@@ -282,7 +283,8 @@ export function PosTerminalPage() {
         shippingPartner: shippingPartner || undefined,
         shippingTrackingNo: shippingTrackingNo.trim() || undefined,
         shippingAddress: shippingAddress.trim() || undefined,
-        shippingPaidFrom: (Number(shippingFee) > 0) ? shippingPaidFrom : undefined,
+        shippingFeeGrandpa: shippingFeeGrandpa > 0 ? shippingFeeGrandpa : undefined,
+        shippingFeeGrandma: shippingFeeGrandma > 0 ? shippingFeeGrandma : undefined,
         ...(isInstallment ? {
           installmentMonths,
           downPaymentAmount: downAmount,
@@ -314,7 +316,8 @@ export function PosTerminalPage() {
       setShippingPartner('');
       setShippingTrackingNo('');
       setShippingAddress('');
-      setShippingPaidFrom('REGISTER');
+      setShippingFeeGrandpa(0);
+      setShippingFeeGrandma(0);
       clearSlip();
       qc.invalidateQueries({ queryKey: ['cash-session'] });
       inputRef.current?.focus();
@@ -333,11 +336,13 @@ export function PosTerminalPage() {
   const onlineNeedsPartner = isOnline && !shippingPartner;
   const onlineNeedsIdentity = isOnline && !hasCustomerIdentity;
   const installmentNeedsIdentity = paymentMethod === 'INSTALLMENT' && !hasCustomerIdentity;
+  const shippingSplitOver = (shippingFeeGrandpa + shippingFeeGrandma) > shippingFee;
   const checkoutBlockedReason =
     !hasOpenSession ? 'กรุณาเปิดเก๊ะก่อน' :
     cart.length === 0 ? 'ยังไม่มีสินค้าในตะกร้า' :
     slipMissing ? 'ต้องแนบสลิปโอนเงินก่อน' :
     discountExceedsSubtotal ? 'ส่วนลดเกินยอดรวมสินค้า' :
+    shippingSplitOver ? 'ค่าส่งของตา+ยาย เกินค่าส่งรวม' :
     onlineNeedsIdentity ? 'ออนไลน์: ต้องระบุชื่อลูกค้า' :
     onlineNeedsPartner ? 'ออนไลน์: ต้องเลือกพาร์ทเนอร์จัดส่ง' :
     onlineNeedsAddress ? 'ออนไลน์: ต้องกรอกที่อยู่จัดส่ง' :
@@ -672,36 +677,54 @@ export function PosTerminalPage() {
             </div>
           )}
 
-          {/* ใครออกค่าส่ง — แสดงเฉพาะเมื่อมีค่าส่ง > 0 */}
-          {shippingFee > 0 && (
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">
-                💰 ใครออกค่าส่ง (จำเป็นเพื่อ track ledger)
-              </label>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                {([
-                  { v: 'REGISTER',      l: '🏪 เก๊ะ',     hint: 'จากเงินในเก๊ะ' },
-                  { v: 'OWNER_GRANDPA', l: '👴 ตา',       hint: 'ตาออกเงินสด' },
-                  { v: 'OWNER_GRANDMA', l: '👵 ยาย',      hint: 'ยายออกเงินสด' },
-                  { v: 'CUSTOMER',      l: '🧑 ลูกค้า',  hint: 'ลูกค้าออกเอง' },
-                ] as { v: PaidFrom; l: string; hint: string }[]).map((opt) => (
-                  <button
-                    type="button"
-                    key={opt.v}
-                    onClick={() => setShippingPaidFrom(opt.v)}
-                    title={opt.hint}
-                    className={`flex flex-col items-start gap-0.5 rounded-md border px-3 py-2 text-sm transition ${
-                      shippingPaidFrom === opt.v
-                        ? 'border-amber-500 bg-amber-100 font-semibold text-amber-800'
-                        : 'border-slate-200 hover:border-slate-300'
-                    }`}>
-                    <span>{opt.l}</span>
-                    <span className="text-[10px] text-slate-500">{opt.hint}</span>
-                  </button>
-                ))}
+          {/* แยกค่าส่งของตา/ยาย — แสดงเฉพาะเมื่อมีค่าส่ง > 0 */}
+          {shippingFee > 0 && (() => {
+            const splitSum = shippingFeeGrandpa + shippingFeeGrandma;
+            const fromRegister = Math.max(0, shippingFee - splitSum);
+            const splitOver = splitSum > shippingFee;
+            return (
+              <div className="rounded-md border border-amber-200 bg-amber-50/50 p-3">
+                <label className="mb-2 block text-xs font-semibold text-amber-800">
+                  💰 ถ้าตา/ยายออกค่าส่งให้ ใส่ตัวเลขที่นี่ (เพื่อทบยอดคืนเจ้าของ)
+                </label>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-600">
+                      👴 ค่าส่งของตา (บาท)
+                    </label>
+                    <input
+                      type="number" min={0} max={shippingFee} step={1}
+                      className="input text-right"
+                      value={shippingFeeGrandpa}
+                      onChange={(e) => setShippingFeeGrandpa(Math.max(0, Number(e.target.value) || 0))}
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-600">
+                      👵 ค่าส่งของยาย (บาท)
+                    </label>
+                    <input
+                      type="number" min={0} max={shippingFee} step={1}
+                      className="input text-right"
+                      value={shippingFeeGrandma}
+                      onChange={(e) => setShippingFeeGrandma(Math.max(0, Number(e.target.value) || 0))}
+                    />
+                  </div>
+                </div>
+                <div className={`mt-2 rounded px-2 py-1.5 text-xs ${
+                  splitOver
+                    ? 'bg-red-100 text-red-800'
+                    : 'bg-white text-slate-700'
+                }`}>
+                  {splitOver ? (
+                    <>⚠️ ตา + ยาย รวม {formatTHB(splitSum)} เกินค่าส่งทั้งหมด {formatTHB(shippingFee)}</>
+                  ) : (
+                    <>🏪 ส่วนที่เหลือออกจากเก๊ะ: <strong>{formatTHB(fromRegister)}</strong></>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
       </div>
 

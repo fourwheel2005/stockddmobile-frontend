@@ -505,7 +505,9 @@ export interface CheckoutRequest {
   shippingTrackingNo?: string;
   shippingAddress?: string;
   orderChannel?: OrderChannel;
-  shippingPaidFrom?: PaidFrom;
+  shippingPaidFrom?: PaidFrom;     // legacy — deprecated
+  shippingFeeGrandpa?: number;     // ค่าส่งของตา (บาท)
+  shippingFeeGrandma?: number;     // ค่าส่งของยาย (บาท)
 }
 
 export interface SalesOrderItemResponse {
@@ -542,6 +544,8 @@ export interface SalesOrderResponse {
   shippingAddress: string | null;
   orderChannel: OrderChannel | null;
   shippingPaidFrom: PaidFrom | null;
+  shippingFeeGrandpa: number;
+  shippingFeeGrandma: number;
   cashSessionId: string | null;
   note: string | null;
   createdBy: string;
