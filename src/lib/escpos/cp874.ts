@@ -37,7 +37,10 @@ const ASCII_OVERRIDE: Record<number, number> = {
  * - Thai (U+0E01-U+0E5B) → mapped
  * - อื่นๆ → '?' (0x3F) เพราะ printer ไม่รู้จัก
  *
- * Critical: ต้องเรียก codepage(21) ของ ESC/POS ก่อน text() ทุกครั้ง
+ * Critical: ต้องเรียก codepage() ของ ESC/POS ก่อน text() ทุกครั้ง
+ *   - TM-T82III/V    → 21
+ *   - TM-T82X-II     → 26 ⭐
+ *   - บางรุ่น (TM-U) → 17 หรือ 18
  */
 export function encodeCp874(text: string): Uint8Array {
   const out: number[] = [];

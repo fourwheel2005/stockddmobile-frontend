@@ -91,7 +91,7 @@ export function buildDDMobileReceipt(
 ): Uint8Array {
   const b = new EscPosBuilder()
     .init()
-    .codepage(21); // Thai PC874
+    .codepage(26); // PC874 Thai — TM-T82V/X-II ใช้ 26 (รุ่นเก่ากว่าใช้ 21)
 
   // ─── Header ─────────────────────────────────────
   b.align('C')

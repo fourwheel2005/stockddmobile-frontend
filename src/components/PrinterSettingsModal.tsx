@@ -1,10 +1,25 @@
 import { useState } from 'react';
 import toast from 'react-hot-toast';
-import { X, Printer, RefreshCw, Key, Usb, TestTube } from 'lucide-react';
+import { X, Printer, RefreshCw, Key, Usb, TestTube, AlertTriangle } from 'lucide-react';
 import { useModalChrome, backdropCloseHandler } from '@/hooks/useModalChrome';
 import type { PrinterStatus } from '@/hooks/usePrinter';
 import { printOrchestrator } from '@/lib/printer/PrintOrchestrator';
 import { EscPosBuilder } from '@/lib/escpos/EscPosBuilder';
+
+/** Detect WebUSB support — Safari + Firefox ไม่รองรับ */
+function isWebUsbSupported(): boolean {
+  return typeof navigator !== 'undefined' && 'usb' in navigator;
+}
+
+function getBrowserName(): string {
+  if (typeof navigator === 'undefined') return 'Unknown';
+  const ua = navigator.userAgent.toLowerCase();
+  if (ua.includes('edg/')) return 'Edge';
+  if (ua.includes('chrome/') && !ua.includes('edg/')) return 'Chrome';
+  if (ua.includes('safari/') && !ua.includes('chrome/')) return 'Safari';
+  if (ua.includes('firefox/')) return 'Firefox';
+  return 'Unknown';
+}
 
 interface Props {
   status: PrinterStatus;
@@ -21,31 +36,56 @@ export function PrinterSettingsModal({
   const [token, setToken] = useState(localStorage.getItem('ddmobile.bridge.token') ?? '');
   useModalChrome(onClose);
 
-  const testPrint = async () => {
+  const [testCodepage, setTestCodepage] = useState<number>(26);
+
+  /** Test 1: ASCII only — verify printer wiring works (no Thai/codepage) */
+  const testAscii = async () => {
     try {
       const bytes = new EscPosBuilder()
         .init()
-        .codepage(21)
         .align('C')
         .size(2, 2).bold(true).textln('DDMobile').bold(false).size(1, 1)
-        .textln('— Test Print —')
+        .textln('=== ASCII TEST ===')
+        .align('L')
+        .textln('Hello World')
+        .textln('1234567890')
+        .textln('ABCDEFGHIJKLM')
+        .textln('NOPQRSTUVWXYZ')
+        .align('C')
+        .textln('=== END ===')
+        .feedAndCut(4)
+        .build();
+      const result = await printOrchestrator.print(bytes, { billNo: 'TEST-ASCII' });
+      toast.success(`ASCII test ผ่าน ${result.strategy}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'ทดสอบไม่สำเร็จ');
+    }
+  };
+
+  /** Test 2: Thai with codepage — try different code pages */
+  const testThai = async () => {
+    try {
+      const bytes = new EscPosBuilder()
+        .init()
+        .codepage(testCodepage)
+        .align('C')
+        .size(2, 2).bold(true).textln('DDMobile').bold(false).size(1, 1)
+        .textln(`Code Page ${testCodepage}`)
         .separator('=', 48)
         .align('L')
-        .textln('สวัสดีครับ 🇹🇭')
+        .textln('สวัสดีครับ')
         .textln('ABC 1234567890')
         .textln('กขคงจฉชซฌญฎฏฐฑฒณดต')
         .textln('ถทธนบปผฝพฟภมยรลวศษ')
-        .textln('สหฬอฮฤฦะาำิีึืุู เ แ โ ใ ไ')
-        .textln('ก่ก้ก๊ก๋ก็ก์ก๎')
+        .textln('สหฬอฮ ะ า ิ ี ึ ื ุ ู')
+        .textln('เ แ โ ใ ไ ่ ้ ๊ ๋ ็')
         .separator('-', 48)
         .align('C')
-        .text('ทดสอบสำเร็จ ✓')
+        .textln('ถ้าอ่านได้ = OK')
         .feedAndCut(4)
         .build();
-      const result = await printOrchestrator.print(bytes, {
-        billNo: 'TEST',
-      });
-      toast.success(`ทดสอบสำเร็จผ่าน ${result.strategy}`);
+      const result = await printOrchestrator.print(bytes, { billNo: 'TEST-THAI' });
+      toast.success(`Thai test (CP${testCodepage}) ผ่าน ${result.strategy}`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'ทดสอบไม่สำเร็จ');
     }
@@ -109,8 +149,38 @@ export function PrinterSettingsModal({
             </div>
           </div>
 
-          {/* WebUSB connect */}
-          {!status.bridge && (
+          {/* Browser compatibility warning */}
+          {!isWebUsbSupported() && !status.bridge && (
+            <div className="rounded-md border-2 border-amber-400 bg-amber-50 p-3">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+                <div className="text-sm">
+                  <div className="font-semibold text-amber-900">
+                    ⚠️ {getBrowserName()} ไม่รองรับ WebUSB
+                  </div>
+                  <p className="mt-1 text-xs text-amber-800">
+                    Safari + Firefox ไม่รองรับการเชื่อมต่อ USB โดยตรง — ต้องเลือกอย่างใดอย่างหนึ่ง:
+                  </p>
+                  <ul className="mt-1.5 list-inside list-disc space-y-0.5 text-xs text-amber-800">
+                    <li>เปลี่ยนเป็น <strong>Chrome</strong> / <strong>Edge</strong> / <strong>Brave</strong> (silent, ไม่ต้องลงอะไร)</li>
+                    <li>หรือติดตั้ง <strong>Local Bridge</strong> daemon (ใช้ Safari ได้ + เปิดลิ้นชัก)</li>
+                  </ul>
+                  <div className="mt-2 flex gap-2">
+                    <a
+                      href="https://www.google.com/chrome/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="rounded bg-amber-600 px-2 py-1 text-xs font-medium text-white hover:bg-amber-700">
+                      ⬇ ดาวน์โหลด Chrome
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* WebUSB connect — เฉพาะ browser ที่รองรับ */}
+          {isWebUsbSupported() && !status.bridge && (
             <div>
               <button
                 onClick={onRequestWebUsb}
@@ -124,14 +194,50 @@ export function PrinterSettingsModal({
           )}
 
           {/* Tests */}
-          <div className="grid grid-cols-2 gap-2">
-            <button onClick={testPrint} className="btn-secondary">
-              <TestTube className="h-4 w-4" /> ทดสอบพิมพ์
+          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+            <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold">
+              <TestTube className="h-4 w-4" /> ทดสอบเครื่องพิมพ์
+            </h3>
+            <p className="mb-2 text-[11px] text-slate-500">
+              ถ้าพิมพ์ออกหน้าขาว → ASCII ผ่าน แต่ Thai ไม่ผ่าน → ลองเปลี่ยน Code Page
+            </p>
+
+            <button onClick={testAscii} className="btn-secondary w-full justify-center mb-2">
+              📄 1) ทดสอบ ASCII (ไม่มีไทย) — ดู printer ทำงานไหม
             </button>
+
+            <div className="mb-2">
+              <label className="mb-1 block text-xs font-medium text-slate-600">
+                Code Page สำหรับภาษาไทย:
+              </label>
+              <div className="grid grid-cols-4 gap-1">
+                {[21, 26, 17, 18].map((cp) => (
+                  <button
+                    key={cp}
+                    type="button"
+                    onClick={() => setTestCodepage(cp)}
+                    className={`rounded border px-2 py-1 text-xs ${
+                      testCodepage === cp
+                        ? 'border-brand-500 bg-brand-50 font-semibold text-brand-700'
+                        : 'border-slate-200 hover:border-slate-300'
+                    }`}>
+                    CP{cp}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-1 text-[10px] text-slate-500">
+                TM-T82III/V = 21 · <strong>TM-T82X-II = 26</strong> · บางรุ่น = 17/18
+              </p>
+            </div>
+
+            <button onClick={testThai} className="btn-secondary w-full justify-center">
+              🇹🇭 2) ทดสอบ Thai (Code Page {testCodepage})
+            </button>
+
             <button
               onClick={onOpenDrawer}
               disabled={!status.bridge}
-              className="btn-secondary disabled:opacity-50"
+              className="btn-secondary w-full justify-center mt-2 disabled:opacity-50"
               title={!status.bridge ? 'ต้องใช้ Local Bridge' : ''}>
               💰 ทดสอบเปิดลิ้นชัก
             </button>

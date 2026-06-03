@@ -40,7 +40,7 @@ describe('buildDDMobileReceipt', () => {
     expect(bytes[1]).toBe(0x40); // init
     expect(bytes[2]).toBe(0x1b);
     expect(bytes[3]).toBe(0x74);
-    expect(bytes[4]).toBe(21); // CP874
+    expect(bytes[4]).toBe(26); // PC874 Thai (TM-T82X-II)
   });
 
   it('includes shop name in encoded output', () => {
