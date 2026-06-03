@@ -617,8 +617,10 @@ export function PosTerminalPage() {
               <input
                 type="number" min={0} step="1"
                 className="input text-right font-semibold"
-                value={shippingFee}
+                value={shippingFee || ''}
+                placeholder="0"
                 onChange={(e) => setShippingFee(Math.max(0, Number(e.target.value) || 0))}
+                onFocus={(e) => e.target.select()}
               />
               <p className="mt-1 text-[11px] text-slate-500">รวมเข้ายอดสุทธิของบิล</p>
             </div>
@@ -627,11 +629,12 @@ export function PosTerminalPage() {
                 👴 ค่าส่งของตา (บาท)
               </label>
               <input
-                type="number" min={0} max={shippingFee} step={1}
+                type="number" min={0} step={1}
                 className="input text-right"
-                value={shippingFeeGrandpa}
+                value={shippingFeeGrandpa || ''}
+                placeholder="0"
                 onChange={(e) => setShippingFeeGrandpa(Math.max(0, Number(e.target.value) || 0))}
-                disabled={shippingFee === 0}
+                onFocus={(e) => e.target.select()}
               />
               <p className="mt-1 text-[11px] text-slate-500">เงินที่ตาออกแทนเก๊ะ</p>
             </div>
@@ -640,11 +643,12 @@ export function PosTerminalPage() {
                 👵 ค่าส่งของยาย (บาท)
               </label>
               <input
-                type="number" min={0} max={shippingFee} step={1}
+                type="number" min={0} step={1}
                 className="input text-right"
-                value={shippingFeeGrandma}
+                value={shippingFeeGrandma || ''}
+                placeholder="0"
                 onChange={(e) => setShippingFeeGrandma(Math.max(0, Number(e.target.value) || 0))}
-                disabled={shippingFee === 0}
+                onFocus={(e) => e.target.select()}
               />
               <p className="mt-1 text-[11px] text-slate-500">เงินที่ยายออกแทนเก๊ะ</p>
             </div>
