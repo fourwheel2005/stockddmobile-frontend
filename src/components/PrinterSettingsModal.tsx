@@ -117,10 +117,38 @@ export function PrinterSettingsModal({
                 <RefreshCw className="h-3.5 w-3.5" /> รีเฟรช
               </button>
             </div>
-            <StatusRow label="🔌 Local Bridge (PC daemon)" ok={status.bridge} hint="แนะนำ — silent + cash drawer" />
-            <StatusRow label="🔗 WebUSB (Chrome direct)" ok={status.webUsb} hint="Chrome เท่านั้น · ไม่มี cash drawer" />
+            <StatusRow label="🔌 Local Bridge (PC daemon)" ok={status.bridge} hint="แนะนำ — silent + cash drawer + แก้ปัญหา CUPS claim" />
+            <StatusRow label="🔗 WebUSB (Chrome direct)" ok={status.webUsb} hint="Chrome · ❌ ไม่ทำงานบน Mac ถ้าเครื่องอยู่ใน System Printers" />
             <StatusRow label="🖨 Browser Print (fallback)" ok={status.browser} hint="ใช้ได้ทุก browser · ช้า" />
           </div>
+
+          {/* macOS CUPS warning */}
+          {status.webUsb && !status.bridge && getBrowserName() !== 'Safari' && (
+            <div className="rounded-md border-2 border-blue-300 bg-blue-50 p-3">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
+                <div className="text-sm">
+                  <div className="font-semibold text-blue-900">
+                    💡 ถ้าทดสอบพิมพ์ออกเป็นกระดาษเปล่า
+                  </div>
+                  <p className="mt-1 text-xs text-blue-800">
+                    macOS CUPS driver อาจ "claim" USB ของ printer ทำให้ text bytes ถูก drop —
+                    feed/cut ทำงานแต่ text หาย
+                  </p>
+                  <p className="mt-2 text-xs font-semibold text-blue-900">วิธีแก้:</p>
+                  <ol className="mt-1 list-inside list-decimal space-y-0.5 text-xs text-blue-800">
+                    <li>เปิด System Settings → Printers & Scanners</li>
+                    <li>ลบ EPSON TM-T82X-II ออก (กดปุ่ม <code>−</code>)</li>
+                    <li>ถอด-เสียบ USB ใหม่</li>
+                    <li>กลับมาที่นี่ กดรีเฟรช + ทดสอบใหม่</li>
+                  </ol>
+                  <p className="mt-2 text-xs text-blue-800">
+                    <strong>หรือดีกว่า:</strong> ติดตั้ง <strong>Local Bridge</strong> (ใช้ libusb แก้ปัญหา CUPS โดยตรง + เปิดลิ้นชักได้)
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Bridge token */}
           <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
