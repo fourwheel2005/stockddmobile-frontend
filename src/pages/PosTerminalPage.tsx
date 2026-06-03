@@ -95,7 +95,6 @@ export function PosTerminalPage() {
   const [orderChannel, setOrderChannel] = useState<OrderChannel>('WALK_IN');
   const [shippingFee, setShippingFee] = useState<number>(0);
   const [shippingPartner, setShippingPartner] = useState<ShippingPartner | ''>('');
-  const [shippingTrackingNo, setShippingTrackingNo] = useState('');
   const [shippingAddress, setShippingAddress] = useState('');
   const [shippingFeeGrandpa, setShippingFeeGrandpa] = useState<number>(0);
   const [shippingFeeGrandma, setShippingFeeGrandma] = useState<number>(0);
@@ -281,7 +280,7 @@ export function PosTerminalPage() {
         orderChannel,
         shippingFee: shippingFee > 0 ? shippingFee : undefined,
         shippingPartner: shippingPartner || undefined,
-        shippingTrackingNo: shippingTrackingNo.trim() || undefined,
+        // shippingTrackingNo ไม่ใช้ใน POS แล้ว — กรอกทีหลังในหน้าจัดการบิล
         shippingAddress: shippingAddress.trim() || undefined,
         shippingFeeGrandpa: shippingFeeGrandpa > 0 ? shippingFeeGrandpa : undefined,
         shippingFeeGrandma: shippingFeeGrandma > 0 ? shippingFeeGrandma : undefined,
@@ -314,7 +313,6 @@ export function PosTerminalPage() {
       setOrderChannel('WALK_IN');
       setShippingFee(0);
       setShippingPartner('');
-      setShippingTrackingNo('');
       setShippingAddress('');
       setShippingFeeGrandpa(0);
       setShippingFeeGrandma(0);
@@ -613,28 +611,63 @@ export function PosTerminalPage() {
         <div className="card-body space-y-3">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">ค่าจัดส่ง (บาท)</label>
+              <label className="mb-1 block text-xs font-medium text-slate-600">
+                ค่าจัดส่งรวม (บาท)
+              </label>
               <input
                 type="number" min={0} step="1"
                 className="input text-right font-semibold"
                 value={shippingFee}
                 onChange={(e) => setShippingFee(Math.max(0, Number(e.target.value) || 0))}
               />
-              <p className="mt-1 text-[11px] text-slate-500">รวมเข้ายอดสุทธิ</p>
+              <p className="mt-1 text-[11px] text-slate-500">รวมเข้ายอดสุทธิของบิล</p>
             </div>
-            <div className="sm:col-span-2">
+            <div>
               <label className="mb-1 block text-xs font-medium text-slate-600">
-                เลขพัสดุ (tracking)
+                👴 ค่าส่งของตา (บาท)
               </label>
               <input
-                className="input"
-                placeholder={isOnline ? 'จำเป็นเมื่อออกพัสดุ' : 'optional'}
-                value={shippingTrackingNo}
-                onChange={(e) => setShippingTrackingNo(e.target.value)}
-                maxLength={60}
+                type="number" min={0} max={shippingFee} step={1}
+                className="input text-right"
+                value={shippingFeeGrandpa}
+                onChange={(e) => setShippingFeeGrandpa(Math.max(0, Number(e.target.value) || 0))}
+                disabled={shippingFee === 0}
               />
+              <p className="mt-1 text-[11px] text-slate-500">เงินที่ตาออกแทนเก๊ะ</p>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">
+                👵 ค่าส่งของยาย (บาท)
+              </label>
+              <input
+                type="number" min={0} max={shippingFee} step={1}
+                className="input text-right"
+                value={shippingFeeGrandma}
+                onChange={(e) => setShippingFeeGrandma(Math.max(0, Number(e.target.value) || 0))}
+                disabled={shippingFee === 0}
+              />
+              <p className="mt-1 text-[11px] text-slate-500">เงินที่ยายออกแทนเก๊ะ</p>
             </div>
           </div>
+
+          {/* Live calc: ส่วนที่เหลือออกจากเก๊ะ + warning ถ้าเกิน */}
+          {shippingFee > 0 && (() => {
+            const splitSum = shippingFeeGrandpa + shippingFeeGrandma;
+            const fromRegister = Math.max(0, shippingFee - splitSum);
+            const splitOver = splitSum > shippingFee;
+            return (
+              <div className={`rounded-md px-3 py-2 text-xs ${
+                splitOver
+                  ? 'bg-red-100 text-red-800 border border-red-200'
+                  : 'bg-slate-50 text-slate-700 border border-slate-200'
+              }`}>
+                {splitOver
+                  ? <>⚠️ ตา + ยาย รวม {formatTHB(splitSum)} เกินค่าส่งทั้งหมด {formatTHB(shippingFee)}</>
+                  : <>🏪 ส่วนที่เหลือออกจากเก๊ะ: <strong>{formatTHB(fromRegister)}</strong></>
+                }
+              </div>
+            );
+          })()}
 
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-600">
@@ -677,54 +710,6 @@ export function PosTerminalPage() {
             </div>
           )}
 
-          {/* แยกค่าส่งของตา/ยาย — แสดงเฉพาะเมื่อมีค่าส่ง > 0 */}
-          {shippingFee > 0 && (() => {
-            const splitSum = shippingFeeGrandpa + shippingFeeGrandma;
-            const fromRegister = Math.max(0, shippingFee - splitSum);
-            const splitOver = splitSum > shippingFee;
-            return (
-              <div className="rounded-md border border-amber-200 bg-amber-50/50 p-3">
-                <label className="mb-2 block text-xs font-semibold text-amber-800">
-                  💰 ถ้าตา/ยายออกค่าส่งให้ ใส่ตัวเลขที่นี่ (เพื่อทบยอดคืนเจ้าของ)
-                </label>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-slate-600">
-                      👴 ค่าส่งของตา (บาท)
-                    </label>
-                    <input
-                      type="number" min={0} max={shippingFee} step={1}
-                      className="input text-right"
-                      value={shippingFeeGrandpa}
-                      onChange={(e) => setShippingFeeGrandpa(Math.max(0, Number(e.target.value) || 0))}
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-slate-600">
-                      👵 ค่าส่งของยาย (บาท)
-                    </label>
-                    <input
-                      type="number" min={0} max={shippingFee} step={1}
-                      className="input text-right"
-                      value={shippingFeeGrandma}
-                      onChange={(e) => setShippingFeeGrandma(Math.max(0, Number(e.target.value) || 0))}
-                    />
-                  </div>
-                </div>
-                <div className={`mt-2 rounded px-2 py-1.5 text-xs ${
-                  splitOver
-                    ? 'bg-red-100 text-red-800'
-                    : 'bg-white text-slate-700'
-                }`}>
-                  {splitOver ? (
-                    <>⚠️ ตา + ยาย รวม {formatTHB(splitSum)} เกินค่าส่งทั้งหมด {formatTHB(shippingFee)}</>
-                  ) : (
-                    <>🏪 ส่วนที่เหลือออกจากเก๊ะ: <strong>{formatTHB(fromRegister)}</strong></>
-                  )}
-                </div>
-              </div>
-            );
-          })()}
         </div>
       </div>
 
