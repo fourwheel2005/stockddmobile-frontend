@@ -17,6 +17,9 @@ import type {
 } from '@/types/api';
 import { cashRegisterApi } from '@/api/cashRegister';
 import { OpenSessionModal } from '@/components/OpenSessionModal';
+import { PrinterStatusBadge } from '@/components/PrinterStatusBadge';
+import { PrinterSettingsModal } from '@/components/PrinterSettingsModal';
+import { usePrinter } from '@/hooks/usePrinter';
 import { Link } from 'react-router-dom';
 
 const SHIPPING_PARTNER_OPTIONS: { value: ShippingPartner; label: string; icon: string }[] = [
@@ -99,6 +102,8 @@ export function PosTerminalPage() {
   const [shippingFeeGrandpa, setShippingFeeGrandpa] = useState<number>(0);
   const [shippingFeeGrandma, setShippingFeeGrandma] = useState<number>(0);
   const [showOpenSession, setShowOpenSession] = useState(false);
+  const [showPrinterSettings, setShowPrinterSettings] = useState(false);
+  const printer = usePrinter();
 
   // ─── Cash session check (block checkout if no session) ──────────────
   const sessionQuery = useQuery({
@@ -298,6 +303,12 @@ export function PosTerminalPage() {
       qc.invalidateQueries({ queryKey: ['transactions'] });
       qc.invalidateQueries({ queryKey: ['sales-orders'] });
       setLastBill(order);
+
+      // 🖨 Auto-print ใบเสร็จ + เปิดลิ้นชัก (ถ้าจ่ายสด)
+      // ไม่ blocking — ถ้า print fail ก็ยังถือว่าขายสำเร็จ
+      printer.printReceipt(order.id, { openDrawer: true }).catch((e) => {
+        console.error('Auto-print failed:', e);
+      });
       setCart([]);
       setCustomer(null);
       setDiscount(0);
@@ -391,10 +402,15 @@ export function PosTerminalPage() {
             {customer ? customer.name : 'เลือกลูกค้า'}
           </button>
           {lastBill && (
-            <button className="btn-secondary" onClick={() => window.print()}>
-              <Printer className="h-4 w-4" /> พิมพ์ใบเสร็จล่าสุด
+            <button
+              className="btn-secondary"
+              disabled={printer.printing}
+              onClick={() => printer.printReceipt(lastBill.id, { duplicate: true, openDrawer: false })}>
+              <Printer className="h-4 w-4" />
+              {printer.printing ? 'กำลังพิมพ์...' : `พิมพ์ซ้ำ ${lastBill.billNo}`}
             </button>
           )}
+          <PrinterStatusBadge status={printer.status} onClick={() => setShowPrinterSettings(true)} />
         </div>
       </div>
 
@@ -871,8 +887,12 @@ export function PosTerminalPage() {
                   : 'ปิดบิล'}
             </button>
             {lastBill && (
-              <button className="btn-secondary w-full" onClick={() => window.print()}>
-                <Printer className="h-4 w-4" /> พิมพ์ใบเสร็จ {lastBill.billNo}
+              <button
+                className="btn-secondary w-full"
+                disabled={printer.printing}
+                onClick={() => printer.printReceipt(lastBill.id, { duplicate: true, openDrawer: false })}>
+                <Printer className="h-4 w-4" />
+                {printer.printing ? 'กำลังพิมพ์...' : `พิมพ์ซ้ำ ${lastBill.billNo}`}
               </button>
             )}
           </div>
@@ -901,6 +921,16 @@ export function PosTerminalPage() {
       )}
       {showOpenSession && (
         <OpenSessionModal onClose={() => setShowOpenSession(false)} />
+      )}
+      {showPrinterSettings && (
+        <PrinterSettingsModal
+          status={printer.status}
+          onClose={() => setShowPrinterSettings(false)}
+          onRefresh={printer.refresh}
+          onRequestWebUsb={printer.requestWebUsb}
+          onSetBridgeToken={printer.setBridgeToken}
+          onOpenDrawer={() => printer.openDrawer('MANUAL')}
+        />
       )}
 
       {/* Hidden printouts — only visible when window.print() fires.
