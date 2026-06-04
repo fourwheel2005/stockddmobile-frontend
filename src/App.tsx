@@ -51,6 +51,8 @@ export default function App() {
           <Route path="/warranty" element={<WarrantyPage />} />
           <Route path="/scanner-test" element={<ScannerTestPage />} />
           <Route path="/labels" element={<PrintLabelsPage />} />
+          {/* /sales: STAFF เข้าได้ — แต่ปุ่ม refund จะ disable ตาม role ใน UI */}
+          <Route path="/sales" element={<SalesHistoryPage />} />
         </Route>
       </Route>
 
@@ -61,7 +63,6 @@ export default function App() {
           <Route path="/transactions" element={<TransactionsPage />} />
           <Route path="/alerts" element={<AlertsPage />} />
           <Route path="/lots" element={<LotsPage />} />
-          <Route path="/sales" element={<SalesHistoryPage />} />
           <Route path="/reports" element={<ReportsPage />} />
         </Route>
       </Route>

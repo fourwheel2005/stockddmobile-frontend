@@ -19,6 +19,7 @@ import { cashRegisterApi } from '@/api/cashRegister';
 import { OpenSessionModal } from '@/components/OpenSessionModal';
 import { PrinterStatusBadge } from '@/components/PrinterStatusBadge';
 import { PrinterSettingsModal } from '@/components/PrinterSettingsModal';
+import { QuickReprintModal } from '@/components/QuickReprintModal';
 import { usePrinter } from '@/hooks/usePrinter';
 import { Link } from 'react-router-dom';
 
@@ -103,6 +104,7 @@ export function PosTerminalPage() {
   const [shippingFeeGrandma, setShippingFeeGrandma] = useState<number>(0);
   const [showOpenSession, setShowOpenSession] = useState(false);
   const [showPrinterSettings, setShowPrinterSettings] = useState(false);
+  const [showQuickReprint, setShowQuickReprint] = useState(false);
   const printer = usePrinter();
 
   // ─── Cash session check (block checkout if no session) ──────────────
@@ -410,6 +412,13 @@ export function PosTerminalPage() {
               {printer.printing ? 'กำลังพิมพ์...' : `พิมพ์ซ้ำ ${lastBill.billNo}`}
             </button>
           )}
+          {/* ⭐ Quick Reprint — always visible (สำหรับบิลเก่า / ลูกค้าใบหาย) */}
+          <button
+            className="btn-secondary"
+            onClick={() => setShowQuickReprint(true)}
+            title="พิมพ์บิลเก่าซ้ำ (ยิงสแกน QR หรือพิมพ์เลขบิล)">
+            <Printer className="h-4 w-4" /> 🔍 พิมพ์บิลเก่า
+          </button>
           <PrinterStatusBadge status={printer.status} onClick={() => setShowPrinterSettings(true)} />
         </div>
       </div>
@@ -921,6 +930,13 @@ export function PosTerminalPage() {
       )}
       {showOpenSession && (
         <OpenSessionModal onClose={() => setShowOpenSession(false)} />
+      )}
+      {showQuickReprint && (
+        <QuickReprintModal
+          onClose={() => setShowQuickReprint(false)}
+          printing={printer.printing}
+          onPrint={(orderId) => printer.printReceipt(orderId, { duplicate: true, openDrawer: false })}
+        />
       )}
       {showPrinterSettings && (
         <PrinterSettingsModal

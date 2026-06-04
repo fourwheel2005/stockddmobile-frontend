@@ -26,7 +26,7 @@ const navItems = [
   { to: '/customers',    label: 'ลูกค้า',        icon: Users },
   { to: '/adjustment',   label: 'ปรับสต็อก',     icon: SlidersHorizontal, roles: ['ADMIN', 'MANAGER'] as const },
   { to: '/lots',         label: 'ล็อตนำเข้า',    icon: Layers,            roles: ['ADMIN', 'MANAGER'] as const },
-  { to: '/sales',        label: 'ประวัติบิลขาย',  icon: Receipt,           roles: ['ADMIN', 'MANAGER'] as const },
+  { to: '/sales',        label: 'ประวัติบิลขาย',  icon: Receipt },
   { to: '/transactions', label: 'ประวัติสต็อก',  icon: History,           roles: ['ADMIN', 'MANAGER'] as const },
   { to: '/reports',      label: 'รายงาน',        icon: BarChart3,         roles: ['ADMIN', 'MANAGER'] as const },
   { to: '/alerts',       label: 'แจ้งเตือน',     icon: BellRing,          roles: ['ADMIN', 'MANAGER'] as const },

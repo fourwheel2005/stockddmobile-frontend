@@ -7,6 +7,7 @@ import { posApi } from '@/api/pos';
 import { extractErrorMessage } from '@/api/client';
 import { useAuthStore } from '@/stores/authStore';
 import { ReceiptPrintView } from '@/components/ReceiptPrintView';
+import { usePrinter } from '@/hooks/usePrinter';
 import { formatTHB, formatDateTime } from '@/lib/format';
 import type { SalesOrderResponse, SalesOrderStatus } from '@/types/api';
 
@@ -55,14 +56,25 @@ export function SalesHistoryPage() {
     refund.mutate({ id: o.id, reason: reason.trim() });
   };
 
+  const printer = usePrinter();
+
+  /**
+   * Reprint with ESC/POS via Bridge (DUPLICATE audit) — fallback ไป browser print
+   * ถ้า Bridge/WebUSB/Browser ทั้ง 3 ล้มเหลว → จะใช้ window.print() ของ HTML
+   */
   const handlePrint = async (id: string) => {
     try {
-      const order = await posApi.getOrder(id);
-      setPrintOrder(order);
-      // Wait next frame so React renders the receipt before print fires
-      setTimeout(() => window.print(), 100);
-    } catch (e) {
-      toast.error(extractErrorMessage(e));
+      // ลอง print ผ่าน Bridge ก่อน (จะ create DUPLICATE job + audit log)
+      await printer.printReceipt(id, { duplicate: true, openDrawer: false });
+    } catch {
+      // Fallback: HTML print
+      try {
+        const order = await posApi.getOrder(id);
+        setPrintOrder(order);
+        setTimeout(() => window.print(), 100);
+      } catch (e) {
+        toast.error(extractErrorMessage(e));
+      }
     }
   };
 
