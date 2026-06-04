@@ -16,6 +16,7 @@ import { extractErrorMessage } from '@/api/client';
 import { formatTHB } from '@/lib/format';
 import { ACQ_INFO, ACQ_ORDER } from '@/lib/acquisition';
 import type { AcquisitionType, ProductWizardRequest } from '@/types/api';
+import { AccessorySerialList } from '@/components/products/AccessorySerialList';
 
 /* ─── ตัวเลือกแนะนำ ─────────────────────────────────────────────────── */
 const STORAGE_OPTIONS = ['64GB', '128GB', '256GB', '512GB', '1TB'];
@@ -117,7 +118,7 @@ export function ProductRegisterPage() {
     },
   });
 
-  const { fields, append, remove } = useFieldArray({ control, name: 'items' });
+  const { fields, append, remove, replace } = useFieldArray({ control, name: 'items' });
 
   /* ─── โหลด source product (กรณีคัดลอก) ────────────────────────────── */
   const sourceProductQuery = useQuery({
@@ -709,24 +710,52 @@ export function ProductRegisterPage() {
                   </div>
                 </FieldRow>
 
-                <FieldRow
-                  label={productKind === 'phone' ? 'รายการเครื่อง' : 'รายการ Serial'}
-                  hint={`ตอนนี้ ${fields.length} ${productKind === 'phone' ? 'เครื่อง' : 'ชิ้น'} · เว้น Serial ได้ ระบบจะใช้ IMEI`}>
-                  <div className="space-y-2">
-                    {fields.map((f, idx) => (
-                      <ItemCard key={f.id} idx={idx}
-                                register={register} control={control}
-                                onRemove={() => fields.length > 1 ? remove(idx) : null}
-                                disableRemove={fields.length === 1}
-                                unitLabel={productKind === 'phone' ? 'เครื่อง' : 'ชิ้น'} />
-                    ))}
-                    <button type="button"
-                            onClick={() => append({ ...EMPTY_ITEM, condition: defaultCondition, acquisitionType: defaultAcq })}
-                            className="btn-secondary text-sm">
-                      <Plus className="h-4 w-4" /> เพิ่ม{productKind === 'phone' ? 'เครื่อง' : 'ชิ้น'}
-                    </button>
-                  </div>
-                </FieldRow>
+                {productKind === 'accessory' ? (
+                  /* ⚡ Bulk Quick-Add — อุปกรณ์เสริมใช้ Lot-wide defaults
+                     กรอกแค่ IMEI/Serial รายตัว — ที่มา/ทุน/ประกัน ใช้ที่ตั้งใน "Lot info" ด้านบน */
+                  <FieldRow
+                    label="รายการ Serial (Quick-Add)"
+                    hint={`${fields.filter((_, i) => getValues(`items.${i}.imei`) || getValues(`items.${i}.serialNumber`)).length} ชิ้น · ยิงสแกนได้เลย (ที่มา/ทุน/ประกัน ใช้ค่า Lot-wide)`}>
+                    <AccessorySerialList
+                      items={fields.map((_, i) => ({
+                        imei: getValues(`items.${i}.imei`) ?? '',
+                        serialNumber: getValues(`items.${i}.serialNumber`) ?? '',
+                      }))}
+                      onChange={(rows) => {
+                        // Atomic replace — preserves React keys for stable inputs
+                        const next = rows.length === 0
+                          ? [{ ...EMPTY_ITEM, condition: 'NEW' as const, acquisitionType: defaultAcq }]
+                          : rows.map((r) => ({
+                              ...EMPTY_ITEM,
+                              imei: r.imei,
+                              serialNumber: r.serialNumber,
+                              condition: 'NEW' as const,
+                              acquisitionType: defaultAcq,
+                            }));
+                        replace(next);
+                      }}
+                    />
+                  </FieldRow>
+                ) : (
+                  <FieldRow
+                    label="รายการเครื่อง"
+                    hint={`ตอนนี้ ${fields.length} เครื่อง · เว้น Serial ได้ ระบบจะใช้ IMEI`}>
+                    <div className="space-y-2">
+                      {fields.map((f, idx) => (
+                        <ItemCard key={f.id} idx={idx}
+                                  register={register} control={control}
+                                  onRemove={() => fields.length > 1 ? remove(idx) : null}
+                                  disableRemove={fields.length === 1}
+                                  unitLabel="เครื่อง" />
+                      ))}
+                      <button type="button"
+                              onClick={() => append({ ...EMPTY_ITEM, condition: defaultCondition, acquisitionType: defaultAcq })}
+                              className="btn-secondary text-sm">
+                        <Plus className="h-4 w-4" /> เพิ่มเครื่อง
+                      </button>
+                    </div>
+                  </FieldRow>
+                )}
               </>)}
           </div>
         </div>
