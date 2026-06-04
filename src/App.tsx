@@ -23,7 +23,6 @@ import { WarrantyPage } from '@/pages/WarrantyPage';
 import { ScannerTestPage } from '@/pages/ScannerTestPage';
 import { PrintLabelsPage } from '@/pages/PrintLabelsPage';
 import { CashRegisterPage } from '@/pages/CashRegisterPage';
-import { ReceiveStockPage } from '@/pages/ReceiveStockPage';
 
 export default function App() {
   return (
@@ -35,9 +34,10 @@ export default function App() {
           <Route path="/" element={<DashboardPage />} />
           <Route path="/inventory" element={<InventoryPage />} />
           <Route path="/products" element={<ProductsPage />} />
-          {/* ⭐ Unified Receive — แนะนำ (search + fast inbound + create) */}
-          <Route path="/receive" element={<ReceiveStockPage />} />
-          {/* สร้างสินค้าใหม่ — ProductRegisterPage เดิม (ใช้ผ่าน /receive ก็ได้) */}
+          {/* Redirect routes เก่า → /products (รวมเป็นหน้าเดียว) */}
+          <Route path="/receive" element={<Navigate to="/products" replace />} />
+          <Route path="/inbound" element={<Navigate to="/products" replace />} />
+          {/* สร้างสินค้าใหม่ */}
           <Route path="/products/new" element={<ProductRegisterPage />} />
           {/* หน้าเดิม wizard — สำหรับ multi-variant / clone / add-variant */}
           <Route path="/products/new/advanced" element={<ProductWizardPage />} />
@@ -58,7 +58,8 @@ export default function App() {
 
       <Route element={<ProtectedRoute roles={['ADMIN', 'MANAGER']} />}>
         <Route element={<AppShell />}>
-          <Route path="/inbound" element={<InboundPage />} />
+          {/* /inbound (เก่า) เก็บไว้ admin-only เผื่อ link เก่า — UI ไม่มี nav แล้ว */}
+          <Route path="/inbound-legacy" element={<InboundPage />} />
           <Route path="/adjustment" element={<AdjustmentPage />} />
           <Route path="/transactions" element={<TransactionsPage />} />
           <Route path="/alerts" element={<AlertsPage />} />
