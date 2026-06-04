@@ -1,6 +1,13 @@
 import type { PrinterStrategy, PrinterStrategyName, PrintJobMeta } from '../types';
 
-const BRIDGE_URL = 'http://localhost:8765';
+/** Bridge URL — default localhost:8765, override ผ่าน localStorage หรือ env */
+function getBridgeUrl(): string {
+  if (typeof window !== 'undefined') {
+    const custom = localStorage.getItem('ddmobile.bridge.url');
+    if (custom && custom.trim()) return custom.trim().replace(/\/$/, '');
+  }
+  return 'http://localhost:8765';
+}
 
 /**
  * Talk to local print bridge daemon — fastest + cash drawer support.
@@ -38,7 +45,7 @@ export class LocalBridgeStrategy implements PrinterStrategy {
     try {
       const ctrl = new AbortController();
       const t = setTimeout(() => ctrl.abort(), 1000);
-      const res = await fetch(`${BRIDGE_URL}/health`, {
+      const res = await fetch(`${getBridgeUrl()}/health`, {
         signal: ctrl.signal,
         headers: this.token ? { Authorization: `Bearer ${this.token}` } : {},
       });
@@ -67,7 +74,7 @@ export class LocalBridgeStrategy implements PrinterStrategy {
     // Copy to plain ArrayBuffer (BodyInit-safe across TS lib variations)
     const buf = new ArrayBuffer(bytes.byteLength);
     new Uint8Array(buf).set(bytes);
-    const res = await fetch(`${BRIDGE_URL}/print`, {
+    const res = await fetch(`${getBridgeUrl()}/print`, {
       method: 'POST',
       headers,
       body: buf,
@@ -82,7 +89,7 @@ export class LocalBridgeStrategy implements PrinterStrategy {
   async openDrawer(): Promise<void> {
     const headers: Record<string, string> = {};
     if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
-    const res = await fetch(`${BRIDGE_URL}/drawer/open`, {
+    const res = await fetch(`${getBridgeUrl()}/drawer/open`, {
       method: 'POST',
       headers,
     });

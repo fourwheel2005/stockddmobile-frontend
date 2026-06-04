@@ -6,6 +6,7 @@ import { printApi } from '@/api/print';
 import type { PrinterStrategyName } from '@/lib/printer/types';
 
 const TOKEN_KEY = 'ddmobile.bridge.token';
+const URL_KEY = 'ddmobile.bridge.url';
 
 export interface PrinterStatus {
   bridge: boolean;
@@ -56,6 +57,20 @@ export function usePrinter() {
     printOrchestrator.setBridgeToken(token);
     refresh();
   }, [refresh]);
+
+  const setBridgeUrl = useCallback((url: string) => {
+    const cleaned = url.trim().replace(/\/$/, '');
+    if (cleaned) {
+      localStorage.setItem(URL_KEY, cleaned);
+    } else {
+      localStorage.removeItem(URL_KEY);
+    }
+    refresh();
+  }, [refresh]);
+
+  const getBridgeUrl = useCallback(() => {
+    return localStorage.getItem(URL_KEY) ?? 'http://localhost:8765';
+  }, []);
 
   const requestWebUsb = useCallback(async () => {
     const ok = await printOrchestrator.getWebUsb().requestPermission();
@@ -173,5 +188,7 @@ export function usePrinter() {
     openDrawer,
     requestWebUsb,
     setBridgeToken,
+    setBridgeUrl,
+    getBridgeUrl,
   };
 }

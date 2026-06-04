@@ -929,6 +929,8 @@ export function PosTerminalPage() {
           onRefresh={printer.refresh}
           onRequestWebUsb={printer.requestWebUsb}
           onSetBridgeToken={printer.setBridgeToken}
+          onSetBridgeUrl={printer.setBridgeUrl}
+          getBridgeUrl={printer.getBridgeUrl}
           onOpenDrawer={() => printer.openDrawer('MANUAL')}
         />
       )}

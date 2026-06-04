@@ -27,13 +27,19 @@ interface Props {
   onRefresh: () => Promise<void> | void;
   onRequestWebUsb: () => Promise<void>;
   onSetBridgeToken: (token: string) => void;
+  onSetBridgeUrl?: (url: string) => void;
+  getBridgeUrl?: () => string;
   onOpenDrawer: () => Promise<void>;
 }
 
 export function PrinterSettingsModal({
-  status, onClose, onRefresh, onRequestWebUsb, onSetBridgeToken, onOpenDrawer,
+  status, onClose, onRefresh, onRequestWebUsb, onSetBridgeToken,
+  onSetBridgeUrl, getBridgeUrl, onOpenDrawer,
 }: Props) {
   const [token, setToken] = useState(localStorage.getItem('ddmobile.bridge.token') ?? '');
+  const [bridgeUrl, setBridgeUrl] = useState(
+    getBridgeUrl?.() ?? localStorage.getItem('ddmobile.bridge.url') ?? 'http://localhost:8765',
+  );
   useModalChrome(onClose);
 
   const [testCodepage, setTestCodepage] = useState<number>(26);
@@ -149,6 +155,35 @@ export function PrinterSettingsModal({
               </div>
             </div>
           )}
+
+          {/* Bridge URL */}
+          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+            <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold">
+              🌐 Bridge URL (เปลี่ยนถ้าใช้ผ่าน LAN)
+            </h3>
+            <p className="mb-2 text-xs text-slate-500">
+              <code className="rounded bg-white px-1">http://localhost:8765</code> = Bridge บนเครื่องเดียวกัน ·
+              ถ้า Bridge อยู่ Mac อื่นใน LAN ใส่ <code className="rounded bg-white px-1">http://192.168.x.x:8765</code>
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                className="input flex-1 font-mono text-xs"
+                placeholder="http://localhost:8765"
+                value={bridgeUrl}
+                onChange={(e) => setBridgeUrl(e.target.value)}
+              />
+              <button
+                onClick={() => {
+                  if (onSetBridgeUrl) onSetBridgeUrl(bridgeUrl);
+                  else localStorage.setItem('ddmobile.bridge.url', bridgeUrl);
+                  toast.success('บันทึก URL แล้ว — กดรีเฟรชเพื่อทดสอบ');
+                }}
+                className="btn-primary">
+                บันทึก
+              </button>
+            </div>
+          </div>
 
           {/* Bridge token */}
           <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
