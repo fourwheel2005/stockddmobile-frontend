@@ -6,7 +6,7 @@ import { useStockSocket } from '@/hooks/useStockSocket';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { WsStatusIndicator } from '@/components/WsStatusIndicator';
 import {
-  LayoutDashboard, Boxes, Package, ArrowDownToLine, ArrowUpFromLine,
+  LayoutDashboard, Boxes, Package, PackagePlus, ArrowDownToLine, ArrowUpFromLine,
   History, BellRing, LogOut, SlidersHorizontal, ScanLine, Users, Layers, Receipt,
   BarChart3, ShieldCheck, Tag, Wrench, Menu, X, Wallet,
 } from 'lucide-react';
@@ -18,7 +18,8 @@ const navItems = [
   { to: '/repairs',      label: 'งานซ่อม',        icon: Wrench },
   { to: '/inventory',    label: 'คลังสต็อก',     icon: Boxes },
   { to: '/products',     label: 'สินค้า',        icon: Package },
-  { to: '/inbound',      label: 'รับสินค้า',     icon: ArrowDownToLine,   roles: ['ADMIN', 'MANAGER'] as const },
+  { to: '/receive',      label: 'รับของเข้าคลัง', icon: PackagePlus },
+  { to: '/inbound',      label: 'รับสินค้า (เก่า)', icon: ArrowDownToLine,   roles: ['ADMIN', 'MANAGER'] as const },
   { to: '/outbound',     label: 'จ่ายสินค้า',     icon: ArrowUpFromLine },
   { to: '/warranty',     label: 'เช็คประกัน',     icon: ShieldCheck },
   { to: '/labels',       label: 'พิมพ์ Label',    icon: Tag },

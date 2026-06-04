@@ -23,6 +23,7 @@ import { WarrantyPage } from '@/pages/WarrantyPage';
 import { ScannerTestPage } from '@/pages/ScannerTestPage';
 import { PrintLabelsPage } from '@/pages/PrintLabelsPage';
 import { CashRegisterPage } from '@/pages/CashRegisterPage';
+import { ReceiveStockPage } from '@/pages/ReceiveStockPage';
 
 export default function App() {
   return (
@@ -34,7 +35,9 @@ export default function App() {
           <Route path="/" element={<DashboardPage />} />
           <Route path="/inventory" element={<InventoryPage />} />
           <Route path="/products" element={<ProductsPage />} />
-          {/* หน้าใหม่ — แบบ tab ง่ายๆ สำหรับ 1 SKU (ใช้ default) */}
+          {/* ⭐ Unified Receive — แนะนำ (search + fast inbound + create) */}
+          <Route path="/receive" element={<ReceiveStockPage />} />
+          {/* สร้างสินค้าใหม่ — ProductRegisterPage เดิม (ใช้ผ่าน /receive ก็ได้) */}
           <Route path="/products/new" element={<ProductRegisterPage />} />
           {/* หน้าเดิม wizard — สำหรับ multi-variant / clone / add-variant */}
           <Route path="/products/new/advanced" element={<ProductWizardPage />} />

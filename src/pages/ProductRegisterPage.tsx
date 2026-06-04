@@ -98,11 +98,12 @@ export function ProductRegisterPage() {
   const [searchParams] = useSearchParams();
   const cloneProductId = searchParams.get('cloneProduct') ?? undefined;
   const cloneVariantId = searchParams.get('cloneFrom') ?? undefined;
+  const prefillName = searchParams.get('name') ?? '';
   const isClone = !!cloneProductId;
 
   const { register, control, handleSubmit, setValue, getValues, reset, watch, formState: { errors } } = useForm<FormValues>({
     defaultValues: {
-      categoryId: '', name: '', brand: 'Apple', modelNumber: '', description: '',
+      categoryId: '', name: prefillName, brand: 'Apple', modelNumber: '', description: '',
       serialized: true,
       sku: '', color: '', storage: '', network: '', barcode: '', warrantyTerms: '',
       costPrice: '', sellingPrice: '', reorderPoint: 2,

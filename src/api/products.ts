@@ -40,6 +40,14 @@ export const productsApi = {
 
   lookupVariant: (q: string) =>
     api.get<VariantResponse>('/products/variants/lookup', { params: { q } }).then((r) => r.data),
+
+  /** Fuzzy search — Unified Receive Page */
+  searchVariants: (q: string, page = 0, size = 20) =>
+    api
+      .get<import('@/types/api').PageResponse<VariantResponse>>('/products/variants/search', {
+        params: { q, page, size },
+      })
+      .then((r) => r.data),
 };
 
 export const categoriesApi = {
