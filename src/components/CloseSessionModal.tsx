@@ -6,6 +6,7 @@ import { cashRegisterApi } from '@/api/cashRegister';
 import { extractErrorMessage } from '@/api/client';
 import { formatTHB } from '@/lib/format';
 import { useModalChrome, backdropCloseHandler } from '@/hooks/useModalChrome';
+import { PaymentBreakdownCard } from '@/components/cash/PaymentBreakdownCard';
 import type { CashSessionResponse } from '@/types/api';
 
 interface Props {
@@ -50,7 +51,7 @@ export function CloseSessionModal({ session, onClose, onClosed }: Props) {
       className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/70 p-4 pt-[5vh] backdrop-blur-sm animate-modal-fade-in">
       <div
         onClick={(e) => e.stopPropagation()}
-        className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-xl bg-white shadow-2xl animate-modal-zoom-in">
+        className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-xl bg-white shadow-2xl animate-modal-zoom-in">
         <div className="flex shrink-0 items-center justify-between border-b px-5 py-3.5">
           <h2 className="flex items-center gap-2 font-semibold">
             <DoorClosed className="h-5 w-5 text-rose-600" />
@@ -62,6 +63,9 @@ export function CloseSessionModal({ session, onClose, onClosed }: Props) {
         </div>
 
         <div className="flex-1 overflow-y-auto space-y-4 p-5">
+          {/* V31 — Breakdown สด/โอน/บัตร/QR ตอบ requirement "เย็นนี้สรุปยอด" */}
+          <PaymentBreakdownCard breakdown={session.breakdown ?? null} />
+
           <div className="rounded-md bg-slate-50 p-3 text-sm">
             <div className="text-xs text-slate-500">Session</div>
             <div className="font-mono text-sm font-semibold">{session.sessionNo}</div>

@@ -7,6 +7,7 @@ import { posApi } from '@/api/pos';
 import { extractErrorMessage } from '@/api/client';
 import { useAuthStore } from '@/stores/authStore';
 import { ReceiptPrintView } from '@/components/ReceiptPrintView';
+import { RefundMethodModal } from '@/components/RefundMethodModal';
 import { usePrinter } from '@/hooks/usePrinter';
 import { formatTHB, formatDateTime } from '@/lib/format';
 import type { SalesOrderResponse, SalesOrderStatus } from '@/types/api';
@@ -31,6 +32,7 @@ export function SalesHistoryPage() {
   const [page, setPage] = useState(0);
   const [status, setStatus] = useState<SalesOrderStatus | ''>('');
   const [printOrder, setPrintOrder] = useState<SalesOrderResponse | null>(null);
+  const [refundOrder, setRefundOrder] = useState<SalesOrderResponse | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['sales-orders', { page, status }],
@@ -49,11 +51,8 @@ export function SalesHistoryPage() {
   });
 
   const handleRefund = (o: SalesOrderResponse) => {
-    const reason = window.prompt(
-      `ยืนยันคืนเงินบิล ${o.billNo}\n\nยอด ${formatTHB(o.grandTotal)} จะคืนเข้าสต็อก\nกรอกเหตุผล:`
-    );
-    if (!reason || !reason.trim()) return;
-    refund.mutate({ id: o.id, reason: reason.trim() });
+    // V31 Q3 — แทน window.prompt ด้วย modal ที่ให้พนักงานเลือก method
+    setRefundOrder(o);
   };
 
   const printer = usePrinter();
@@ -170,6 +169,19 @@ export function SalesHistoryPage() {
       </div>
 
       {printOrder && <ReceiptPrintView order={printOrder} />}
+
+      {refundOrder && (
+        <RefundMethodModal
+          order={refundOrder}
+          loading={refund.isPending}
+          onClose={() => setRefundOrder(null)}
+          onConfirm={(reason) => {
+            refund.mutate({ id: refundOrder.id, reason }, {
+              onSettled: () => setRefundOrder(null),
+            });
+          }}
+        />
+      )}
     </div>
   );
 }

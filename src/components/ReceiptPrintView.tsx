@@ -7,6 +7,7 @@ const PAYMENT_TH: Record<PaymentMethod, string> = {
   TRANSFER: 'โอนเงิน / QR',
   QR: 'QR / พร้อมเพย์',
   INSTALLMENT: 'ผ่อนชำระรายเดือน',
+  MIXED: 'ผสม (สด+โอน/บัตร/QR)',
 };
 
 const PARTNER_TH: Record<ShippingPartner, string> = {

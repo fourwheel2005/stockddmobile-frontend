@@ -17,6 +17,7 @@ const PAYMENT_LABEL_TH: Record<PaymentMethod, string> = {
   TRANSFER: 'โอน / QR',
   QR: 'QR',
   INSTALLMENT: 'ผ่อน',
+  MIXED: 'ผสม',
 };
 
 function isoDate(d: Date) {

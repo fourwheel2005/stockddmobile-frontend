@@ -349,8 +349,42 @@ export interface LotInboundRequest {
 
 // ─── Phase 5: POS ─────────────────────────────────────────────────────────
 
-export type PaymentMethod = 'CASH' | 'CARD' | 'TRANSFER' | 'QR' | 'INSTALLMENT';
+export type PaymentMethod = 'CASH' | 'CARD' | 'TRANSFER' | 'QR' | 'INSTALLMENT' | 'MIXED';
 export type SalesOrderStatus = 'DRAFT' | 'PAID' | 'CANCELLED' | 'REFUNDED';
+
+/** V31 — Finance partner สำหรับ INSTALLMENT ผ่านสถาบันการเงิน */
+export type FinancePartner =
+  | 'MBK' | 'SCB' | 'KTC' | 'AEON' | 'KRUNGSRI'
+  | 'SAMSUNG_FIN' | 'HOMECREDIT' | 'UMAY' | 'OTHER';
+
+export type FinancePayoutStatus = 'PENDING' | 'APPROVED' | 'RECEIVED' | 'DECLINED';
+
+export const FINANCE_PARTNER_LABEL: Record<FinancePartner, string> = {
+  MBK:         'MBK',
+  SCB:         'ไทยพาณิชย์ (SCB)',
+  KTC:         'กรุงไทย (KTC)',
+  AEON:        'อิออน (AEON)',
+  KRUNGSRI:    'กรุงศรี',
+  SAMSUNG_FIN: 'Samsung Financial',
+  HOMECREDIT:  'โฮมเครดิต',
+  UMAY:        'อูเมะ',
+  OTHER:       'อื่นๆ',
+};
+
+export const FINANCE_STATUS_LABEL: Record<FinancePayoutStatus, string> = {
+  PENDING:  'รออนุมัติ',
+  APPROVED: 'อนุมัติแล้ว รอเงินโอน',
+  RECEIVED: 'รับเงินแล้ว',
+  DECLINED: 'ปฏิเสธ',
+};
+
+/** Split payment ใช้กับ MIXED order — sum ต้อง = grandTotal (±0.01) */
+export interface PaymentSplit {
+  cash:     number;
+  transfer: number;
+  card:     number;
+  qr:       number;
+}
 
 export interface Customer {
   id: string;
@@ -404,10 +438,13 @@ export type ShippingPartner =
 
 export type OrderChannel = 'WALK_IN' | 'ONLINE';
 
-export type PaidFrom = 'REGISTER' | 'OWNER_GRANDPA' | 'OWNER_GRANDMA' | 'CUSTOMER';
+export type PaidFrom = 'REGISTER' | 'OWNER_GRANDPA' | 'OWNER_GRANDMA' | 'CUSTOMER' | 'BANK';
 
 export type CashMovementType =
-  | 'SALE_CASH' | 'REFUND_CASH' | 'PAYOUT_SHIPPING' | 'PAYOUT_EXPENSE'
+  | 'SALE_CASH' | 'SALE_TRANSFER' | 'SALE_CARD' | 'SALE_QR'
+  | 'FINANCE_PAYOUT_RECEIVED'
+  | 'REFUND_CASH' | 'REFUND_TRANSFER'
+  | 'PAYOUT_SHIPPING' | 'PAYOUT_EXPENSE'
   | 'CASH_IN' | 'SAFE_DROP' | 'PETTY_CASH_FROM_OWNER' | 'OPENING_FLOAT' | 'ADJUSTMENT';
 
 export type SessionStatus = 'OPEN' | 'CLOSED';
@@ -422,6 +459,20 @@ export interface CashMovementLine {
   note: string | null;
   createdBy: string | null;
   createdAt: string;
+}
+
+/** V31 — สรุปยอดรับเงินแยกตาม method สำหรับ "เย็นนี้สรุปสด/โอน" */
+export interface PaymentBreakdown {
+  cashTotal:          number;
+  cashOrderCount:     number;
+  transferTotal:      number;
+  transferOrderCount: number;
+  cardTotal:          number;
+  cardOrderCount:     number;
+  qrTotal:            number;
+  qrOrderCount:       number;
+  grandTotal:         number;
+  totalOrderCount:    number;
 }
 
 export interface CashSessionResponse {
@@ -439,6 +490,8 @@ export interface CashSessionResponse {
   actualClose: number | null;
   variance: number | null;
   note: string | null;
+  /** V31 — null สำหรับ session เก่าก่อน V31 */
+  breakdown: PaymentBreakdown | null;
   movements: CashMovementLine[] | null;
 }
 
@@ -489,12 +542,17 @@ export interface CheckoutRequest {
   discountAmount?: number;
   vatAmount?: number;
   paymentReference?: string;
-  paymentSlipFileId?: string;        // required when paymentMethod=TRANSFER
+  paymentSlipFileId?: string;        // legacy single slip
+  slipFileIds?: string[];            // V31 — multi-slip support
+  /** V31 — required when paymentMethod=MIXED; sum must equal grandTotal (±0.01) */
+  paymentSplit?: PaymentSplit;
   // Installment fields (used only when paymentMethod=INSTALLMENT)
   installmentMonths?: number;
   downPaymentAmount?: number;
   downPaymentCashAmount?: number;
   downPaymentTransferAmount?: number;
+  /** V31 — ไฟแนนซ์ที่รับผ่อน (ใช้กับ INSTALLMENT เท่านั้น) */
+  financePartner?: FinancePartner;
   note?: string;
   // Walk-in customer (used when customerId not picked — also drives LINE name)
   walkInCustomerName?: string;
@@ -546,6 +604,17 @@ export interface SalesOrderResponse {
   shippingPaidFrom: PaidFrom | null;
   shippingFeeGrandpa: number;
   shippingFeeGrandma: number;
+  // ─── V31 — Payment breakdown ──────────────────────────────────
+  cashAmount: number;
+  transferAmount: number;
+  cardAmount: number;
+  qrAmount: number;
+  // ─── V31 — Finance partner ────────────────────────────────────
+  financePartner: FinancePartner | null;
+  financePayoutAmount: number | null;
+  financePayoutStatus: FinancePayoutStatus | null;
+  financePayoutReceivedAt: string | null;
+  financePayoutReference: string | null;
   cashSessionId: string | null;
   note: string | null;
   createdBy: string;

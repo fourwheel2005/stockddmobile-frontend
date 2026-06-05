@@ -12,9 +12,11 @@ import { RepairIntakeModal } from '@/components/RepairIntakeModal';
 import { ReceiptPrintView } from '@/components/ReceiptPrintView';
 import { RepairBillPrintView } from '@/components/RepairBillPrintView';
 import type {
-  CartScanResponse, Customer, InStockItem, OrderChannel,
-  PaymentMethod, RepairTicket, SalesOrderResponse, ShippingPartner,
+  CartScanResponse, Customer, FinancePartner, InStockItem, OrderChannel,
+  PaymentMethod, PaymentSplit, RepairTicket, SalesOrderResponse, ShippingPartner,
 } from '@/types/api';
+import { FINANCE_PARTNER_LABEL } from '@/types/api';
+import { PaymentSplitEditor, validateSplit } from '@/components/pos/PaymentSplitEditor';
 import { cashRegisterApi } from '@/api/cashRegister';
 import { OpenSessionModal } from '@/components/OpenSessionModal';
 import { PrinterStatusBadge } from '@/components/PrinterStatusBadge';
@@ -59,6 +61,7 @@ interface PaymentOption {
 const PAYMENT_OPTIONS: PaymentOption[] = [
   { value: 'CASH',        label: 'ชำระด้วยเงินสด',           icon: '💵', requiresRef: false },
   { value: 'TRANSFER',    label: 'โอนเงินผ่านระบบ / สแกน QR', icon: '📲', requiresRef: true,  refLabel: 'เลขสลิป / 4 หลักท้าย' },
+  { value: 'MIXED',       label: 'จ่ายแบบผสม (สด+โอน/บัตร/QR)', icon: '🧮', requiresRef: false },
   { value: 'INSTALLMENT', label: 'ผ่อนชำระรายเดือน',         icon: '💳', requiresRef: true,  refLabel: 'เลขสัญญาผ่อน' },
 ];
 
@@ -85,6 +88,12 @@ export function PosTerminalPage() {
   const [splitDown, setSplitDown] = useState<boolean>(false);
   const [downCash, setDownCash] = useState<number>(0);
   const [downTransfer, setDownTransfer] = useState<number>(0);
+  const [financePartner, setFinancePartner] = useState<FinancePartner | ''>('');
+
+  // ─── MIXED split state (V31) ────────────────────────────────────────
+  const [mixedSplit, setMixedSplit] = useState<PaymentSplit>({
+    cash: 0, transfer: 0, card: 0, qr: 0,
+  });
 
   // ─── Transfer slip state ────────────────────────────────────────────
   const [slipFileId, setSlipFileId] = useState<string | null>(null);
@@ -276,7 +285,17 @@ export function PosTerminalPage() {
         })),
         paymentMethod,
         paymentReference: paymentRef || undefined,
-        paymentSlipFileId: paymentMethod === 'TRANSFER' ? (slipFileId ?? undefined) : undefined,
+        // Slip required for TRANSFER, MIXED with transfer>0, INSTALLMENT with transfer down
+        paymentSlipFileId:
+          (paymentMethod === 'TRANSFER'
+            || (paymentMethod === 'MIXED' && mixedSplit.transfer > 0)
+            || (paymentMethod === 'INSTALLMENT' && splitDown && downTransfer > 0))
+            ? (slipFileId ?? undefined) : undefined,
+        // V31 — MIXED split
+        paymentSplit: paymentMethod === 'MIXED' ? mixedSplit : undefined,
+        // V31 — Finance partner (INSTALLMENT only)
+        financePartner: paymentMethod === 'INSTALLMENT' && financePartner
+          ? financePartner : undefined,
         discountAmount: discount || undefined,
         vatAmount: vatAmount > 0 ? vatAmount : undefined,
         note: note || undefined,
@@ -320,6 +339,8 @@ export function PosTerminalPage() {
       setSplitDown(false);
       setDownCash(0);
       setDownTransfer(0);
+      setFinancePartner('');
+      setMixedSplit({ cash: 0, transfer: 0, card: 0, qr: 0 });
       setVatRate(0);
       setWalkInName('');
       setWalkInPhone('');
@@ -336,9 +357,17 @@ export function PosTerminalPage() {
     onError: (e) => toast.error(extractErrorMessage(e)),
   });
 
-  // โอนเงินต้องแนบสลิปก่อนปิดบิล
-  const needSlip = paymentMethod === 'TRANSFER';
+  // โอนเงินต้องแนบสลิปก่อนปิดบิล — รวม MIXED ที่มี transfer > 0
+  const needSlip =
+    paymentMethod === 'TRANSFER'
+    || (paymentMethod === 'MIXED' && mixedSplit.transfer > 0)
+    || (paymentMethod === 'INSTALLMENT' && splitDown && downTransfer > 0);
   const slipMissing = needSlip && !slipFileId;
+
+  // MIXED — split must equal grandTotal (computed below in JSX scope)
+  const mixedError = paymentMethod === 'MIXED'
+    ? validateSplit(mixedSplit, grandTotal)
+    : null;
 
   // ─── Channel + Shipping gating (ตรงกับ PosService validation) ────────
   const isOnline = orderChannel === 'ONLINE';
@@ -358,6 +387,7 @@ export function PosTerminalPage() {
     onlineNeedsPartner ? 'ออนไลน์: ต้องเลือกพาร์ทเนอร์จัดส่ง' :
     onlineNeedsAddress ? 'ออนไลน์: ต้องกรอกที่อยู่จัดส่ง' :
     installmentNeedsIdentity ? 'ผ่อนชำระ: ต้องระบุชื่อลูกค้า' :
+    mixedError ? `จ่ายแบบผสม: ${mixedError}` :
     null;
 
   return (
@@ -487,6 +517,45 @@ export function PosTerminalPage() {
                        value={paymentRef} onChange={(e) => setPaymentRef(e.target.value)} />
               );
             })()}
+
+            {/* V31 — MIXED split editor */}
+            {paymentMethod === 'MIXED' && (
+              <div className="mt-2 rounded-md border-2 border-brand-200 bg-brand-50/40 p-3">
+                <div className="mb-2 text-xs font-semibold text-brand-800">
+                  🧮 จ่ายแบบผสม — กรอกยอดแต่ละ method ให้รวม = {formatTHB(grandTotal)}
+                </div>
+                <PaymentSplitEditor
+                  value={mixedSplit}
+                  onChange={setMixedSplit}
+                  grandTotal={grandTotal}
+                  hasSlip={!!slipFileId}
+                />
+              </div>
+            )}
+
+            {/* V31 — Finance Partner dropdown (INSTALLMENT only) */}
+            {paymentMethod === 'INSTALLMENT' && (
+              <div className="mt-2 rounded-md border border-violet-200 bg-violet-50/30 p-2">
+                <label className="mb-1 block text-xs font-semibold text-violet-900">
+                  🏦 ผ่อนกับไฟแนนซ์ <span className="font-normal text-violet-600">(เว้น = ผ่อนกับร้าน)</span>
+                </label>
+                <select
+                  className="input"
+                  value={financePartner}
+                  onChange={(e) => setFinancePartner(e.target.value as FinancePartner | '')}>
+                  <option value="">— ไม่ใช่ผ่อนกับไฟแนนซ์ —</option>
+                  {(Object.keys(FINANCE_PARTNER_LABEL) as FinancePartner[]).map((p) => (
+                    <option key={p} value={p}>{FINANCE_PARTNER_LABEL[p]}</option>
+                  ))}
+                </select>
+                {financePartner && (
+                  <p className="mt-1 text-[11px] text-violet-700">
+                    💡 ระบบจะ track เงิน {FINANCE_PARTNER_LABEL[financePartner]} ค้างจ่าย
+                    {' — '}ดูที่หน้า "ไฟแนนซ์ค้างจ่าย"
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Slip upload — required when paying by TRANSFER */}
             {needSlip && (

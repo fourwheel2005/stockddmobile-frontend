@@ -9,18 +9,24 @@ import { formatTHB, formatDateTime } from '@/lib/format';
 import { OpenSessionModal } from '@/components/OpenSessionModal';
 import { CloseSessionModal } from '@/components/CloseSessionModal';
 import { CashMovementModal } from '@/components/CashMovementModal';
+import { PaymentBreakdownCard } from '@/components/cash/PaymentBreakdownCard';
 import type { CashMovementType, PaidFrom } from '@/types/api';
 
 const TYPE_TH: Record<CashMovementType, string> = {
-  OPENING_FLOAT:         'เปิดเก๊ะ',
-  SALE_CASH:             'ขายเงินสด',
-  REFUND_CASH:           'คืนเงินลูกค้า',
-  PAYOUT_SHIPPING:       'ค่าจัดส่ง',
-  PAYOUT_EXPENSE:        'จ่ายค่าใช้จ่าย',
-  CASH_IN:               'เติมเงินสด',
-  SAFE_DROP:             'เก็บเข้าตู้นิรภัย',
-  PETTY_CASH_FROM_OWNER: 'ตา/ยายใส่เงิน',
-  ADJUSTMENT:            'ปรับปรุง',
+  OPENING_FLOAT:           'เปิดเก๊ะ',
+  SALE_CASH:               'ขายเงินสด',
+  SALE_TRANSFER:           'ขายโดยรับโอน',
+  SALE_CARD:               'รูดบัตร',
+  SALE_QR:                 'รับ QR',
+  FINANCE_PAYOUT_RECEIVED: 'ไฟแนนซ์โอนคืน',
+  REFUND_CASH:             'คืนเงินสด',
+  REFUND_TRANSFER:         'คืนผ่านโอน',
+  PAYOUT_SHIPPING:         'ค่าจัดส่ง',
+  PAYOUT_EXPENSE:          'จ่ายค่าใช้จ่าย',
+  CASH_IN:                 'เติมเงินสด',
+  SAFE_DROP:               'เก็บเข้าตู้นิรภัย',
+  PETTY_CASH_FROM_OWNER:   'ตา/ยายใส่เงิน',
+  ADJUSTMENT:              'ปรับปรุง',
 };
 
 const PAID_FROM_TH: Record<PaidFrom, string> = {
@@ -28,6 +34,7 @@ const PAID_FROM_TH: Record<PaidFrom, string> = {
   OWNER_GRANDPA: '👴 ตา',
   OWNER_GRANDMA: '👵 ยาย',
   CUSTOMER:      'ลูกค้า',
+  BANK:          '🏦 บัญชีร้าน',
 };
 
 export function CashRegisterPage() {
@@ -121,6 +128,9 @@ export function CashRegisterPage() {
               </div>
             </div>
           </div>
+
+          {/* V31 — สรุปสด/โอน/บัตร/QR ตอบ requirement "เย็นนี้สรุปยอด" */}
+          <PaymentBreakdownCard breakdown={session.breakdown ?? null} />
 
           {/* Movements log */}
           <div className="card">

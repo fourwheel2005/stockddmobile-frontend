@@ -27,4 +27,14 @@ export const posApi = {
 
   inStockItems: (params: { variantId?: string; q?: string; page?: number; size?: number } = {}) =>
     api.get<PageResponse<InStockItem>>('/pos/in-stock-items', { params }).then((r) => r.data),
+
+  // ─── V31 — Finance Payout (ไฟแนนซ์โอนคืน) ─────────────────────────
+  financePending: () =>
+    api.get<SalesOrderResponse[]>('/pos/finance/pending').then((r) => r.data),
+  financeConfirm: (id: string, referenceNo?: string) =>
+    api.post<SalesOrderResponse>(`/pos/finance/${id}/confirm`,
+      null, { params: referenceNo ? { referenceNo } : {} }).then((r) => r.data),
+  financeDecline: (id: string, reason?: string) =>
+    api.post<SalesOrderResponse>(`/pos/finance/${id}/decline`,
+      null, { params: reason ? { reason } : {} }).then((r) => r.data),
 };

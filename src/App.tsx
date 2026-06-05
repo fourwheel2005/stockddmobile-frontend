@@ -23,6 +23,7 @@ import { WarrantyPage } from '@/pages/WarrantyPage';
 import { ScannerTestPage } from '@/pages/ScannerTestPage';
 import { PrintLabelsPage } from '@/pages/PrintLabelsPage';
 import { CashRegisterPage } from '@/pages/CashRegisterPage';
+import { FinancePendingPage } from '@/pages/FinancePendingPage';
 
 export default function App() {
   return (
@@ -65,6 +66,8 @@ export default function App() {
           <Route path="/alerts" element={<AlertsPage />} />
           <Route path="/lots" element={<LotsPage />} />
           <Route path="/reports" element={<ReportsPage />} />
+          {/* V31 — ไฟแนนซ์ค้างจ่าย */}
+          <Route path="/finance-pending" element={<FinancePendingPage />} />
         </Route>
       </Route>
 
