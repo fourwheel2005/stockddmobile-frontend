@@ -29,4 +29,14 @@ export const cashRegisterApi = {
     api.get<OwnerLedgerResponse>('/cash-register/owner-ledger', {
       params: { from, to },
     }).then((r) => r.data),
+
+  // ─── P4 — Self-heal stale session ────────────────────────────────
+  /** List OPEN session ทุก register — admin debug deadlock */
+  listAllOpen: () =>
+    api.get<CashSessionResponse[]>('/cash-register/sessions/open').then((r) => r.data),
+
+  /** Force-close orphan session (ADMIN only) */
+  forceClose: (id: string, reason?: string) =>
+    api.post<CashSessionResponse>(`/cash-register/${id}/force-close`,
+      null, { params: reason ? { reason } : {} }).then((r) => r.data),
 };

@@ -28,7 +28,15 @@ export function OpenSessionModal({ onOpened, onClose }: Props) {
   const open = useMutation({
     mutationFn: () => cashRegisterApi.open({ openingFloat, note: note || undefined }),
     onSuccess: (s) => {
-      toast.success(`เปิดเก๊ะแล้ว — ${s.sessionNo}`);
+      // P4 — backend idempotent: ถ้า session มีอยู่แล้ว backend คืนของเดิม
+      // → message ปรับตาม openedAt (ถ้า > 1 นาทีก่อน = ของเดิม)
+      const isRecovered = Date.now() - new Date(s.openedAt).getTime() > 60_000;
+      if (isRecovered) {
+        toast.success(`พบ session เดิมที่เปิดอยู่ — ${s.sessionNo} (กู้คืนแล้ว)`,
+                      { duration: 4000, icon: '🔄' });
+      } else {
+        toast.success(`เปิดเก๊ะแล้ว — ${s.sessionNo}`);
+      }
       qc.invalidateQueries({ queryKey: ['cash-session'] });
       onOpened?.();
       onClose();

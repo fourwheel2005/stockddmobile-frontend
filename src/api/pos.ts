@@ -28,6 +28,11 @@ export const posApi = {
   inStockItems: (params: { variantId?: string; q?: string; page?: number; size?: number } = {}) =>
     api.get<PageResponse<InStockItem>>('/pos/in-stock-items', { params }).then((r) => r.data),
 
+  // ─── Q4 — Shipping partner report ─────────────────────────────────
+  shippingPartnerReport: (params: { from?: string; to?: string } = {}) =>
+    api.get<import('@/types/api').ShippingPartnerReport>(
+      '/pos/reports/shipping-partners', { params }).then((r) => r.data),
+
   // ─── V31 — Finance Payout (ไฟแนนซ์โอนคืน) ─────────────────────────
   financePending: () =>
     api.get<SalesOrderResponse[]>('/pos/finance/pending').then((r) => r.data),

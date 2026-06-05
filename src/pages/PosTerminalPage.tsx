@@ -17,6 +17,7 @@ import type {
 } from '@/types/api';
 import { FINANCE_PARTNER_LABEL } from '@/types/api';
 import { PaymentSplitEditor, validateSplit } from '@/components/pos/PaymentSplitEditor';
+import { MultiSlipUpload, type SlipEntry } from '@/components/pos/MultiSlipUpload';
 import { cashRegisterApi } from '@/api/cashRegister';
 import { OpenSessionModal } from '@/components/OpenSessionModal';
 import { PrinterStatusBadge } from '@/components/PrinterStatusBadge';
@@ -95,10 +96,8 @@ export function PosTerminalPage() {
     cash: 0, transfer: 0, card: 0, qr: 0,
   });
 
-  // ─── Transfer slip state ────────────────────────────────────────────
-  const [slipFileId, setSlipFileId] = useState<string | null>(null);
-  const [slipPreview, setSlipPreview] = useState<string | null>(null);
-  const [slipUploading, setSlipUploading] = useState(false);
+  // ─── Transfer slip state (V31 — รองรับหลายใบ Q1) ────────────────
+  const [slips, setSlips] = useState<SlipEntry[]>([]);
 
   // ─── Walk-in customer (พิมพ์สด ไม่ต้องมีในระบบ) ─────────────────────
   const [walkInName, setWalkInName] = useState('');
@@ -129,7 +128,7 @@ export function PosTerminalPage() {
 
   // Cleanup blob URL เมื่อ component unmount — กัน memory leak
   useEffect(() => () => {
-    if (slipPreview) URL.revokeObjectURL(slipPreview);
+    slips.forEach((s) => s.previewUrl && URL.revokeObjectURL(s.previewUrl));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -250,25 +249,10 @@ export function PosTerminalPage() {
     toast.success(`เพิ่มแล้ว: ${item.sku}`, { duration: 1500 });
   }
 
-  // Upload transfer slip
-  async function handleSlipUpload(file: File) {
-    setSlipUploading(true);
-    try {
-      const uploaded = await filesApi.upload(file);
-      setSlipFileId(uploaded.id);
-      setSlipPreview(URL.createObjectURL(file));
-      toast.success('แนบสลิปแล้ว');
-    } catch (e) {
-      toast.error(extractErrorMessage(e));
-    } finally {
-      setSlipUploading(false);
-    }
-  }
-
-  function clearSlip() {
-    if (slipPreview) URL.revokeObjectURL(slipPreview);
-    setSlipFileId(null);
-    setSlipPreview(null);
+  // V31 — clear all slips (revoke blob URLs to avoid memory leak)
+  function clearSlips() {
+    slips.forEach((s) => s.previewUrl && URL.revokeObjectURL(s.previewUrl));
+    setSlips([]);
   }
 
   const checkout = useMutation({
@@ -285,12 +269,10 @@ export function PosTerminalPage() {
         })),
         paymentMethod,
         paymentReference: paymentRef || undefined,
-        // Slip required for TRANSFER, MIXED with transfer>0, INSTALLMENT with transfer down
-        paymentSlipFileId:
-          (paymentMethod === 'TRANSFER'
-            || (paymentMethod === 'MIXED' && mixedSplit.transfer > 0)
-            || (paymentMethod === 'INSTALLMENT' && splitDown && downTransfer > 0))
-            ? (slipFileId ?? undefined) : undefined,
+        // V31 — multi-slip array (Q1) — backend persists all into sales_order_slips
+        slipFileIds: slips.length > 0 ? slips.map((s) => s.fileId) : undefined,
+        // Legacy single-slip — kept for backward compat
+        paymentSlipFileId: slips.length > 0 ? slips[0].fileId : undefined,
         // V31 — MIXED split
         paymentSplit: paymentMethod === 'MIXED' ? mixedSplit : undefined,
         // V31 — Finance partner (INSTALLMENT only)
@@ -350,7 +332,7 @@ export function PosTerminalPage() {
       setShippingAddress('');
       setShippingFeeGrandpa(0);
       setShippingFeeGrandma(0);
-      clearSlip();
+      clearSlips();
       qc.invalidateQueries({ queryKey: ['cash-session'] });
       inputRef.current?.focus();
     },
@@ -362,7 +344,8 @@ export function PosTerminalPage() {
     paymentMethod === 'TRANSFER'
     || (paymentMethod === 'MIXED' && mixedSplit.transfer > 0)
     || (paymentMethod === 'INSTALLMENT' && splitDown && downTransfer > 0);
-  const slipMissing = needSlip && !slipFileId;
+  const slipMissing = needSlip && slips.length === 0;
+  const hasAnySlip = slips.length > 0;
 
   // MIXED — split must equal grandTotal (computed below in JSX scope)
   const mixedError = paymentMethod === 'MIXED'
@@ -528,7 +511,7 @@ export function PosTerminalPage() {
                   value={mixedSplit}
                   onChange={setMixedSplit}
                   grandTotal={grandTotal}
-                  hasSlip={!!slipFileId}
+                  hasSlip={hasAnySlip}
                 />
               </div>
             )}
@@ -557,35 +540,13 @@ export function PosTerminalPage() {
               </div>
             )}
 
-            {/* Slip upload — required when paying by TRANSFER */}
+            {/* V31 Q1 — Multi-slip upload (รองรับหลายใบ) */}
             {needSlip && (
-              <div className={`rounded-md border p-2 ${slipMissing ? 'border-red-300 bg-red-50' : 'border-emerald-300 bg-emerald-50'}`}>
-                <div className="mb-1 text-xs font-semibold">
-                  📎 แนบสลิปโอนเงิน {slipMissing && <span className="text-red-600">* จำเป็น</span>}
-                </div>
-                {slipPreview ? (
-                  <div className="flex items-center gap-2">
-                    <img src={slipPreview} alt="slip" className="h-16 w-16 rounded object-cover" />
-                    <span className="text-xs text-emerald-700">✓ แนบแล้ว</span>
-                    <button type="button" className="ml-auto rounded p-1 text-red-600 hover:bg-red-100"
-                            onClick={clearSlip}>
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                ) : (
-                  <label className="flex cursor-pointer items-center justify-center gap-2 rounded border border-dashed border-slate-300 bg-white px-3 py-3 text-sm text-slate-600 hover:bg-slate-50">
-                    <Upload className="h-4 w-4" />
-                    {slipUploading ? 'กำลังอัปโหลด...' : 'เลือกรูปสลิป (JPG/PNG/PDF)'}
-                    <input type="file" accept="image/*,application/pdf" className="hidden"
-                           disabled={slipUploading}
-                           onChange={(e) => {
-                             const f = e.target.files?.[0];
-                             if (f) handleSlipUpload(f);
-                             e.target.value = '';
-                           }} />
-                  </label>
-                )}
-              </div>
+              <MultiSlipUpload
+                slips={slips}
+                onChange={setSlips}
+                required={slipMissing}
+              />
             )}
           </div>
         </div>

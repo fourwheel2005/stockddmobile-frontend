@@ -10,6 +10,7 @@ import { formatNumber } from '@/lib/format';
 import { useAuthStore } from '@/stores/authStore';
 import { useWsStore } from '@/stores/wsStore';
 import { OpenSessionModal } from '@/components/OpenSessionModal';
+import { ShippingPartnerWidget } from '@/components/dashboard/ShippingPartnerWidget';
 
 export function DashboardPage() {
   const user = useAuthStore((s) => s.user);
@@ -105,6 +106,9 @@ export function DashboardPage() {
           />
         )}
       </div>
+
+      {/* Q4 — Shipping partner widget */}
+      <ShippingPartnerWidget />
 
       {/* Recent Inventory */}
       <div className="card">

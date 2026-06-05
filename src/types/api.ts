@@ -386,6 +386,26 @@ export interface PaymentSplit {
   qr:       number;
 }
 
+/** Q4 — รายงาน shipping partner */
+export interface ShippingPartnerReport {
+  fromDate: string;
+  toDate: string;
+  totalShipments: number;
+  totalShippingFee: number;
+  totalGrandpa: number;
+  totalGrandma: number;
+  totalRegister: number;
+  rows: ShippingPartnerRow[];
+}
+export interface ShippingPartnerRow {
+  partner: ShippingPartner;
+  orderCount: number;
+  totalFee: number;
+  grandpaFee: number;
+  grandmaFee: number;
+  registerFee: number;
+}
+
 export interface Customer {
   id: string;
   name: string;
@@ -609,6 +629,8 @@ export interface SalesOrderResponse {
   transferAmount: number;
   cardAmount: number;
   qrAmount: number;
+  // V31 — multi-slip URLs (populated only on detail response)
+  slipUrls: string[] | null;
   // ─── V31 — Finance partner ────────────────────────────────────
   financePartner: FinancePartner | null;
   financePayoutAmount: number | null;

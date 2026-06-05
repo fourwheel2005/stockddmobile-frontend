@@ -10,6 +10,7 @@ import { OpenSessionModal } from '@/components/OpenSessionModal';
 import { CloseSessionModal } from '@/components/CloseSessionModal';
 import { CashMovementModal } from '@/components/CashMovementModal';
 import { PaymentBreakdownCard } from '@/components/cash/PaymentBreakdownCard';
+import { OrphanSessionBanner } from '@/components/cash/OrphanSessionBanner';
 import type { CashMovementType, PaidFrom } from '@/types/api';
 
 const TYPE_TH: Record<CashMovementType, string> = {
@@ -77,6 +78,9 @@ export function CashRegisterPage() {
           <RefreshCw className="h-4 w-4" />
         </button>
       </div>
+
+      {/* P4 — Orphan session banner (ADMIN/MANAGER) */}
+      <OrphanSessionBanner currentSessionId={session?.id} />
 
       {/* Current session card */}
       {!session && (

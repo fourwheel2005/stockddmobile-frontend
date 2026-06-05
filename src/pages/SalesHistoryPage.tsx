@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { Receipt, Printer, Undo2 } from 'lucide-react';
+import { Receipt, Printer, Undo2, Landmark, CheckCircle2, Clock, XCircle } from 'lucide-react';
 import { posApi } from '@/api/pos';
 import { extractErrorMessage } from '@/api/client';
 import { useAuthStore } from '@/stores/authStore';
@@ -10,7 +10,29 @@ import { ReceiptPrintView } from '@/components/ReceiptPrintView';
 import { RefundMethodModal } from '@/components/RefundMethodModal';
 import { usePrinter } from '@/hooks/usePrinter';
 import { formatTHB, formatDateTime } from '@/lib/format';
-import type { SalesOrderResponse, SalesOrderStatus } from '@/types/api';
+import type { FinancePayoutStatus, SalesOrderResponse, SalesOrderStatus } from '@/types/api';
+import { FINANCE_PARTNER_LABEL } from '@/types/api';
+
+const FINANCE_BADGE_STYLE: Record<FinancePayoutStatus, { cls: string; icon: typeof Clock }> = {
+  PENDING:  { cls: 'bg-amber-100 text-amber-800',  icon: Clock },
+  APPROVED: { cls: 'bg-sky-100 text-sky-800',      icon: Clock },
+  RECEIVED: { cls: 'bg-emerald-100 text-emerald-800', icon: CheckCircle2 },
+  DECLINED: { cls: 'bg-red-100 text-red-700',      icon: XCircle },
+};
+
+function FinanceBadge({ order }: { order: SalesOrderResponse }) {
+  if (!order.financePartner || !order.financePayoutStatus) return null;
+  const style = FINANCE_BADGE_STYLE[order.financePayoutStatus];
+  const Icon = style.icon;
+  return (
+    <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold ${style.cls}`}
+          title={`${FINANCE_PARTNER_LABEL[order.financePartner]} — ${order.financePayoutStatus}`}>
+      <Landmark className="h-3 w-3" />
+      {FINANCE_PARTNER_LABEL[order.financePartner]}
+      <Icon className="h-3 w-3" />
+    </span>
+  );
+}
 
 const STATUS_BADGE: Record<SalesOrderStatus, string> = {
   DRAFT: 'badge-slate',
@@ -119,9 +141,12 @@ export function SalesHistoryPage() {
               {data?.content.map((o) => (
                 <tr key={o.id} className="hover:bg-slate-50">
                   <td className="px-5 py-3">
-                    <Link to={`/pos/orders/${o.id}`} className="font-mono font-semibold text-brand-700 hover:underline">
-                      {o.billNo}
-                    </Link>
+                    <div className="flex flex-col gap-0.5">
+                      <Link to={`/pos/orders/${o.id}`} className="font-mono font-semibold text-brand-700 hover:underline">
+                        {o.billNo}
+                      </Link>
+                      <FinanceBadge order={o} />
+                    </div>
                   </td>
                   <td className="px-5 py-3">{o.customerName ?? <span className="text-slate-400">Walk-in</span>}</td>
                   <td className="px-5 py-3 text-right">{o.items.length}</td>

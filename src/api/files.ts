@@ -6,6 +6,9 @@ export interface UploadedFile {
 }
 
 export const filesApi = {
+  /** Alias for slip uploads — same backend endpoint */
+  uploadSlip: (file: File) => filesApi.upload(file),
+
   /** Upload a file (multipart). Returns { id, url }. */
   upload: (file: File) => {
     const form = new FormData();
