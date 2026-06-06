@@ -12,10 +12,9 @@ import { RepairIntakeModal } from '@/components/RepairIntakeModal';
 import { ReceiptPrintView } from '@/components/ReceiptPrintView';
 import { RepairBillPrintView } from '@/components/RepairBillPrintView';
 import type {
-  CartScanResponse, Customer, FinancePartner, InStockItem, OrderChannel,
+  CartScanResponse, Customer, InStockItem, OrderChannel,
   PaymentMethod, PaymentSplit, RepairTicket, SalesOrderResponse, ShippingPartner,
 } from '@/types/api';
-import { FINANCE_PARTNER_LABEL } from '@/types/api';
 import { PaymentSplitEditor, validateSplit } from '@/components/pos/PaymentSplitEditor';
 import { MultiSlipUpload, type SlipEntry } from '@/components/pos/MultiSlipUpload';
 import { cashRegisterApi } from '@/api/cashRegister';
@@ -89,7 +88,8 @@ export function PosTerminalPage() {
   const [splitDown, setSplitDown] = useState<boolean>(false);
   const [downCash, setDownCash] = useState<number>(0);
   const [downTransfer, setDownTransfer] = useState<number>(0);
-  const [financePartner, setFinancePartner] = useState<FinancePartner | ''>('');
+  // Finance partner state — ซ่อนชั่วคราว (ร้านผ่อนเอง). เก็บใน git history เผื่ออนาคต.
+  // const [financePartner, setFinancePartner] = useState<FinancePartner | ''>('');
 
   // ─── MIXED split state (V31) ────────────────────────────────────────
   const [mixedSplit, setMixedSplit] = useState<PaymentSplit>({
@@ -276,8 +276,7 @@ export function PosTerminalPage() {
         // V31 — MIXED split
         paymentSplit: paymentMethod === 'MIXED' ? mixedSplit : undefined,
         // V31 — Finance partner (INSTALLMENT only)
-        financePartner: paymentMethod === 'INSTALLMENT' && financePartner
-          ? financePartner : undefined,
+        // financePartner: ซ่อนชั่วคราว (ร้านผ่อนเอง)
         discountAmount: discount || undefined,
         vatAmount: vatAmount > 0 ? vatAmount : undefined,
         note: note || undefined,
@@ -321,7 +320,7 @@ export function PosTerminalPage() {
       setSplitDown(false);
       setDownCash(0);
       setDownTransfer(0);
-      setFinancePartner('');
+      // setFinancePartner(''); — ซ่อนชั่วคราว
       setMixedSplit({ cash: 0, transfer: 0, card: 0, qr: 0 });
       setVatRate(0);
       setWalkInName('');
@@ -516,29 +515,8 @@ export function PosTerminalPage() {
               </div>
             )}
 
-            {/* V31 — Finance Partner dropdown (INSTALLMENT only) */}
-            {paymentMethod === 'INSTALLMENT' && (
-              <div className="mt-2 rounded-md border border-violet-200 bg-violet-50/30 p-2">
-                <label className="mb-1 block text-xs font-semibold text-violet-900">
-                  🏦 ผ่อนกับไฟแนนซ์ <span className="font-normal text-violet-600">(เว้น = ผ่อนกับร้าน)</span>
-                </label>
-                <select
-                  className="input"
-                  value={financePartner}
-                  onChange={(e) => setFinancePartner(e.target.value as FinancePartner | '')}>
-                  <option value="">— ไม่ใช่ผ่อนกับไฟแนนซ์ —</option>
-                  {(Object.keys(FINANCE_PARTNER_LABEL) as FinancePartner[]).map((p) => (
-                    <option key={p} value={p}>{FINANCE_PARTNER_LABEL[p]}</option>
-                  ))}
-                </select>
-                {financePartner && (
-                  <p className="mt-1 text-[11px] text-violet-700">
-                    💡 ระบบจะ track เงิน {FINANCE_PARTNER_LABEL[financePartner]} ค้างจ่าย
-                    {' — '}ดูที่หน้า "ไฟแนนซ์ค้างจ่าย"
-                  </p>
-                )}
-              </div>
-            )}
+            {/* Finance Partner dropdown — ซ่อนชั่วคราว (ร้านผ่อนเองโดยตรง ไม่ผ่านไฟแนนซ์)
+                เก็บโค้ดไว้ใน git history + backend + types ครบ — ถ้าวันหน้าต้องการ uncomment block นี้ */}
 
             {/* V31 Q1 — Multi-slip upload (รองรับหลายใบ) */}
             {needSlip && (

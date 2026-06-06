@@ -141,12 +141,10 @@ export function SalesHistoryPage() {
               {data?.content.map((o) => (
                 <tr key={o.id} className="hover:bg-slate-50">
                   <td className="px-5 py-3">
-                    <div className="flex flex-col gap-0.5">
-                      <Link to={`/pos/orders/${o.id}`} className="font-mono font-semibold text-brand-700 hover:underline">
-                        {o.billNo}
-                      </Link>
-                      <FinanceBadge order={o} />
-                    </div>
+                    <Link to={`/pos/orders/${o.id}`} className="font-mono font-semibold text-brand-700 hover:underline">
+                      {o.billNo}
+                    </Link>
+                    {/* FinanceBadge ซ่อนชั่วคราว — ร้านผ่อนเอง ไม่ผ่านไฟแนนซ์ */}
                   </td>
                   <td className="px-5 py-3">{o.customerName ?? <span className="text-slate-400">Walk-in</span>}</td>
                   <td className="px-5 py-3 text-right">{o.items.length}</td>

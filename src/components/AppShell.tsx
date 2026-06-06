@@ -25,7 +25,10 @@ const navItems = [
   { to: '/adjustment',   label: 'ปรับสต็อก',     icon: SlidersHorizontal, roles: ['ADMIN', 'MANAGER'] as const },
   { to: '/lots',         label: 'ล็อตนำเข้า',    icon: Layers,            roles: ['ADMIN', 'MANAGER'] as const },
   { to: '/sales',        label: 'ประวัติบิลขาย',  icon: Receipt },
-  { to: '/finance-pending', label: 'ไฟแนนซ์ค้างจ่าย', icon: Landmark, roles: ['ADMIN', 'MANAGER'] as const },
+  // ─── ซ่อนชั่วคราว — ยังไม่ใช้ในตอนนี้ (V31 finance partner tracking) ───
+  // เก็บ route /finance-pending ไว้ + backend ทำงานตามปกติ
+  // ถ้าอยากเปิดกลับ — uncomment บรรทัดถัดไป
+  // { to: '/finance-pending', label: 'ไฟแนนซ์ค้างจ่าย', icon: Landmark, roles: ['ADMIN', 'MANAGER'] as const },
   { to: '/transactions', label: 'ประวัติสต็อก',  icon: History,           roles: ['ADMIN', 'MANAGER'] as const },
   { to: '/reports',      label: 'รายงาน',        icon: BarChart3,         roles: ['ADMIN', 'MANAGER'] as const },
   { to: '/alerts',       label: 'แจ้งเตือน',     icon: BellRing,          roles: ['ADMIN', 'MANAGER'] as const },
