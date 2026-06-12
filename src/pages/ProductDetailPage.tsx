@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Plus, X, ArrowDownToLine, Copy } from 'lucide-react';
+import { ArrowLeft, Plus, X, ArrowDownToLine, Copy, PackageOpen } from 'lucide-react';
 import { productsApi } from '@/api/products';
+import { inventoryApi } from '@/api/inventory';
 import { extractErrorMessage } from '@/api/client';
 import { useAuthStore } from '@/stores/authStore';
 import { BarcodeDisplay } from '@/components/BarcodeDisplay';
@@ -21,6 +22,24 @@ export function ProductDetailPage() {
     queryFn: () => productsApi.get(id!),
     enabled: !!id,
   });
+
+  /* คงเหลือต่อ SKU — ดึงจาก inventory เพื่อให้เห็นชัดว่ามีสต็อกหรือยัง
+     (hooks ต้องอยู่ก่อน early return ตามกฎ React) */
+  const variants = product?.variants ?? [];
+  const stockQueries = useQueries({
+    queries: variants.map((v) => ({
+      queryKey: ['inventory', v.id],
+      queryFn: () => inventoryApi.get(v.id),
+      enabled: !!v.id,
+    })),
+  });
+  const qtyByVariant = new Map<string, number>();
+  stockQueries.forEach((q, i) => {
+    if (q.data) qtyByVariant.set(variants[i].id, q.data.quantity);
+  });
+  const stockResolved = variants.length > 0 && stockQueries.every((q) => q.isSuccess || q.isError);
+  const totalQty = [...qtyByVariant.values()].reduce((sum, n) => sum + n, 0);
+  const hasNoStock = stockResolved && totalQty === 0;
 
   if (isLoading) return <div className="text-slate-500">กำลังโหลด...</div>;
   if (!product) return <div className="text-slate-500">ไม่พบสินค้า</div>;
@@ -48,6 +67,28 @@ export function ProductDetailPage() {
           {product.description && <p className="text-sm text-slate-700">{product.description}</p>}
         </div>
       </div>
+
+      {/* แจ้งเตือนชัด: สร้างสินค้าแล้ว = แคตตาล็อก · ต้อง "รับสินค้าเข้า" ก่อนถึงมีของขาย */}
+      {hasNoStock && (
+        <div className="flex flex-col gap-3 rounded-xl border-2 border-amber-300 bg-amber-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <PackageOpen className="mt-0.5 h-6 w-6 shrink-0 text-amber-600" />
+            <div>
+              <div className="font-semibold text-amber-900">ยังไม่มีสต็อกในระบบ — ขายไม่ได้</div>
+              <p className="text-sm text-amber-800">
+                สร้างสินค้าแล้วเป็นแค่ <strong>ข้อมูลรุ่น/ราคา</strong> · ต้องกด
+                <strong> "รับสินค้าเข้า" </strong>เพื่อเพิ่มเครื่อง (IMEI) เข้าสต็อก ระบบถึงจะขายได้
+              </p>
+            </div>
+          </div>
+          {canEdit && (
+            <Link to={`/inbound?product=${product.id}`}
+                  className="btn-primary shrink-0 animate-pulse self-start sm:self-center">
+              <ArrowDownToLine className="h-4 w-4" /> รับสินค้าเข้าเลย
+            </Link>
+          )}
+        </div>
+      )}
 
       <div className="card">
         <div className="card-header flex flex-wrap items-center justify-between gap-2">
@@ -77,6 +118,7 @@ export function ProductDetailPage() {
                 <th className="px-5 py-2.5">Storage</th>
                 <th className="px-5 py-2.5">Network</th>
                 <th className="px-5 py-2.5">Barcode</th>
+                <th className="px-5 py-2.5 text-right">คงเหลือ</th>
                 <th className="px-5 py-2.5 text-right">Cost</th>
                 <th className="px-5 py-2.5 text-right">Selling</th>
                 <th className="px-5 py-2.5 text-right">Reorder</th>
@@ -94,6 +136,15 @@ export function ProductDetailPage() {
                   <td className="px-5 py-3">{v.storage ?? '-'}</td>
                   <td className="px-5 py-3">{v.network ?? '-'}</td>
                   <td className="px-5 py-3 font-mono text-xs">{v.barcode ?? '-'}</td>
+                  <td className="px-5 py-3 text-right">
+                    {(() => {
+                      const qty = qtyByVariant.get(v.id);
+                      if (qty === undefined) return <span className="text-slate-400">{stockResolved ? '–' : '…'}</span>;
+                      return qty > 0
+                        ? <span className="font-semibold text-slate-800">{qty}</span>
+                        : <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-700">0 · ยังไม่รับเข้า</span>;
+                    })()}
+                  </td>
                   <td className="px-5 py-3 text-right">
                     {v.costPrice != null
                       ? formatTHB(v.costPrice)
@@ -121,7 +172,7 @@ export function ProductDetailPage() {
                 </tr>
               ))}
               {product.variants.length === 0 && (
-                <tr><td colSpan={9} className="px-5 py-10 text-center">
+                <tr><td colSpan={10} className="px-5 py-10 text-center">
                   <div className="mx-auto max-w-md space-y-2">
                     <div className="text-base font-medium text-slate-700">ยังไม่มี SKU สำหรับขาย</div>
                     <p className="text-sm text-slate-500">

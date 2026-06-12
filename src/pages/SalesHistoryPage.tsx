@@ -2,12 +2,13 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { Receipt, Printer, Undo2, Landmark, CheckCircle2, Clock, XCircle } from 'lucide-react';
+import { Receipt, Printer, Undo2, Landmark, CheckCircle2, Clock, XCircle, PackageOpen } from 'lucide-react';
 import { posApi } from '@/api/pos';
 import { extractErrorMessage } from '@/api/client';
 import { useAuthStore } from '@/stores/authStore';
 import { ReceiptPrintView } from '@/components/ReceiptPrintView';
 import { RefundMethodModal } from '@/components/RefundMethodModal';
+import { ReturnDeviceModal } from '@/components/ReturnDeviceModal';
 import { usePrinter } from '@/hooks/usePrinter';
 import { formatTHB, formatDateTime } from '@/lib/format';
 import type { FinancePayoutStatus, SalesOrderResponse, SalesOrderStatus } from '@/types/api';
@@ -55,6 +56,7 @@ export function SalesHistoryPage() {
   const [status, setStatus] = useState<SalesOrderStatus | ''>('');
   const [printOrder, setPrintOrder] = useState<SalesOrderResponse | null>(null);
   const [refundOrder, setRefundOrder] = useState<SalesOrderResponse | null>(null);
+  const [returnOrder, setReturnOrder] = useState<SalesOrderResponse | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['sales-orders', { page, status }],
@@ -76,6 +78,18 @@ export function SalesHistoryPage() {
     // V31 Q3 — แทน window.prompt ด้วย modal ที่ให้พนักงานเลือก method
     setRefundOrder(o);
   };
+
+  const returnDevice = useMutation({
+    mutationFn: ({ id, refundAmount, reason }: { id: string; refundAmount: number; reason: string }) =>
+      posApi.returnDevice(id, refundAmount, reason),
+    onSuccess: (order) => {
+      toast.success(`รับเครื่องคืนบิล ${order.billNo} สำเร็จ — เครื่องเข้าสต็อกแล้ว`);
+      qc.invalidateQueries({ queryKey: ['sales-orders'] });
+      qc.invalidateQueries({ queryKey: ['inventory'] });
+      qc.invalidateQueries({ queryKey: ['transactions'] });
+    },
+    onError: (e) => toast.error(extractErrorMessage(e)),
+  });
 
   const printer = usePrinter();
 
@@ -161,6 +175,14 @@ export function SalesHistoryPage() {
                         onClick={() => handlePrint(o.id)}>
                         <Printer className="h-4 w-4" />
                       </button>
+                      {canRefund && o.status === 'PAID' && o.paymentMethod === 'INSTALLMENT' && (
+                        <button
+                          className="rounded p-1.5 text-amber-700 hover:bg-amber-50"
+                          title="รับเครื่องคืน (ผ่อนไม่ไหว)"
+                          onClick={() => setReturnOrder(o)}>
+                          <PackageOpen className="h-4 w-4" />
+                        </button>
+                      )}
                       {canRefund && o.status === 'PAID' && (
                         <button
                           className="rounded p-1.5 text-amber-700 hover:bg-amber-50"
@@ -201,6 +223,19 @@ export function SalesHistoryPage() {
           onConfirm={(reason) => {
             refund.mutate({ id: refundOrder.id, reason }, {
               onSettled: () => setRefundOrder(null),
+            });
+          }}
+        />
+      )}
+
+      {returnOrder && (
+        <ReturnDeviceModal
+          order={returnOrder}
+          loading={returnDevice.isPending}
+          onClose={() => setReturnOrder(null)}
+          onConfirm={(refundAmount, reason) => {
+            returnDevice.mutate({ id: returnOrder.id, refundAmount, reason }, {
+              onSettled: () => setReturnOrder(null),
             });
           }}
         />

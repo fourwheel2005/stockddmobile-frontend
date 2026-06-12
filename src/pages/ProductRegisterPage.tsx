@@ -19,8 +19,32 @@ import type { AcquisitionType, ProductWizardRequest } from '@/types/api';
 import { AccessorySerialList } from '@/components/products/AccessorySerialList';
 
 /* ─── ตัวเลือกแนะนำ ─────────────────────────────────────────────────── */
+/** ดึงสินค้าหน้าเดียวพอ (ร้านมีรุ่นหลักสิบ) มาทำ autocomplete เลขรุ่น */
+const PRODUCT_SUGGESTION_PAGE_SIZE = 500;
+/** ซ่อนโหมดยิงสแกน IMEI ไว้ก่อน (ลดความสับสน) — เก็บโค้ดไว้ เปลี่ยนเป็น true เพื่อเปิดใช้อนาคต */
+const SHOW_SCANNER_MODE = false;
 const STORAGE_OPTIONS = ['64GB', '128GB', '256GB', '512GB', '1TB'];
-const NETWORK_OPTIONS = ['TH', 'DS', 'DN', 'HK', 'JP', 'Intl', 'KH'];
+/** เครือข่าย/เครื่องศูนย์ — code ใช้ใน SKU, label โชว์ให้พนักงานเข้าใจ */
+const NETWORK_OPTIONS: { code: string; label: string }[] = [
+  { code: 'TH', label: 'ศูนย์ไทย' },
+  { code: 'DS', label: 'Dual SIM (เครื่องนอก)' },
+  { code: 'DN', label: 'เครื่องนอก ซิงเกิล' },
+  { code: 'HK', label: 'ฮ่องกง' },
+  { code: 'JP', label: 'ญี่ปุ่น' },
+  { code: 'LL', label: 'อเมริกา' },
+  { code: 'ZP', label: 'สิงคโปร์/เอเชีย' },
+  { code: 'Intl', label: 'อินเตอร์ (ทั่วไป)' },
+];
+/** ประกัน — ติ๊ก "มือ 1" เติมค่านี้อัตโนมัติ (เลือก/แก้ได้) */
+const WARRANTY_NEW = 'ประกันศูนย์ 1 ปี (Apple)';
+const WARRANTY_OPTIONS = [
+  WARRANTY_NEW,
+  'ประกันร้าน 7 วัน',
+  'ประกันร้าน 1 เดือน',
+  'ประกันร้าน 3 เดือน',
+  'ประกันร้าน 6 เดือน',
+  'ไม่มีประกัน',
+];
 const COLOR_OPTIONS = [
   'Black', 'White', 'Blue', 'Pink', 'Yellow', 'Green', 'Red', 'Purple',
   'Natural Titanium', 'Blue Titanium', 'Black Titanium', 'White Titanium', 'Desert Titanium',
@@ -213,6 +237,18 @@ export function ProductRegisterPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [name, color, storage, network]);
 
+  /* ประกัน auto-fill: มือ 1 → ศูนย์ Apple, มือ 2 → เว้น; lock เมื่อผู้ใช้พิมพ์/เลือกเอง */
+  const lastAutoWarrantyRef = useRef('');
+  useEffect(() => {
+    const suggested = defaultCondition === 'NEW' ? WARRANTY_NEW : '';
+    const current = getValues('warrantyTerms');
+    if (current === '' || current === lastAutoWarrantyRef.current) {
+      setValue('warrantyTerms', suggested, { shouldDirty: false });
+      lastAutoWarrantyRef.current = suggested;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultCondition]);
+
   /* Live SKU check */
   const [skuStatus, setSkuStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
   useEffect(() => {
@@ -338,6 +374,22 @@ export function ProductRegisterPage() {
       ...(c.children ?? []).map((sub) => ({ id: sub.id, label: `${c.name} / ${sub.name}` })),
     ]), [categories]);
 
+  /* Model-number suggestions — รวมเลขรุ่นที่เคยกรอกแล้ว มาเป็น autocomplete
+     (โตเองตามการใช้งาน, ไม่ต้อง maintain list, ยังพิมพ์ค่าใหม่ได้อิสระ) */
+  const { data: productPage } = useQuery({
+    queryKey: ['products', 'model-number-suggestions'],
+    queryFn: () => productsApi.list({ size: PRODUCT_SUGGESTION_PAGE_SIZE }),
+    staleTime: 5 * 60 * 1000,
+  });
+  const modelNumberOptions = useMemo(() => {
+    const seen = new Set<string>();
+    for (const product of productPage?.content ?? []) {
+      const modelNumber = product.modelNumber?.trim();
+      if (modelNumber) seen.add(modelNumber);
+    }
+    return [...seen].sort();
+  }, [productPage]);
+
   /* Submit */
   const submit = useMutation({
     mutationFn: (req: ProductWizardRequest) => productsApi.createWizard(req),
@@ -372,7 +424,8 @@ export function ProductRegisterPage() {
             ? 100
             : (it.batteryHealth === '' ? undefined : Number(it.batteryHealth)),
           acquisitionType: it.acquisitionType,
-          purchasePrice: it.purchasePrice === '' ? undefined : Number(it.purchasePrice),
+          // เว้น = ใช้ "ราคาทุน" (ข้อ 2) เป็นทุนรายเครื่องอัตโนมัติ — ตรงตามที่ UI สัญญาไว้
+          purchasePrice: it.purchasePrice === '' ? (Number(d.costPrice) || undefined) : Number(it.purchasePrice),
           warrantyTerms: blank(d.warrantyTerms),
           warrantyExpire: blank(it.warrantyExpire),
         }));
@@ -546,7 +599,8 @@ export function ProductRegisterPage() {
                 </FieldRow>
 
                 <FieldRow label="หมายเลขรุ่น (Model)" hint="เลขรุ่นที่ผู้ผลิตให้ ดูได้ที่เครื่อง → เกี่ยวกับ · เช่น MG2N4ZP/A, A3293">
-                  <input className="input font-mono" placeholder="เช่น MG2N4ZP/A" {...register('modelNumber')} />
+                  <input className="input font-mono" list="model-number-list" placeholder="เช่น MG2N4ZP/A" {...register('modelNumber')} />
+                  <datalist id="model-number-list">{modelNumberOptions.map((m) => <option key={m} value={m} />)}</datalist>
                 </FieldRow>
               </>)}
 
@@ -688,6 +742,7 @@ export function ProductRegisterPage() {
                   </select>
                 </FieldRow>
 
+                {SHOW_SCANNER_MODE && (
                 <FieldRow label="โหมดสแกน" hint={`ยิงสแกนเนอร์ทีละ${productKind === 'phone' ? 'เครื่อง' : 'ชิ้น'} หรือวางหลายเลขพร้อมกัน`}>
                   <div className="space-y-2">
                     <button type="button" onClick={() => setScannerMode((v) => !v)}
@@ -709,6 +764,7 @@ export function ProductRegisterPage() {
                     )}
                   </div>
                 </FieldRow>
+                )}
 
                 {productKind === 'accessory' ? (
                   /* ⚡ Bulk Quick-Add — อุปกรณ์เสริมใช้ Lot-wide defaults
@@ -768,7 +824,7 @@ export function ProductRegisterPage() {
             <span className="text-xs text-slate-500">— รหัสสินค้า · บาร์โค้ด · ประกัน · ล็อต</span>
           </div>
           <div className="card-body space-y-5">
-              <FieldRow label="รหัสสินค้า" hint="ระบบสร้างให้จาก ชื่อ + สี + ความจุ + เครือข่าย">
+              <FieldRow label="รหัสสินค้า" autoBadge hint="ระบบสร้างให้จาก ชื่อ + สี + ความจุ + เครือข่าย — แก้เองได้">
                 <div className="relative">
                   <input className={`input pr-10 font-mono ${
                     skuStatus === 'taken' ? 'border-red-400 focus:border-red-500 focus:ring-red-500/15'
@@ -785,14 +841,19 @@ export function ProductRegisterPage() {
                 {skuStatus === 'available' && <p className="mt-1 text-xs font-medium text-emerald-600">รหัสนี้ใช้ได้</p>}
               </FieldRow>
 
-              <FieldRow label="บาร์โค้ด" hint="มือถือไม่ต้องใส่ — ระบบใช้ IMEI เป็นบาร์โค้ดในตัวอยู่แล้ว">
-                <input className="input" {...register('barcode')} />
-              </FieldRow>
+              {/* บาร์โค้ด: มือถือใช้ IMEI เป็นบาร์โค้ดอยู่แล้ว → โชว์เฉพาะอุปกรณ์เสริม */}
+              {productKind !== 'phone' && (
+                <FieldRow label="บาร์โค้ด" hint="เว้นได้ถ้าไม่มีบาร์โค้ดเฉพาะ">
+                  <input className="input" {...register('barcode')} />
+                </FieldRow>
+              )}
 
               {serialized && (<>
-                <FieldRow label="เครือข่าย" hint="TH=ศูนย์ไทย · DS=Dual SIM · HK=ฮ่องกง · JP=ญี่ปุ่น">
-                  <input className="input" list="network-list" {...register('network')} />
-                  <datalist id="network-list">{NETWORK_OPTIONS.map((n) => <option key={n} value={n} />)}</datalist>
+                <FieldRow label="เครือข่าย" hint="เลือกจากรายการ หรือพิมพ์รหัสเอง">
+                  <input className="input" list="network-list" placeholder="เช่น TH, DS, JP" {...register('network')} />
+                  <datalist id="network-list">
+                    {NETWORK_OPTIONS.map((n) => <option key={n.code} value={n.code}>{n.label}</option>)}
+                  </datalist>
                 </FieldRow>
               </>)}
 
@@ -801,15 +862,19 @@ export function ProductRegisterPage() {
               </FieldRow>
 
               {serialized && (<>
-                <FieldRow label="ประกัน" hint="เช่น ประกันร้าน 6 เดือน, ประกันศูนย์ 1 ปี">
-                  <input className="input" {...register('warrantyTerms')} />
+                <FieldRow label="ประกัน"
+                          hint={defaultCondition === 'NEW'
+                            ? 'เติมให้จาก "สภาพ มือ 1" — เลือก/แก้ได้'
+                            : 'เลือกจากรายการ หรือพิมพ์เอง'}>
+                  <input className="input" list="warranty-list" placeholder="เลือกหรือพิมพ์ประกัน" {...register('warrantyTerms')} />
+                  <datalist id="warranty-list">{WARRANTY_OPTIONS.map((w) => <option key={w} value={w} />)}</datalist>
                 </FieldRow>
 
-                <FieldRow label="เลขล็อต" hint="เว้นว่าง = ระบบสร้างให้อัตโนมัติ">
+                <FieldRow label="เลขล็อต" autoBadge hint="เว้นว่าง = ระบบสร้างให้อัตโนมัติ">
                   <input className="input" placeholder="LOT-AUTO" {...register('lotNo')} />
                 </FieldRow>
 
-                <FieldRow label="วันที่นำเข้า">
+                <FieldRow label="วันที่นำเข้า" autoBadge hint="ค่าเริ่มต้น = วันนี้ (เปลี่ยนได้)">
                   <input type="date" className="input" {...register('importDate')} />
                 </FieldRow>
 
@@ -902,12 +967,17 @@ function BulkQtyInput({ value, onChange }: { value: number; onChange: (n: number
 }
 
 function FieldRow({
-  label, children, required, hint,
-}: { label: string; children: React.ReactNode; required?: boolean; hint?: string }) {
+  label, children, required, hint, autoBadge,
+}: { label: string; children: React.ReactNode; required?: boolean; hint?: string; autoBadge?: boolean }) {
   return (
     <div className="grid gap-1.5 border-b border-slate-100 pb-4 last:border-b-0 sm:grid-cols-[140px_1fr] sm:items-start sm:gap-4 sm:pb-3">
       <label className="text-sm font-semibold text-slate-700 sm:pt-2">
         {label} {required && <span className="text-red-500">*</span>}
+        {autoBadge && (
+          <span className="ml-1.5 inline-block rounded bg-slate-100 px-1.5 py-0.5 align-middle text-[10px] font-medium text-slate-500">
+            อัตโนมัติ
+          </span>
+        )}
       </label>
       <div className="min-w-0">
         {children}
@@ -1041,11 +1111,8 @@ function ItemCard({
             </optgroup>
           </select>
         </div>
-        <div>
-          <label className="mb-0.5 block text-xs font-semibold text-slate-600">ราคาซื้อต่อเครื่อง</label>
-          <input type="number" step="0.01" className="input text-sm" placeholder="ใช้ราคาทุนถ้าเว้น"
-                 {...register(`items.${idx}.purchasePrice`)} />
-        </div>
+        {/* ราคาซื้อต่อเครื่อง: ซ่อนจาก UI (ลดความสับสน) — ตอน save จะ auto-fill = ราคาทุน (ข้อ 2)
+            field ยังคงอยู่ใน FormValues เผื่ออนาคตอยากเปิดให้ override รายเครื่อง */}
         <div className="sm:col-span-2">
           <label className="mb-0.5 block text-xs font-semibold text-slate-600">
             วันหมดประกัน {condition === 'SECOND_HAND' && <span className="text-amber-600">(มือ 2 ควรระบุ)</span>}

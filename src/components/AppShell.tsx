@@ -5,6 +5,7 @@ import { authApi } from '@/api/auth';
 import { useStockSocket } from '@/hooks/useStockSocket';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { WsStatusIndicator } from '@/components/WsStatusIndicator';
+import { CashDrawerIndicator } from '@/components/CashDrawerIndicator';
 import {
   LayoutDashboard, Boxes, Package, ArrowUpFromLine,
   History, BellRing, LogOut, SlidersHorizontal, ScanLine, Users, Layers, Receipt,
@@ -104,6 +105,8 @@ export function AppShell() {
             <X className="h-5 w-5" />
           </button>
         </div>
+
+        <CashDrawerIndicator />
 
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
           {visibleNav.map(({ to, label, icon: Icon }) => (

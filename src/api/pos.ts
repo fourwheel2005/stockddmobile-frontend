@@ -25,6 +25,11 @@ export const posApi = {
     api.post<SalesOrderResponse>(`/pos/orders/${id}/refund`,
       null, { params: reason ? { reason } : {} }).then((r) => r.data),
 
+  /** รับเครื่องคืนจากลูกค้าผ่อน (ผ่อนไม่ไหว) — เครื่องเข้าสต็อก + คืนเงินตามที่ระบุ (0 = ไม่คืน) */
+  returnDevice: (id: string, refundAmount: number, reason?: string) =>
+    api.post<SalesOrderResponse>(`/pos/orders/${id}/return-device`,
+      null, { params: { refundAmount, ...(reason ? { reason } : {}) } }).then((r) => r.data),
+
   inStockItems: (params: { variantId?: string; q?: string; page?: number; size?: number } = {}) =>
     api.get<PageResponse<InStockItem>>('/pos/in-stock-items', { params }).then((r) => r.data),
 
