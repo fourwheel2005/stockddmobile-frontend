@@ -61,7 +61,6 @@ interface ItemRow {
   batteryHealth: number | '';
   acquisitionType: AcquisitionType;
   purchasePrice: number | '';
-  warrantyExpire: string;   // YYYY-MM-DD
 }
 
 interface FormValues {
@@ -99,7 +98,6 @@ const EMPTY_ITEM: ItemRow = {
   serialNumber: '', imei: '',
   condition: 'NEW', batteryHealth: '',
   acquisitionType: 'PURCHASE', purchasePrice: '',
-  warrantyExpire: '',
 };
 
 function todayIso(): string {
@@ -427,7 +425,6 @@ export function ProductRegisterPage() {
           // เว้น = ใช้ "ราคาทุน" (ข้อ 2) เป็นทุนรายเครื่องอัตโนมัติ — ตรงตามที่ UI สัญญาไว้
           purchasePrice: it.purchasePrice === '' ? (Number(d.costPrice) || undefined) : Number(it.purchasePrice),
           warrantyTerms: blank(d.warrantyTerms),
-          warrantyExpire: blank(it.warrantyExpire),
         }));
       if (validItems.length === 0) {
         toast.error('ใส่อย่างน้อย 1 ชิ้น (IMEI หรือ Serial)');
@@ -1111,17 +1108,8 @@ function ItemCard({
             </optgroup>
           </select>
         </div>
-        {/* ราคาซื้อต่อเครื่อง: ซ่อนจาก UI (ลดความสับสน) — ตอน save จะ auto-fill = ราคาทุน (ข้อ 2)
-            field ยังคงอยู่ใน FormValues เผื่ออนาคตอยากเปิดให้ override รายเครื่อง */}
-        <div className="sm:col-span-2">
-          <label className="mb-0.5 block text-xs font-semibold text-slate-600">
-            วันหมดประกัน {condition === 'SECOND_HAND' && <span className="text-amber-600">(มือ 2 ควรระบุ)</span>}
-          </label>
-          <input type="date" className="input text-sm" {...register(`items.${idx}.warrantyExpire`)} />
-          <p className="mt-0.5 text-[11px] text-slate-500">
-            💡 ดูได้ที่เครื่อง → เกี่ยวกับ → การรับประกัน · เว้นว่าง = ไม่มีประกัน
-          </p>
-        </div>
+        {/* ราคาซื้อต่อเครื่อง + วันหมดประกัน: ซ่อน/ลบจาก UI (ลดความสับสน)
+            ราคา → auto-fill = ราคาทุน (ข้อ 2) ตอน save · ประกัน → ใช้ "ประกัน" + "วันที่นำเข้า" ในส่วนที่ 4 */}
       </div>
     </div>
   );

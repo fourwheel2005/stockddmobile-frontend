@@ -104,6 +104,29 @@ export interface CreateVariantRequest {
   imageUrl?: string;
 }
 
+// ─── Edit (แก้ที่พิมพ์ผิด หลังสร้าง/รับของ) ────────────────────────────
+export interface UpdateVariantRequest {
+  color?: string;
+  storage?: string;
+  network?: string;
+  barcode?: string;
+  costPrice: number;
+  sellingPrice: number;
+  reorderPoint: number;
+  imageUrl?: string;
+  active: boolean;
+}
+
+export interface UpdateSerialRequest {
+  imei?: string;
+  imei2?: string;
+  serialNumber: string;
+  deviceColor?: string;
+  batteryHealth?: number;
+  condition?: SerializedCondition;
+  note?: string;
+}
+
 // ─── Product Wizard (สร้างหน้าเดียว — atomic, รองรับหลาย variants) ────
 export interface WizardVariantSpec {
   sku: string;
@@ -209,6 +232,7 @@ export interface SerializedItemResponse {
   purchasePrice: number | null;
   purchasePriceCode: string | null;   // รหัสต้นทุน (แสดงให้ STAFF)
   batteryHealth: number | null;
+  deviceColor: string | null;
   acquisitionType: AcquisitionType | null;
   serviceState: ServiceState | null;
   defectNote: string | null;

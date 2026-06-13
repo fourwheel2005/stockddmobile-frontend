@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { X, Wrench, ShieldAlert, Undo2, BatteryMedium } from 'lucide-react';
+import { X, Wrench, ShieldAlert, Undo2, BatteryMedium, Pencil, Save } from 'lucide-react';
 import { inventoryApi } from '@/api/inventory';
 import { extractErrorMessage } from '@/api/client';
 import { formatDate } from '@/lib/format';
 import { acqLabel } from '@/lib/acquisition';
-import type { SerializedStatus, ServiceState } from '@/types/api';
+import type { SerializedStatus, ServiceState, SerializedItemResponse, SerializedCondition } from '@/types/api';
 
 interface Props {
   variantId: string;
@@ -49,6 +49,7 @@ const CONDITION_TH: Record<string, string> = {
 export function SerialsModal({ variantId, productName, sku, onClose }: Props) {
   const qc = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<SerializedStatus | ''>('');
+  const [editing, setEditing] = useState<SerializedItemResponse | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['serials', variantId, statusFilter],
@@ -87,6 +88,7 @@ export function SerialsModal({ variantId, productName, sku, onClose }: Props) {
   };
 
   return (
+    <>
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="flex max-h-[90vh] w-full max-w-5xl flex-col rounded-lg bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b px-5 py-3">
@@ -156,6 +158,11 @@ export function SerialsModal({ variantId, productName, sku, onClose }: Props) {
                   <td className="px-4 py-2 text-xs text-slate-500">{formatDate(s.receivedAt)}</td>
                   <td className="px-4 py-2">
                     <div className="flex items-center justify-end gap-1">
+                      <button className="rounded p-1.5 text-brand-700 hover:bg-brand-50"
+                              title="แก้ไขข้อมูลเครื่อง (IMEI/สี/แบต)"
+                              onClick={() => setEditing(s)}>
+                        <Pencil className="h-4 w-4" />
+                      </button>
                       {s.status === 'IN_STOCK' && (
                         <>
                           <button className="rounded p-1.5 text-amber-700 hover:bg-amber-50"
@@ -189,9 +196,107 @@ export function SerialsModal({ variantId, productName, sku, onClose }: Props) {
         </div>
 
         <div className="border-t px-5 py-2 text-xs text-slate-500">
-          🔧 ส่งซ่อม · 🛡️ ส่งเคลม · ↩️ คืนเข้าสต็อก (หลังซ่อม/เคลมเสร็จ)
+          ✏️ แก้ไข · 🔧 ส่งซ่อม · 🛡️ ส่งเคลม · ↩️ คืนเข้าสต็อก (หลังซ่อม/เคลมเสร็จ)
         </div>
       </div>
+    </div>
+
+    {editing && (
+      <EditSerialModal
+        item={editing}
+        onClose={() => setEditing(null)}
+        onSaved={() => {
+          qc.invalidateQueries({ queryKey: ['serials', variantId] });
+          qc.invalidateQueries({ queryKey: ['inventory'] });
+        }}
+      />
+    )}
+    </>
+  );
+}
+
+/* ─── แก้ไขข้อมูลเครื่อง (typo correction) ──────────────────────────── */
+const EDIT_CONDITIONS: SerializedCondition[] = ['NEW', 'SECOND_HAND', 'LIKE_NEW', 'REFURBISHED', 'DEFECTIVE'];
+
+function EditSerialModal({ item, onClose, onSaved }: {
+  item: SerializedItemResponse;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [imei, setImei] = useState(item.imei ?? '');
+  const [serialNumber, setSerialNumber] = useState(item.serialNumber);
+  const [deviceColor, setDeviceColor] = useState(item.deviceColor ?? '');
+  const [battery, setBattery] = useState(item.batteryHealth != null ? String(item.batteryHealth) : '');
+  const [condition, setCondition] = useState<SerializedCondition>(
+    (item.condition as SerializedCondition) ?? 'SECOND_HAND');
+
+  const save = useMutation({
+    mutationFn: () => inventoryApi.updateSerial(item.id, {
+      imei: imei.trim() || undefined,
+      serialNumber: serialNumber.trim(),
+      deviceColor: deviceColor.trim() || undefined,
+      batteryHealth: battery === '' ? undefined : Number(battery),
+      condition,
+    }),
+    onSuccess: () => { toast.success('แก้ไขเครื่องแล้ว'); onSaved(); onClose(); },
+    onError: (e) => toast.error(extractErrorMessage(e)),
+  });
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!serialNumber.trim()) { toast.error('Serial ห้ามว่าง'); return; }
+    save.mutate();
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+      <form onSubmit={submit} className="w-full max-w-md rounded-lg bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b px-5 py-3">
+          <h3 className="font-semibold">แก้ไขเครื่อง</h3>
+          <button type="button" onClick={onClose} className="rounded p-1 hover:bg-slate-100">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="space-y-3 px-5 py-4">
+          <div>
+            <label className="mb-0.5 block text-xs font-semibold text-slate-600">IMEI</label>
+            <input className="input font-mono" value={imei} onChange={(e) => setImei(e.target.value)}
+                   placeholder="35xxxxxxxxxxxxx" />
+          </div>
+          <div>
+            <label className="mb-0.5 block text-xs font-semibold text-slate-600">Serial *</label>
+            <input className="input font-mono" value={serialNumber}
+                   onChange={(e) => setSerialNumber(e.target.value)} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-0.5 block text-xs font-semibold text-slate-600">สี</label>
+              <input className="input" value={deviceColor} onChange={(e) => setDeviceColor(e.target.value)}
+                     placeholder="เช่น Black" />
+            </div>
+            <div>
+              <label className="mb-0.5 block text-xs font-semibold text-slate-600">แบต %</label>
+              <input type="number" min={0} max={100} className="input" value={battery}
+                     onChange={(e) => setBattery(e.target.value)} placeholder="0-100" />
+            </div>
+          </div>
+          <div>
+            <label className="mb-0.5 block text-xs font-semibold text-slate-600">สภาพ</label>
+            <select className="input" value={condition}
+                    onChange={(e) => setCondition(e.target.value as SerializedCondition)}>
+              {EDIT_CONDITIONS.map((c) => (
+                <option key={c} value={c}>{CONDITION_TH[c] ?? c}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 border-t px-5 py-3">
+          <button type="button" onClick={onClose} className="btn-secondary">ยกเลิก</button>
+          <button type="submit" disabled={save.isPending} className="btn-primary">
+            <Save className="h-4 w-4" /> {save.isPending ? 'กำลังบันทึก...' : 'บันทึก'}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }

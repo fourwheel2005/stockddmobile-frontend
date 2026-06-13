@@ -8,6 +8,7 @@ import type {
   ProductDetail,
   ProductSummary,
   ProductWizardRequest,
+  UpdateVariantRequest,
   VariantResponse,
 } from '@/types/api';
 
@@ -33,6 +34,10 @@ export const productsApi = {
 
   addVariant: (productId: string, req: CreateVariantRequest) =>
     api.post<VariantResponse>(`/products/${productId}/variants`, req).then((r) => r.data),
+
+  /** แก้ไข SKU ที่มีอยู่ (สี/ความจุ/ราคา/barcode) — แก้ที่พิมพ์ผิด */
+  updateVariant: (productId: string, variantId: string, req: UpdateVariantRequest) =>
+    api.put<VariantResponse>(`/products/${productId}/variants/${variantId}`, req).then((r) => r.data),
 
   /** เพิ่ม SKU ใหม่ใน Product เดิม + รับสต็อกล็อตแรก (Clone Flow — atomic). */
   addVariantWithStock: (productId: string, req: AddVariantWithStockRequest) =>

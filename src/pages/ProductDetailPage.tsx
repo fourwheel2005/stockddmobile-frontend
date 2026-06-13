@@ -3,18 +3,20 @@ import { useParams, Link } from 'react-router-dom';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Plus, X, ArrowDownToLine, Copy, PackageOpen } from 'lucide-react';
-import { productsApi } from '@/api/products';
+import { ArrowLeft, Plus, X, ArrowDownToLine, Copy, PackageOpen, Pencil } from 'lucide-react';
+import { productsApi, categoriesApi } from '@/api/products';
 import { inventoryApi } from '@/api/inventory';
 import { extractErrorMessage } from '@/api/client';
 import { useAuthStore } from '@/stores/authStore';
 import { BarcodeDisplay } from '@/components/BarcodeDisplay';
 import { formatTHB } from '@/lib/format';
-import type { CreateVariantRequest } from '@/types/api';
+import type { CreateVariantRequest, VariantResponse, ProductDetail } from '@/types/api';
 
 export function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [showAddVariant, setShowAddVariant] = useState(false);
+  const [editingVariant, setEditingVariant] = useState<VariantResponse | null>(null);
+  const [editingProduct, setEditingProduct] = useState(false);
   const canEdit = useAuthStore((s) => s.hasRole('ADMIN', 'MANAGER'));
 
   const { data: product, isLoading } = useQuery({
@@ -59,9 +61,16 @@ export function ProductDetailPage() {
                 {product.brand} {product.modelNumber && `· ${product.modelNumber}`} · {product.category.name}
               </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex items-center gap-2">
               {product.serialized && <span className="badge-blue">Serialized</span>}
               {product.active ? <span className="badge-green">Active</span> : <span className="badge-red">Inactive</span>}
+              {canEdit && (
+                <button type="button" onClick={() => setEditingProduct(true)}
+                        className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
+                        title="แก้ไขข้อมูลรุ่น (ชื่อ/ยี่ห้อ/หมายเลขรุ่น/หมวด)">
+                  <Pencil className="h-3.5 w-3.5" /> แก้ไข
+                </button>
+              )}
             </div>
           </div>
           {product.description && <p className="text-sm text-slate-700">{product.description}</p>}
@@ -156,6 +165,11 @@ export function ProductDetailPage() {
                   <td className="px-5 py-3 text-right">
                     {canEdit && (
                       <div className="flex justify-end gap-1">
+                        <button type="button" onClick={() => setEditingVariant(v)}
+                              className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
+                              title="แก้ไข SKU นี้ (สี/ความจุ/ราคา/barcode)">
+                          <Pencil className="h-3.5 w-3.5" /> แก้ไข
+                        </button>
                         <Link to={`/products/new?cloneProduct=${product.id}&cloneFrom=${v.id}`}
                               className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs text-brand-700 hover:bg-brand-50"
                               title="คัดลอก SKU นี้ → สร้างสินค้าใหม่ที่มีข้อมูลเหมือนกัน (แก้ IMEI/สี/ความจุได้)">
@@ -196,14 +210,30 @@ export function ProductDetailPage() {
       {showAddVariant && (
         <AddVariantModal productId={product.id} onClose={() => setShowAddVariant(false)} />
       )}
+      {editingVariant && (
+        <AddVariantModal productId={product.id} editVariant={editingVariant}
+                         onClose={() => setEditingVariant(null)} />
+      )}
+      {editingProduct && (
+        <EditProductModal product={product} onClose={() => setEditingProduct(false)} />
+      )}
     </div>
   );
 }
 
-function AddVariantModal({ productId, onClose }: { productId: string; onClose: () => void }) {
+function AddVariantModal({ productId, editVariant, onClose }: {
+  productId: string; editVariant?: VariantResponse; onClose: () => void;
+}) {
   const qc = useQueryClient();
+  const isEdit = !!editVariant;
   const { register, handleSubmit, watch, formState: { errors } } = useForm<CreateVariantRequest>({
-    defaultValues: { reorderPoint: 5, costPrice: 0, sellingPrice: 0 },
+    defaultValues: isEdit ? {
+      sku: editVariant!.sku,
+      color: editVariant!.color ?? '', storage: editVariant!.storage ?? '',
+      network: editVariant!.network ?? '', barcode: editVariant!.barcode ?? '',
+      costPrice: editVariant!.costPrice ?? 0, sellingPrice: editVariant!.sellingPrice,
+      reorderPoint: editVariant!.reorderPoint, imageUrl: editVariant!.imageUrl ?? '',
+    } : { reorderPoint: 5, costPrice: 0, sellingPrice: 0 },
   });
 
   // Live profit calculation
@@ -213,9 +243,15 @@ function AddVariantModal({ productId, onClose }: { productId: string; onClose: (
   const margin = cost > 0 ? ((profit / cost) * 100) : 0;
 
   const create = useMutation({
-    mutationFn: (req: CreateVariantRequest) => productsApi.addVariant(productId, req),
+    mutationFn: (req: CreateVariantRequest) => isEdit
+      ? productsApi.updateVariant(productId, editVariant!.id, {
+          color: req.color, storage: req.storage, network: req.network, barcode: req.barcode,
+          imageUrl: req.imageUrl, costPrice: req.costPrice, sellingPrice: req.sellingPrice,
+          reorderPoint: req.reorderPoint, active: editVariant!.active,
+        })
+      : productsApi.addVariant(productId, req),
     onSuccess: () => {
-      toast.success('เพิ่มรุ่นย่อยสำเร็จ');
+      toast.success(isEdit ? 'แก้ไขรุ่นย่อยสำเร็จ' : 'เพิ่มรุ่นย่อยสำเร็จ');
       qc.invalidateQueries({ queryKey: ['product', productId] });
       onClose();
     },
@@ -226,7 +262,7 @@ function AddVariantModal({ productId, onClose }: { productId: string; onClose: (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="w-full max-w-lg rounded-lg bg-white shadow-xl">
         <div className="flex items-center justify-between border-b px-5 py-3">
-          <h2 className="font-semibold">เพิ่มรุ่นย่อย (Variant)</h2>
+          <h2 className="font-semibold">{isEdit ? 'แก้ไขรุ่นย่อย (Variant)' : 'เพิ่มรุ่นย่อย (Variant)'}</h2>
           <button onClick={onClose} className="rounded p-1 hover:bg-slate-100">
             <X className="h-4 w-4" />
           </button>
@@ -249,7 +285,9 @@ function AddVariantModal({ productId, onClose }: { productId: string; onClose: (
             <label className="mb-1 block text-sm font-medium">
               รหัสสินค้า / SKU <span className="text-red-500">*</span>
             </label>
-            <input className="input" placeholder="เช่น IPH16PRO-DT-256-TH / -DS / -DN"
+            <input className={`input ${isEdit ? 'bg-slate-100 text-slate-500' : ''}`}
+                   readOnly={isEdit} title={isEdit ? 'SKU แก้ไม่ได้ — ถ้าผิดมากให้คัดลอกสร้างใหม่' : ''}
+                   placeholder="เช่น IPH16PRO-DT-256-TH / -DS / -DN"
                    {...register('sku', { required: 'จำเป็น' })} />
             <p className="mt-1 text-xs text-slate-500">
               รหัสไม่ซ้ำกับ variant อื่น — แนะนำใช้รูปแบบ {`{รุ่น}-{สี}-{ความจุ}-{เครือข่าย}`}
@@ -343,6 +381,92 @@ function AddVariantModal({ productId, onClose }: { productId: string; onClose: (
           </div>
         </form>
       </div>
+    </div>
+  );
+}
+
+/* ─── แก้ไขข้อมูลรุ่น (Product) ──────────────────────────────────────── */
+function EditProductModal({ product, onClose }: { product: ProductDetail; onClose: () => void }) {
+  const qc = useQueryClient();
+  const { data: categories } = useQuery({ queryKey: ['categories'], queryFn: categoriesApi.list });
+  const [name, setName] = useState(product.name);
+  const [brand, setBrand] = useState(product.brand);
+  const [modelNumber, setModelNumber] = useState(product.modelNumber ?? '');
+  const [categoryId, setCategoryId] = useState(product.category.id);
+  const [active, setActive] = useState(product.active);
+
+  const flatCats = (categories ?? []).flatMap((c) => [
+    { id: c.id, label: c.name },
+    ...(c.children ?? []).map((sub) => ({ id: sub.id, label: `${c.name} / ${sub.name}` })),
+  ]);
+
+  const save = useMutation({
+    mutationFn: () => productsApi.update(product.id, {
+      categoryId,
+      name: name.trim(),
+      brand: brand.trim() || undefined,
+      modelNumber: modelNumber.trim() || undefined,
+      description: product.description ?? undefined,
+      serialized: product.serialized,
+      active,
+    }),
+    onSuccess: () => {
+      toast.success('แก้ไขข้อมูลรุ่นแล้ว');
+      qc.invalidateQueries({ queryKey: ['product', product.id] });
+      onClose();
+    },
+    onError: (e) => toast.error(extractErrorMessage(e)),
+  });
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) { toast.error('ชื่อรุ่นห้ามว่าง'); return; }
+    save.mutate();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <form onSubmit={submit} className="w-full max-w-md rounded-lg bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b px-5 py-3">
+          <h2 className="font-semibold">แก้ไขข้อมูลรุ่น</h2>
+          <button type="button" onClick={onClose} className="rounded p-1 hover:bg-slate-100">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="space-y-3 p-5">
+          <div>
+            <label className="mb-1 block text-sm font-medium">ชื่อรุ่น <span className="text-red-500">*</span></label>
+            <input className="input" value={name} onChange={(e) => setName(e.target.value)} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-sm font-medium">ยี่ห้อ</label>
+              <input className="input" value={brand} onChange={(e) => setBrand(e.target.value)} />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium">หมายเลขรุ่น</label>
+              <input className="input font-mono" value={modelNumber}
+                     onChange={(e) => setModelNumber(e.target.value)} placeholder="เช่น A3293" />
+            </div>
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium">หมวดหมู่</label>
+            <select className="input" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
+              {flatCats.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+            </select>
+          </div>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
+            เปิดใช้งาน (Active)
+          </label>
+        </div>
+        <div className="flex justify-end gap-2 border-t px-5 py-3">
+          <button type="button" onClick={onClose} className="btn-secondary">ยกเลิก</button>
+          <button type="submit" disabled={save.isPending} className="btn-primary">
+            {save.isPending ? 'กำลังบันทึก...' : 'บันทึก'}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }

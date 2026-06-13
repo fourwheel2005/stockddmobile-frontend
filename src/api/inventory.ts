@@ -10,6 +10,7 @@ import type {
   StockMovementResponse,
   StockTransactionResponse,
   StockTxType,
+  UpdateSerialRequest,
 } from '@/types/api';
 
 export const inventoryApi = {
@@ -49,4 +50,8 @@ export const inventoryApi = {
 
   backToStock: (serialItemId: string) =>
     api.post<SerializedItemResponse>(`/inventory/serials/${serialItemId}/back-to-stock`).then((r) => r.data),
+
+  /** แก้ไขข้อมูลเครื่อง (IMEI/Serial/สี/แบต/สภาพ) — แก้ที่พิมพ์ผิด */
+  updateSerial: (serialItemId: string, req: UpdateSerialRequest) =>
+    api.put<SerializedItemResponse>(`/inventory/serials/${serialItemId}`, req).then((r) => r.data),
 };
