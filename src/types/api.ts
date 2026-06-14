@@ -122,6 +122,7 @@ export interface UpdateSerialRequest {
   imei2?: string;
   serialNumber: string;
   deviceColor?: string;
+  modelNumber?: string;
   batteryHealth?: number;
   condition?: SerializedCondition;
   note?: string;
@@ -147,6 +148,7 @@ export interface WizardInitialItem {
   condition?: 'NEW' | 'SECOND_HAND' | 'LIKE_NEW' | 'REFURBISHED' | 'DEFECTIVE';
   batteryHealth?: number;
   deviceColor?: string;
+  modelNumber?: string;
   acquisitionType?: AcquisitionType;
   purchasePrice?: number;
   warrantyTerms?: string;
@@ -234,6 +236,7 @@ export interface SerializedItemResponse {
   purchasePriceCode: string | null;   // รหัสต้นทุน (แสดงให้ STAFF)
   batteryHealth: number | null;
   deviceColor: string | null;
+  modelNumber: string | null;
   acquisitionType: AcquisitionType | null;
   serviceState: ServiceState | null;
   defectNote: string | null;

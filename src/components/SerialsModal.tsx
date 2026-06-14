@@ -226,6 +226,7 @@ function EditSerialModal({ item, onClose, onSaved }: {
   const [imei, setImei] = useState(item.imei ?? '');
   const [serialNumber, setSerialNumber] = useState(item.serialNumber);
   const [deviceColor, setDeviceColor] = useState(item.deviceColor ?? '');
+  const [modelNumber, setModelNumber] = useState(item.modelNumber ?? '');
   const [battery, setBattery] = useState(item.batteryHealth != null ? String(item.batteryHealth) : '');
   const [condition, setCondition] = useState<SerializedCondition>(
     (item.condition as SerializedCondition) ?? 'SECOND_HAND');
@@ -235,6 +236,7 @@ function EditSerialModal({ item, onClose, onSaved }: {
       imei: imei.trim() || undefined,
       serialNumber: serialNumber.trim(),
       deviceColor: deviceColor.trim() || undefined,
+      modelNumber: modelNumber.trim() || undefined,
       batteryHealth: battery === '' ? undefined : Number(battery),
       condition,
     }),
@@ -279,6 +281,11 @@ function EditSerialModal({ item, onClose, onSaved }: {
               <input type="number" min={0} max={100} className="input" value={battery}
                      onChange={(e) => setBattery(e.target.value)} placeholder="0-100" />
             </div>
+          </div>
+          <div>
+            <label className="mb-0.5 block text-xs font-semibold text-slate-600">เลขรุ่น</label>
+            <input className="input font-mono" value={modelNumber}
+                   onChange={(e) => setModelNumber(e.target.value)} placeholder="เช่น MQ9Q3ZP/A" />
           </div>
           <div>
             <label className="mb-0.5 block text-xs font-semibold text-slate-600">สภาพ</label>

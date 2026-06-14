@@ -60,6 +60,7 @@ interface ItemRow {
   condition: Condition;
   batteryHealth: number | '';
   deviceColor: string;
+  modelNumber: string;
   acquisitionType: AcquisitionType;
   purchasePrice: number | '';
 }
@@ -97,7 +98,7 @@ interface FormValues {
 
 const EMPTY_ITEM: ItemRow = {
   serialNumber: '', imei: '',
-  condition: 'NEW', batteryHealth: '', deviceColor: '',
+  condition: 'NEW', batteryHealth: '', deviceColor: '', modelNumber: '',
   acquisitionType: 'PURCHASE', purchasePrice: '',
 };
 
@@ -407,7 +408,7 @@ export function ProductRegisterPage() {
 
     let validItems: Array<{
       serialNumber: string; imei?: string; condition?: Condition;
-      batteryHealth?: number; deviceColor?: string;
+      batteryHealth?: number; deviceColor?: string; modelNumber?: string;
       acquisitionType?: AcquisitionType; purchasePrice?: number;
       warrantyTerms?: string;
     }> | undefined;
@@ -423,8 +424,9 @@ export function ProductRegisterPage() {
           batteryHealth: it.condition === 'NEW'
             ? 100
             : (it.batteryHealth === '' ? undefined : Number(it.batteryHealth)),
-          // สีรายเครื่อง — เว้น = ใช้สีระดับรุ่น (รับคละสีในล็อตเดียวได้)
+          // สี/เลขรุ่นรายเครื่อง — เว้น = ใช้ค่าระดับรุ่น (รับคละสี/รุ่นในล็อตเดียวได้)
           deviceColor: blank(it.deviceColor) ?? blank(d.color),
+          modelNumber: blank(it.modelNumber) ?? blank(d.modelNumber),
           acquisitionType: it.acquisitionType,
           // เว้น = ใช้ "ราคาทุน" (ข้อ 2) เป็นทุนรายเครื่องอัตโนมัติ — ตรงตามที่ UI สัญญาไว้
           purchasePrice: it.purchasePrice === '' ? (Number(d.costPrice) || undefined) : Number(it.purchasePrice),
@@ -1101,6 +1103,11 @@ function ItemCard({
           <label className="mb-0.5 block text-xs font-semibold text-slate-600">สี</label>
           <input className="input text-sm" list="color-list" placeholder="ใช้สีรุ่นถ้าเว้น"
                  {...register(`items.${idx}.deviceColor`)} />
+        </div>
+        <div>
+          <label className="mb-0.5 block text-xs font-semibold text-slate-600">เลขรุ่น</label>
+          <input className="input font-mono text-sm" list="model-number-list" placeholder="ใช้เลขรุ่นถ้าเว้น"
+                 {...register(`items.${idx}.modelNumber`)} />
         </div>
         <div>
           <label className="mb-0.5 block text-xs font-semibold text-slate-600">ที่มา</label>
