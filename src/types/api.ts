@@ -123,6 +123,9 @@ export interface UpdateSerialRequest {
   serialNumber: string;
   deviceColor?: string;
   modelNumber?: string;
+  deviceStorage?: string;
+  deviceNetwork?: string;
+  warrantyTerms?: string;
   batteryHealth?: number;
   condition?: SerializedCondition;
   note?: string;
@@ -149,6 +152,8 @@ export interface WizardInitialItem {
   batteryHealth?: number;
   deviceColor?: string;
   modelNumber?: string;
+  deviceStorage?: string;
+  deviceNetwork?: string;
   acquisitionType?: AcquisitionType;
   purchasePrice?: number;
   warrantyTerms?: string;
@@ -232,11 +237,14 @@ export interface SerializedItemResponse {
   receivedAt: string;
   soldAt: string | null;
   warrantyExpire: string | null;
+  warrantyTerms: string | null;
   purchasePrice: number | null;
   purchasePriceCode: string | null;   // รหัสต้นทุน (แสดงให้ STAFF)
   batteryHealth: number | null;
   deviceColor: string | null;
   modelNumber: string | null;
+  deviceStorage: string | null;
+  deviceNetwork: string | null;
   acquisitionType: AcquisitionType | null;
   serviceState: ServiceState | null;
   defectNote: string | null;
@@ -371,6 +379,9 @@ export interface LotInboundRequest {
     acquisitionType?: AcquisitionType;
     warrantyTerms?: string;
     deviceColor?: string;
+    modelNumber?: string;
+    deviceStorage?: string;
+    deviceNetwork?: string;
     purchasePrice?: number;
   }>;
 }

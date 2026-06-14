@@ -227,6 +227,9 @@ function EditSerialModal({ item, onClose, onSaved }: {
   const [serialNumber, setSerialNumber] = useState(item.serialNumber);
   const [deviceColor, setDeviceColor] = useState(item.deviceColor ?? '');
   const [modelNumber, setModelNumber] = useState(item.modelNumber ?? '');
+  const [deviceStorage, setDeviceStorage] = useState(item.deviceStorage ?? '');
+  const [deviceNetwork, setDeviceNetwork] = useState(item.deviceNetwork ?? '');
+  const [warrantyTerms, setWarrantyTerms] = useState(item.warrantyTerms ?? '');
   const [battery, setBattery] = useState(item.batteryHealth != null ? String(item.batteryHealth) : '');
   const [condition, setCondition] = useState<SerializedCondition>(
     (item.condition as SerializedCondition) ?? 'SECOND_HAND');
@@ -237,6 +240,9 @@ function EditSerialModal({ item, onClose, onSaved }: {
       serialNumber: serialNumber.trim(),
       deviceColor: deviceColor.trim() || undefined,
       modelNumber: modelNumber.trim() || undefined,
+      deviceStorage: deviceStorage.trim() || undefined,
+      deviceNetwork: deviceNetwork.trim() || undefined,
+      warrantyTerms: warrantyTerms.trim() || undefined,
       batteryHealth: battery === '' ? undefined : Number(battery),
       condition,
     }),
@@ -282,10 +288,27 @@ function EditSerialModal({ item, onClose, onSaved }: {
                      onChange={(e) => setBattery(e.target.value)} placeholder="0-100" />
             </div>
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-0.5 block text-xs font-semibold text-slate-600">ความจุ</label>
+              <input className="input" value={deviceStorage}
+                     onChange={(e) => setDeviceStorage(e.target.value)} placeholder="เช่น 256GB" />
+            </div>
+            <div>
+              <label className="mb-0.5 block text-xs font-semibold text-slate-600">เครือข่าย</label>
+              <input className="input" value={deviceNetwork}
+                     onChange={(e) => setDeviceNetwork(e.target.value)} placeholder="เช่น TH, DS" />
+            </div>
+          </div>
           <div>
             <label className="mb-0.5 block text-xs font-semibold text-slate-600">เลขรุ่น</label>
             <input className="input font-mono" value={modelNumber}
                    onChange={(e) => setModelNumber(e.target.value)} placeholder="เช่น MQ9Q3ZP/A" />
+          </div>
+          <div>
+            <label className="mb-0.5 block text-xs font-semibold text-slate-600">ประกัน</label>
+            <input className="input" value={warrantyTerms}
+                   onChange={(e) => setWarrantyTerms(e.target.value)} placeholder="เช่น ประกันศูนย์ 1 ปี (Apple)" />
           </div>
           <div>
             <label className="mb-0.5 block text-xs font-semibold text-slate-600">สภาพ</label>
