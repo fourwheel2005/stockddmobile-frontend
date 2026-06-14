@@ -146,6 +146,7 @@ export interface WizardInitialItem {
   imei2?: string;
   condition?: 'NEW' | 'SECOND_HAND' | 'LIKE_NEW' | 'REFURBISHED' | 'DEFECTIVE';
   batteryHealth?: number;
+  deviceColor?: string;
   acquisitionType?: AcquisitionType;
   purchasePrice?: number;
   warrantyTerms?: string;

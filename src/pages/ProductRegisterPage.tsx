@@ -59,6 +59,7 @@ interface ItemRow {
   imei: string;
   condition: Condition;
   batteryHealth: number | '';
+  deviceColor: string;
   acquisitionType: AcquisitionType;
   purchasePrice: number | '';
 }
@@ -96,7 +97,7 @@ interface FormValues {
 
 const EMPTY_ITEM: ItemRow = {
   serialNumber: '', imei: '',
-  condition: 'NEW', batteryHealth: '',
+  condition: 'NEW', batteryHealth: '', deviceColor: '',
   acquisitionType: 'PURCHASE', purchasePrice: '',
 };
 
@@ -406,7 +407,8 @@ export function ProductRegisterPage() {
 
     let validItems: Array<{
       serialNumber: string; imei?: string; condition?: Condition;
-      batteryHealth?: number; acquisitionType?: AcquisitionType; purchasePrice?: number;
+      batteryHealth?: number; deviceColor?: string;
+      acquisitionType?: AcquisitionType; purchasePrice?: number;
       warrantyTerms?: string;
     }> | undefined;
     let qty: number | undefined;
@@ -421,6 +423,8 @@ export function ProductRegisterPage() {
           batteryHealth: it.condition === 'NEW'
             ? 100
             : (it.batteryHealth === '' ? undefined : Number(it.batteryHealth)),
+          // สีรายเครื่อง — เว้น = ใช้สีระดับรุ่น (รับคละสีในล็อตเดียวได้)
+          deviceColor: blank(it.deviceColor) ?? blank(d.color),
           acquisitionType: it.acquisitionType,
           // เว้น = ใช้ "ราคาทุน" (ข้อ 2) เป็นทุนรายเครื่องอัตโนมัติ — ตรงตามที่ UI สัญญาไว้
           purchasePrice: it.purchasePrice === '' ? (Number(d.costPrice) || undefined) : Number(it.purchasePrice),
@@ -1092,6 +1096,11 @@ function ItemCard({
             <input type="number" min={0} max={100} className="input text-sm" placeholder="87"
                    {...register(`items.${idx}.batteryHealth`)} />
           )}
+        </div>
+        <div>
+          <label className="mb-0.5 block text-xs font-semibold text-slate-600">สี</label>
+          <input className="input text-sm" list="color-list" placeholder="ใช้สีรุ่นถ้าเว้น"
+                 {...register(`items.${idx}.deviceColor`)} />
         </div>
         <div>
           <label className="mb-0.5 block text-xs font-semibold text-slate-600">ที่มา</label>
