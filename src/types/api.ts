@@ -694,6 +694,7 @@ export interface SalesSummaryResponse {
   totalRevenue: number;
   totalCost: number;
   totalProfit: number;
+  shippingExpense: number;   // ค่าส่งที่จ่ายออก (รายจ่าย — หักจากกำไรแล้ว)
   avgOrderValue: number;
   profitMargin: number;
   repairCount: number;

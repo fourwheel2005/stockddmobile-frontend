@@ -50,6 +50,21 @@ const COLOR_OPTIONS = [
   'Natural Titanium', 'Blue Titanium', 'Black Titanium', 'White Titanium', 'Desert Titanium',
 ];
 const BRAND_OPTIONS = ['Apple', 'Samsung', 'Xiaomi', 'OPPO', 'Vivo', 'Google', 'Huawei', 'realme'];
+/** ชื่อรุ่น iPhone ทุกรุ่น (ใหม่→เก่า) — ใช้เป็น suggestion ให้ format ชื่อเหมือนกัน
+ *  (สำคัญหลัง FIX-013: SKU = ชื่อรุ่น → ชื่อต่างกันนิดเดียว = variant ซ้ำ).
+ *  datalist ไม่บังคับ — รุ่นอื่น (iPad/Mac/Android) ยังพิมพ์เองได้. เพิ่มรุ่นใหม่ที่เดียวตรงนี้ */
+const IPHONE_MODELS = [
+  'iPhone 17 Pro Max', 'iPhone 17 Pro', 'iPhone 17', 'iPhone Air',
+  'iPhone 16 Pro Max', 'iPhone 16 Pro', 'iPhone 16 Plus', 'iPhone 16', 'iPhone 16e',
+  'iPhone 15 Pro Max', 'iPhone 15 Pro', 'iPhone 15 Plus', 'iPhone 15',
+  'iPhone 14 Pro Max', 'iPhone 14 Pro', 'iPhone 14 Plus', 'iPhone 14',
+  'iPhone 13 Pro Max', 'iPhone 13 Pro', 'iPhone 13', 'iPhone 13 mini',
+  'iPhone 12 Pro Max', 'iPhone 12 Pro', 'iPhone 12', 'iPhone 12 mini',
+  'iPhone 11 Pro Max', 'iPhone 11 Pro', 'iPhone 11',
+  'iPhone SE (3rd gen)', 'iPhone SE (2nd gen)',
+  'iPhone XS Max', 'iPhone XS', 'iPhone XR', 'iPhone X',
+  'iPhone 8 Plus', 'iPhone 8', 'iPhone 7 Plus', 'iPhone 7',
+];
 
 type Condition = 'NEW' | 'SECOND_HAND';
 type ProductKind = 'phone' | 'accessory';
@@ -385,6 +400,18 @@ export function ProductRegisterPage() {
     return [...seen].sort();
   }, [productPage]);
 
+  /* ชื่อรุ่น suggestion: iPhone ครบทุกรุ่น (ตั้งต้น) + ชื่อรุ่นที่เคยสร้างแล้ว (เช่น iPad/Mac/Android)
+     → iPhone เลือกได้เลยตั้งแต่วันแรก · รุ่นอื่นโตเองตามการใช้งาน · ยังพิมพ์ค่าใหม่ได้อิสระ */
+  const modelNameOptions = useMemo(() => {
+    const seen = new Set<string>(IPHONE_MODELS);
+    const extras: string[] = [];
+    for (const product of productPage?.content ?? []) {
+      const nm = product.name?.trim();
+      if (nm && !seen.has(nm)) { seen.add(nm); extras.push(nm); }
+    }
+    return [...IPHONE_MODELS, ...extras.sort()];
+  }, [productPage]);
+
   /* Submit */
   const submit = useMutation({
     mutationFn: (req: ProductWizardRequest) => productsApi.createWizard(req),
@@ -526,6 +553,7 @@ export function ProductRegisterPage() {
 
         {/* datalist ใช้ร่วม — รายการแนะนำสำหรับช่องรายเครื่อง (สี/ความจุ/เครือข่าย/เลขรุ่น/ประกัน)
             ประกาศที่เดียว ใช้ได้ทุก ItemCard ผ่าน list="..." */}
+        <datalist id="model-name-list">{modelNameOptions.map((m) => <option key={m} value={m} />)}</datalist>
         <datalist id="color-list">{COLOR_OPTIONS.map((c) => <option key={c} value={c} />)}</datalist>
         <datalist id="storage-list">{STORAGE_OPTIONS.map((s) => <option key={s} value={s} />)}</datalist>
         <datalist id="network-list">{NETWORK_OPTIONS.map((n) => <option key={n.code} value={n.code}>{n.label}</option>)}</datalist>
@@ -537,7 +565,7 @@ export function ProductRegisterPage() {
           <div className="card-header flex items-center gap-2">
             <span className="grid h-6 w-6 place-items-center rounded-full bg-brand-100 text-xs font-bold text-brand-700">1</span>
             <span className="font-semibold">ทั่วไป</span>
-            <span className="text-xs text-slate-500">— ประเภท · ชื่อรุ่น · ยี่ห้อ · เลขรุ่น · รูป</span>
+            <span className="text-xs text-slate-500">— ประเภท · ชื่อรุ่น · ยี่ห้อ · รูป</span>
           </div>
           <div className="card-body space-y-5">
               <FieldRow label="ประเภทสินค้า" required>
@@ -585,8 +613,8 @@ export function ProductRegisterPage() {
                 {errors.categoryId && <p className="mt-1 text-xs text-red-600">{errors.categoryId.message}</p>}
               </FieldRow>
 
-              <FieldRow label="ชื่อรุ่น (Model)" required hint="ดูได้ที่เครื่อง → เกี่ยวกับ → ชื่อรุ่น · เช่น iPhone Air, iPhone 15 Pro">
-                <input className="input" placeholder="เช่น iPhone Air"
+              <FieldRow label="ชื่อรุ่น (Model)" required hint="เลือกจากรายการ iPhone หรือพิมพ์เอง (iPad/Mac/Android) · เลือกให้ตรงกันทุกครั้งจะได้รหัสสินค้าตรงกัน">
+                <input className="input" list="model-name-list" placeholder="เช่น iPhone 16 Pro Max"
                        {...register('name', { required: 'กรุณาใส่ชื่อรุ่น' })} />
                 {errors.name && <p className="mt-1 text-xs text-red-600">{errors.name.message}</p>}
               </FieldRow>
@@ -595,12 +623,6 @@ export function ProductRegisterPage() {
                 <input className="input" list="brand-list" placeholder="Apple" {...register('brand')} />
                 <datalist id="brand-list">{BRAND_OPTIONS.map((b) => <option key={b} value={b} />)}</datalist>
               </FieldRow>
-
-              {serialized && (
-                <FieldRow label="เลขรุ่นรุ่นนี้ (Model)" hint="เลขรุ่นตัวแทน — เครื่องที่ไม่ระบุเลขรุ่นเองจะใช้ค่านี้ · สี/ความจุ/เครือข่าย/ประกัน กรอกรายเครื่องด้านล่าง">
-                  <input className="input font-mono" list="model-number-list" placeholder="เช่น MG2N4ZP/A (ไม่บังคับ)" {...register('modelNumber')} />
-                </FieldRow>
-              )}
 
               <FieldRow label="รูปสินค้า" hint="ลาก-วางหรือคลิกเลือก · ไม่บังคับ">
                 <ImageDropZone
@@ -1103,7 +1125,7 @@ function ItemCard({
         </div>
         <div>
           <label className="mb-0.5 block text-xs font-semibold text-slate-600">เลขรุ่น</label>
-          <input className="input font-mono text-sm" list="model-number-list" placeholder="ใช้เลขรุ่นรุ่นถ้าเว้น"
+          <input className="input font-mono text-sm" list="model-number-list" placeholder="เช่น MG2N4ZP/A"
                  {...register(`items.${idx}.modelNumber`)} />
         </div>
         <div>

@@ -81,7 +81,10 @@ export function ReportsPage() {
         <KpiCard icon={<Wallet className="h-5 w-5" />}
                  label="กำไรรวม"
                  value={formatTHB(summary.data?.totalProfit ?? 0)}
-                 sub={`Margin ${Number(summary.data?.profitMargin ?? 0).toFixed(1)}%`}
+                 sub={`Margin ${Number(summary.data?.profitMargin ?? 0).toFixed(1)}%`
+                   + ((summary.data?.shippingExpense ?? 0) > 0
+                       ? ` · หักค่าส่ง ${formatTHB(summary.data!.shippingExpense)}`
+                       : '')}
                  color="bg-blue-100 text-blue-700" />
         <KpiCard icon={<Boxes className="h-5 w-5" />}
                  label="จำนวนชิ้นที่ขาย"
