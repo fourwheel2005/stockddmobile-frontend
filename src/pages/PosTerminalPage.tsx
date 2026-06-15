@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { ScanLine, Trash2, ShoppingCart, Receipt, Search, ListChecks, UserCircle2, Printer, Upload, X, Wrench, Truck, Globe, Store } from 'lucide-react';
+import { ScanLine, Trash2, ShoppingCart, Receipt, Search, ListChecks, UserCircle2, Printer, Upload, X, Wrench, Truck, Globe, Store, Plus } from 'lucide-react';
 import { posApi } from '@/api/pos';
 import { filesApi } from '@/api/files';
 import { extractErrorMessage } from '@/api/client';
@@ -22,6 +22,7 @@ import { OpenSessionModal } from '@/components/OpenSessionModal';
 import { PrinterStatusBadge } from '@/components/PrinterStatusBadge';
 import { PrinterSettingsModal } from '@/components/PrinterSettingsModal';
 import { QuickReprintModal } from '@/components/QuickReprintModal';
+import { OwnerShippingModal } from '@/components/OwnerShippingModal';
 import { usePrinter } from '@/hooks/usePrinter';
 import { Link } from 'react-router-dom';
 
@@ -110,6 +111,7 @@ export function PosTerminalPage() {
   const [shippingAddress, setShippingAddress] = useState('');
   const [shippingFeeGrandpa, setShippingFeeGrandpa] = useState<number>(0);
   const [shippingFeeGrandma, setShippingFeeGrandma] = useState<number>(0);
+  const [showOwnerShip, setShowOwnerShip] = useState(false);
   const [showOpenSession, setShowOpenSession] = useState(false);
   const [showPrinterSettings, setShowPrinterSettings] = useState(false);
   const [showQuickReprint, setShowQuickReprint] = useState(false);
@@ -706,6 +708,12 @@ export function PosTerminalPage() {
             );
           })()}
 
+          {/* จ่ายค่าส่งตา/ยาย แบบไม่ต้องมีบิล (ออกไปจ่ายข้างนอกแล้วกรอก) */}
+          <button type="button" onClick={() => setShowOwnerShip(true)}
+                  className="flex w-full items-center justify-center gap-1.5 rounded-md border border-dashed border-orange-300 bg-orange-50/50 px-3 py-2 text-xs font-medium text-orange-700 transition hover:bg-orange-100">
+            <Plus className="h-3.5 w-3.5" /> จ่ายค่าส่ง (ตา/ยาย) แบบไม่มีบิล — ออกไปจ่ายข้างนอก
+          </button>
+
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-600">
               พาร์ทเนอร์จัดส่ง {onlineNeedsPartner && <span className="text-red-600">*</span>}
@@ -917,6 +925,9 @@ export function PosTerminalPage() {
       </div>
 
       {/* Modals */}
+      {showOwnerShip && (
+        <OwnerShippingModal onClose={() => setShowOwnerShip(false)} />
+      )}
       {showCustomerPicker && (
         <CustomerPickerModal
           onSelect={(c) => setCustomer(c)}

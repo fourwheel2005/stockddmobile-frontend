@@ -30,6 +30,10 @@ export const cashRegisterApi = {
       params: { from, to },
     }).then((r) => r.data),
 
+  /** บันทึกค่าส่งที่ตา/ยายสำรองจ่าย — ไม่ต้องมีการขาย (ใช้เก๊ะ OPEN ปัจจุบัน) */
+  recordOwnerShipping: (req: { grandpa?: number; grandma?: number; note?: string }) =>
+    api.post<OwnerLedgerResponse>('/cash-register/owner-shipping', req).then((r) => r.data),
+
   // ─── P4 — Self-heal stale session ────────────────────────────────
   /** List OPEN session ทุก register — admin debug deadlock */
   listAllOpen: () =>
