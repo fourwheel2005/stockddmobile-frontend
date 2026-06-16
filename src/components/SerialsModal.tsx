@@ -117,6 +117,7 @@ export function SerialsModal({ variantId, productName, sku, onClose }: Props) {
             <thead className="sticky top-0 bg-slate-50 text-left text-xs uppercase text-slate-500">
               <tr>
                 <th className="px-4 py-2.5">IMEI / SN</th>
+                <th className="px-4 py-2.5">สี / ความจุ</th>
                 <th className="px-4 py-2.5">สภาพ</th>
                 <th className="px-4 py-2.5">แบต</th>
                 <th className="px-4 py-2.5">ที่มา</th>
@@ -127,13 +128,17 @@ export function SerialsModal({ variantId, productName, sku, onClose }: Props) {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {isLoading && (
-                <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-400">กำลังโหลด...</td></tr>
+                <tr><td colSpan={8} className="px-4 py-8 text-center text-slate-400">กำลังโหลด...</td></tr>
               )}
               {data?.content.map((s) => (
                 <tr key={s.id} className="hover:bg-slate-50">
                   <td className="px-4 py-2">
                     <div className="font-mono text-xs">{s.imei ?? '-'}</div>
                     <div className="font-mono text-xs text-slate-500">{s.serialNumber}</div>
+                  </td>
+                  <td className="px-4 py-2">
+                    <div>{s.deviceColor ?? '-'}</div>
+                    {s.deviceStorage && <div className="text-xs text-slate-500">{s.deviceStorage}</div>}
                   </td>
                   <td className="px-4 py-2">{CONDITION_TH[s.condition] ?? s.condition}</td>
                   <td className="px-4 py-2">
@@ -189,7 +194,7 @@ export function SerialsModal({ variantId, productName, sku, onClose }: Props) {
                 </tr>
               ))}
               {data && data.content.length === 0 && (
-                <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-400">ไม่มีเครื่องในสถานะนี้</td></tr>
+                <tr><td colSpan={8} className="px-4 py-8 text-center text-slate-400">ไม่มีเครื่องในสถานะนี้</td></tr>
               )}
             </tbody>
           </table>
