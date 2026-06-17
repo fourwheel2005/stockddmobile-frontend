@@ -156,6 +156,7 @@ export interface WizardInitialItem {
   deviceNetwork?: string;
   acquisitionType?: AcquisitionType;
   purchasePrice?: number;
+  sellingPrice?: number;
   warrantyTerms?: string;
   /** วันหมดประกัน YYYY-MM-DD */
   warrantyExpire?: string;
@@ -240,6 +241,7 @@ export interface SerializedItemResponse {
   warrantyTerms: string | null;
   purchasePrice: number | null;
   purchasePriceCode: string | null;   // รหัสต้นทุน (แสดงให้ STAFF)
+  sellingPrice: number | null;        // ราคาขายรายเครื่อง
   batteryHealth: number | null;
   deviceColor: string | null;
   modelNumber: string | null;

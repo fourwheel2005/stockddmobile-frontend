@@ -81,6 +81,7 @@ interface ItemRow {
   warrantyTerms: string;
   acquisitionType: AcquisitionType;
   purchasePrice: number | '';
+  sellingPrice: number | '';
 }
 
 interface FormValues {
@@ -114,7 +115,7 @@ const EMPTY_ITEM: ItemRow = {
   serialNumber: '', imei: '',
   condition: 'NEW', batteryHealth: '', deviceColor: '', modelNumber: '',
   deviceStorage: '', deviceNetwork: '', warrantyTerms: '',
-  acquisitionType: 'PURCHASE', purchasePrice: '',
+  acquisitionType: 'PURCHASE', purchasePrice: '', sellingPrice: '',
 };
 
 function todayIso(): string {
@@ -454,7 +455,7 @@ export function ProductRegisterPage() {
       serialNumber: string; imei?: string; condition?: Condition;
       batteryHealth?: number; deviceColor?: string; modelNumber?: string;
       deviceStorage?: string; deviceNetwork?: string;
-      acquisitionType?: AcquisitionType; purchasePrice?: number;
+      acquisitionType?: AcquisitionType; purchasePrice?: number; sellingPrice?: number;
       warrantyTerms?: string;
     }> | undefined;
     let qty: number | undefined;
@@ -476,8 +477,9 @@ export function ProductRegisterPage() {
           deviceStorage: blank(it.deviceStorage),
           deviceNetwork: blank(it.deviceNetwork),
           acquisitionType: it.acquisitionType,
-          // เว้น = ใช้ "ราคาทุน" (ข้อ 2) เป็นทุนรายเครื่องอัตโนมัติ — ตรงตามที่ UI สัญญาไว้
+          // ราคาทุน/ขาย รายเครื่อง (FIX-022) — เว้น = fallback ราคาระดับรุ่น (สำหรับอุปกรณ์เสริม serial)
           purchasePrice: it.purchasePrice === '' ? (Number(d.costPrice) || undefined) : Number(it.purchasePrice),
+          sellingPrice: it.sellingPrice === '' ? (Number(d.sellingPrice) || undefined) : Number(it.sellingPrice),
           warrantyTerms: blank(it.warrantyTerms),
         }));
       if (validItems.length === 0) {
@@ -507,8 +509,9 @@ export function ProductRegisterPage() {
           // อยู่รายเครื่อง จึงเว้นที่ variant (ตรงกับข้อมูล import)
           sku: d.sku.trim(),
           barcode: blank(d.barcode),
-          costPrice: Number(d.costPrice),
-          sellingPrice: Number(d.sellingPrice),
+          // ราคา variant = ค่าตัวแทน · มือถือ (per-device) → ใช้ราคาเครื่องแรก · อุปกรณ์เสริม → ราคา section 2
+          costPrice: Number(d.costPrice) || Number(validItems?.[0]?.purchasePrice) || 0,
+          sellingPrice: Number(d.sellingPrice) || Number(validItems?.[0]?.sellingPrice) || 0,
           reorderPoint: Number(d.reorderPoint),
           ...(productImageUrl ? { imageUrl: productImageUrl } : {}),
         },
@@ -541,12 +544,13 @@ export function ProductRegisterPage() {
     if (req) submit.mutate(req);
   };
 
-  /* Summary */
+  /* Summary — มือถือคิดราคารายเครื่อง · อุปกรณ์เสริมใช้ราคาระดับรุ่น */
   const summary = useMemo(() => {
     if (serialized) {
       const valid = (itemsW ?? []).filter((it) => (it?.imei || it?.serialNumber || '').trim());
       const totalCost = valid.reduce((s, it) => s + (Number(it.purchasePrice) || cost || 0), 0);
-      return { count: valid.length, totalCost, totalSell: valid.length * sell };
+      const totalSell = valid.reduce((s, it) => s + (Number(it.sellingPrice) || sell || 0), 0);
+      return { count: valid.length, totalCost, totalSell };
     }
     const q = Number(quantityW) || 0;
     return { count: q, totalCost: q * cost, totalSell: q * sell };
@@ -684,9 +688,13 @@ export function ProductRegisterPage() {
           <div className="card-header flex items-center gap-2">
             <span className="grid h-6 w-6 place-items-center rounded-full bg-brand-100 text-xs font-bold text-brand-700">2</span>
             <span className="font-semibold">ราคา</span>
-            <span className="text-xs text-slate-500">— ทุน · ขาย · กำไร · จุดสั่งใหม่</span>
+            <span className="text-xs text-slate-500">
+              {productKind === 'phone' ? '— จุดสั่งใหม่ (ทุน/ขาย อยู่รายเครื่องด้านล่าง)' : '— ทุน · ขาย · กำไร · จุดสั่งใหม่'}
+            </span>
           </div>
           <div className="card-body space-y-5">
+              {/* มือถือ: ราคาทุน/ขาย ย้ายไปรายเครื่อง (แต่ละเครื่องราคาต่างกัน) · อุปกรณ์เสริม: ราคาระดับรุ่น */}
+              {productKind === 'accessory' && (<>
               <FieldRow label="ราคาทุน" required hint="หน่วยเป็นบาท">
                 <input type="number" step="0.01" className="input" placeholder="35000"
                        {...register('costPrice', { required: true, min: 0 })} />
@@ -719,6 +727,7 @@ export function ProductRegisterPage() {
                   </div>
                 </FieldRow>
               )}
+              </>)}
 
               <FieldRow label="จุดสั่งใหม่" hint={`แนะนำ ${serialized ? 2 : 5} — เมื่อสต็อกเหลือ ≤ จำนวนนี้ ระบบเตือนผู้จัดการ`}>
                 <input type="number" className="input" {...register('reorderPoint', { min: 0 })} />
@@ -1201,7 +1210,16 @@ function ItemCard({
             </optgroup>
           </select>
         </div>
-        {/* ราคาซื้อต่อเครื่อง: ซ่อน — auto-fill = ราคาทุน (ข้อ 2) ตอน save */}
+        <div>
+          <label className="mb-0.5 block text-xs font-semibold text-slate-600">ราคาทุน (บาท)</label>
+          <input type="number" step="0.01" min={0} className="input text-sm" placeholder="เช่น 19500"
+                 {...register(`items.${idx}.purchasePrice`)} />
+        </div>
+        <div>
+          <label className="mb-0.5 block text-xs font-semibold text-emerald-700">ราคาขาย (บาท)</label>
+          <input type="number" step="0.01" min={0} className="input text-sm" placeholder="เช่น 22900"
+                 {...register(`items.${idx}.sellingPrice`)} />
+        </div>
       </div>
     </div>
   );
