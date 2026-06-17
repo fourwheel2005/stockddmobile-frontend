@@ -91,7 +91,7 @@ export function ProductDetailPage() {
             </div>
           </div>
           {canEdit && (
-            <Link to={`/inbound?product=${product.id}`}
+            <Link to={`/products?q=${encodeURIComponent(product.name)}`}
                   className="btn-primary shrink-0 animate-pulse self-start sm:self-center">
               <ArrowDownToLine className="h-4 w-4" /> รับสินค้าเข้าเลย
             </Link>
@@ -104,7 +104,7 @@ export function ProductDetailPage() {
           <span>สี / ความจุ ที่มี <span className="font-normal text-slate-500">({product.variants.length} SKU)</span></span>
           <div className="flex flex-wrap gap-2">
             {canEdit && product.variants.length > 0 && (
-              <Link to={`/inbound?product=${product.id}`} className="btn-secondary"
+              <Link to={`/products?q=${encodeURIComponent(product.name)}`} className="btn-secondary"
                     title="เพิ่มสต็อกให้ SKU ที่มีอยู่">
                 <ArrowDownToLine className="h-4 w-4" /> รับสินค้าเข้า
               </Link>
@@ -175,7 +175,7 @@ export function ProductDetailPage() {
                               title="คัดลอก SKU นี้ → สร้างสินค้าใหม่ที่มีข้อมูลเหมือนกัน (แก้ IMEI/สี/ความจุได้)">
                           <Copy className="h-3.5 w-3.5" /> คัดลอก
                         </Link>
-                        <Link to={`/inbound?product=${product.id}`}
+                        <Link to={`/products?q=${encodeURIComponent(product.name)}`}
                               className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs text-emerald-700 hover:bg-emerald-50"
                               title="รับเครื่องเข้าสต็อกของ SKU นี้">
                           <ArrowDownToLine className="h-3.5 w-3.5" /> รับเข้า

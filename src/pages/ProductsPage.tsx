@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { PackagePlus, Plus, Eye, Sparkles } from 'lucide-react';
 import { productsApi } from '@/api/products';
 import { useAuthStore } from '@/stores/authStore';
@@ -22,8 +22,10 @@ import type { VariantResponse } from '@/types/api';
  *  5. Header button "➕ สร้างสินค้าใหม่" — always visible
  */
 export function ProductsPage() {
+  const [searchParams] = useSearchParams();
   const [page, setPage] = useState(0);
-  const [query, setQuery] = useState('');
+  // pre-fill search จาก ?q= (deep-link จากหน้าลงทะเบียน "เพิ่มเครื่องเข้ารุ่นนี้")
+  const [query, setQuery] = useState(searchParams.get('q') ?? '');
   const [receiveTarget, setReceiveTarget] = useState<VariantResponse | null>(null);
   const canEdit = useAuthStore((s) => s.hasRole('ADMIN', 'MANAGER'));
 

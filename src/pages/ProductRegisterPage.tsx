@@ -8,7 +8,7 @@ import {
 import toast from 'react-hot-toast';
 import {
   ArrowLeft, ScanLine, Boxes, Plus, Trash2, Save, Loader2, Check,
-  CircleAlert, Upload, ImageIcon, X, BatteryFull, Zap, Sparkles, Copy,
+  CircleAlert, Upload, ImageIcon, X, BatteryFull, Zap, Sparkles, Copy, PackageOpen,
 } from 'lucide-react';
 import { categoriesApi, productsApi } from '@/api/products';
 import { filesApi } from '@/api/files';
@@ -412,6 +412,13 @@ export function ProductRegisterPage() {
     return [...IPHONE_MODELS, ...extras.sort()];
   }, [productPage]);
 
+  /* รุ่นนี้มีในระบบแล้วไหม — match ตามชื่อรุ่น (กัน user ลงทะเบียนซ้ำรุ่นเดิม → ควร "รับสินค้าเข้า" แทน) */
+  const existingProduct = useMemo(() => {
+    const n = (name || '').trim().toLowerCase();
+    if (!n || isClone) return null;
+    return (productPage?.content ?? []).find((p) => p.name?.trim().toLowerCase() === n) ?? null;
+  }, [name, productPage, isClone]);
+
   /* Submit */
   const submit = useMutation({
     mutationFn: (req: ProductWizardRequest) => productsApi.createWizard(req),
@@ -511,7 +518,7 @@ export function ProductRegisterPage() {
 
   const onSubmit = (d: FormValues) => {
     if (skuStatus === 'taken') {
-      toast.error('รหัสสินค้านี้ใช้แล้ว — กรุณาเปลี่ยน');
+      toast.error('รุ่นนี้มีในระบบแล้ว — เพิ่มเครื่องด้วย "รับสินค้าเข้า" หรือเปลี่ยนรหัสถ้าเป็นรุ่นใหม่');
       scrollToSection('section-other');
       return;
     }
@@ -548,6 +555,26 @@ export function ProductRegisterPage() {
             : '1 ครั้ง = 1 สินค้า + รับเครื่องเลย · ทุกอย่างกรอกในหน้านี้ ไม่ต้องไปไหนอีก'}
         </p>
       </header>
+
+      {/* รุ่นนี้มีอยู่แล้ว → ไม่ต้องลงทะเบียนซ้ำ พาไป "รับสินค้าเข้า" เลย (ลด user งง) */}
+      {existingProduct && (
+        <div className="flex flex-col gap-3 rounded-xl border-2 border-amber-300 bg-amber-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-2 text-sm text-amber-900">
+            <PackageOpen className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+            <div>
+              <div className="font-semibold">“{existingProduct.name}” มีในระบบแล้ว</div>
+              <div className="text-xs text-amber-800">
+                ถ้าจะ<strong>เพิ่มเครื่องรุ่นนี้</strong> ไม่ต้องลงทะเบียนใหม่ — กดปุ่มขวาเพื่อไป “รับสินค้าเข้า” ใส่ IMEI ได้เลย
+              </div>
+            </div>
+          </div>
+          <button type="button"
+                  onClick={() => navigate(`/products?q=${encodeURIComponent(existingProduct.name)}`)}
+                  className="btn-primary shrink-0 whitespace-nowrap bg-amber-600 hover:bg-amber-700">
+            <PackageOpen className="h-4 w-4" /> ไปรับเครื่องเข้ารุ่นนี้
+          </button>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
 
@@ -820,9 +847,12 @@ export function ProductRegisterPage() {
                       ))}
                       <button type="button"
                               onClick={() => append(nextItemDefaults())}
-                              className="btn-secondary text-sm">
-                        <Plus className="h-4 w-4" /> เพิ่มเครื่อง
+                              className="flex w-full items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-brand-400 bg-brand-50 px-3 py-2.5 text-sm font-bold text-brand-700 transition hover:bg-brand-100">
+                        <Plus className="h-5 w-5" /> เพิ่มเครื่องอีกตัว
                       </button>
+                      <p className="text-center text-xs text-slate-500">
+                        💡 ใส่ทุกเครื่องให้ครบก่อน แล้วกด “บันทึก” <strong>ครั้งเดียว</strong> (ไม่ต้องบันทึกทีละเครื่อง)
+                      </p>
                     </div>
                   </FieldRow>
                 )}
@@ -851,7 +881,13 @@ export function ProductRegisterPage() {
                     {skuStatus === 'taken' && <CircleAlert className="h-4 w-4 text-red-500" />}
                   </span>
                 </div>
-                {skuStatus === 'taken' && <p className="mt-1 text-xs font-medium text-red-600">รหัสนี้ใช้แล้วในระบบ — กรุณาเปลี่ยน</p>}
+                {skuStatus === 'taken' && (
+                  <p className="mt-1 text-xs font-medium text-red-600">
+                    รุ่นนี้มีในระบบแล้ว — ถ้าจะ<strong>เพิ่มเครื่องรุ่นเดิม</strong> ให้ใช้ปุ่ม “รับสินค้าเข้า” ที่{' '}
+                    <Link to="/products" className="underline">หน้าสินค้า</Link>{' '}
+                    (ไม่ต้องลงทะเบียนใหม่) · หรือเปลี่ยนรหัสถ้าเป็น<strong>รุ่นใหม่จริง</strong>
+                  </p>
+                )}
                 {skuStatus === 'available' && <p className="mt-1 text-xs font-medium text-emerald-600">รหัสนี้ใช้ได้</p>}
               </FieldRow>
 

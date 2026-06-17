@@ -244,9 +244,12 @@ export function FastInboundForm({ variant, isSerialized, onBack, onDone }: Props
               <button
                 type="button"
                 onClick={() => setItems((p) => [...p, { ...EMPTY_ITEM }])}
-                className="btn-secondary text-sm">
-                <Plus className="h-4 w-4" /> เพิ่มเครื่อง
+                className="flex w-full items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-emerald-400 bg-emerald-50 px-3 py-2.5 text-sm font-bold text-emerald-700 transition hover:bg-emerald-100">
+                <Plus className="h-5 w-5" /> เพิ่มเครื่องอีกตัว
               </button>
+              <p className="text-center text-xs text-slate-500">
+                💡 ใส่ IMEI ให้ครบทุกเครื่องก่อน แล้วค่อยกด “รับสินค้าเข้า” <strong>ครั้งเดียว</strong> (ไม่ต้องกดรับทีละตัว)
+              </p>
             </div>
           )}
 
