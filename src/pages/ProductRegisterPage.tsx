@@ -245,14 +245,43 @@ export function ProductRegisterPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [name]);
 
-  /* Live SKU check */
+  /* Algorithm หา "รหัสสินค้าที่ยังไม่ซ้ำ": ลอง base, base-2, base-3, ... (query เช็คทีละตัว)
+     lookupVariant → resolve = มีแล้ว(ลองต่อ) · throw(404) = ว่าง(ใช้ได้). fallback timestamp กันลูปไม่จบ */
+  const findAvailableSku = async (base: string): Promise<string> => {
+    if (!base) return base;
+    for (let i = 1; i <= 99; i++) {
+      const candidate = i === 1 ? base : `${base}-${i}`;
+      try { await productsApi.lookupVariant(candidate); }   // เจอ = ใช้แล้ว
+      catch { return candidate; }                           // 404 = ว่าง
+    }
+    return `${base}-${Date.now().toString().slice(-4)}`;
+  };
+
+  /* Live SKU check + auto-uniquify เมื่อรหัส auto-gen ชนของเดิม */
   const [skuStatus, setSkuStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
+  const [skuAutoFixed, setSkuAutoFixed] = useState(false);
   useEffect(() => {
-    if (!skuVal || skuVal.length < 3) { setSkuStatus('idle'); return; }
+    if (!skuVal || skuVal.length < 3) { setSkuStatus('idle'); setSkuAutoFixed(false); return; }
     setSkuStatus('checking');
     const t = setTimeout(async () => {
-      try { await productsApi.lookupVariant(skuVal); setSkuStatus('taken'); }
-      catch { setSkuStatus('available'); }
+      try {
+        await productsApi.lookupVariant(skuVal);
+        // ── รหัสซ้ำ ──
+        if (skuVal === lastAutoSkuRef.current) {
+          // เป็นรหัสที่ระบบ gen เอง → หาเลขว่างให้อัตโนมัติ (ไม่ block user)
+          const unique = await findAvailableSku(generateSku(getValues('name') || ''));
+          if (unique && unique !== skuVal) {
+            lastAutoSkuRef.current = unique;
+            setSkuAutoFixed(true);
+            setValue('sku', unique, { shouldDirty: false });  // → effect re-run → available
+          } else {
+            setSkuStatus('taken');
+          }
+        } else {
+          setSkuStatus('taken');   // user พิมพ์รหัสเอง → ให้แก้เอง
+          setSkuAutoFixed(false);
+        }
+      } catch { setSkuStatus('available'); }
     }, 400);
     return () => clearTimeout(t);
   }, [skuVal]);
@@ -868,7 +897,7 @@ export function ProductRegisterPage() {
             <span className="text-xs text-slate-500">— รหัสสินค้า · บาร์โค้ด · ล็อต</span>
           </div>
           <div className="card-body space-y-5">
-              <FieldRow label="รหัสสินค้า" autoBadge hint="ระบบสร้างให้จากชื่อรุ่น (1 รุ่น = 1 รหัส) — แก้เองได้">
+              <FieldRow label="รหัสสินค้า" autoBadge hint="ระบบสร้างจากชื่อรุ่น · ถ้าซ้ำของเดิม ระบบเติมเลขท้ายให้อัตโนมัติ (ไม่ซ้ำ) — แก้เองได้">
                 <div className="relative">
                   <input className={`input pr-10 font-mono ${
                     skuStatus === 'taken' ? 'border-red-400 focus:border-red-500 focus:ring-red-500/15'
@@ -888,7 +917,11 @@ export function ProductRegisterPage() {
                     (ไม่ต้องลงทะเบียนใหม่) · หรือเปลี่ยนรหัสถ้าเป็น<strong>รุ่นใหม่จริง</strong>
                   </p>
                 )}
-                {skuStatus === 'available' && <p className="mt-1 text-xs font-medium text-emerald-600">รหัสนี้ใช้ได้</p>}
+                {skuStatus === 'available' && (
+                  <p className="mt-1 text-xs font-medium text-emerald-600">
+                    {skuAutoFixed ? 'รหัสเดิมซ้ำ — ระบบปรับเป็นเลขใหม่ที่ไม่ซ้ำให้แล้ว ✓' : 'รหัสนี้ใช้ได้'}
+                  </p>
+                )}
               </FieldRow>
 
               {/* บาร์โค้ด: มือถือใช้ IMEI เป็นบาร์โค้ดอยู่แล้ว → โชว์เฉพาะอุปกรณ์เสริม */}
