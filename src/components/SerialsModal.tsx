@@ -13,6 +13,8 @@ interface Props {
   productName: string;
   sku: string;
   onClose: () => void;
+  /** ไฮไลต์เครื่องที่ค้นเจอ (เปิดจากผลค้นหา IMEI) */
+  highlightId?: string;
 }
 
 const STATUS_BADGE: Record<SerializedStatus, string> = {
@@ -46,7 +48,7 @@ const CONDITION_TH: Record<string, string> = {
   DEFECTIVE: 'ชำรุด',
 };
 
-export function SerialsModal({ variantId, productName, sku, onClose }: Props) {
+export function SerialsModal({ variantId, productName, sku, onClose, highlightId }: Props) {
   const qc = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<SerializedStatus | ''>('');
   const [editing, setEditing] = useState<SerializedItemResponse | null>(null);
@@ -131,7 +133,7 @@ export function SerialsModal({ variantId, productName, sku, onClose }: Props) {
                 <tr><td colSpan={8} className="px-4 py-8 text-center text-slate-400">กำลังโหลด...</td></tr>
               )}
               {data?.content.map((s) => (
-                <tr key={s.id} className="hover:bg-slate-50">
+                <tr key={s.id} className={s.id === highlightId ? 'bg-amber-50 ring-1 ring-inset ring-amber-300' : 'hover:bg-slate-50'}>
                   <td className="px-4 py-2">
                     {s.stockCode && (
                       <div className="mb-0.5 inline-block rounded bg-brand-100 px-1.5 font-mono text-[11px] font-semibold text-brand-700">

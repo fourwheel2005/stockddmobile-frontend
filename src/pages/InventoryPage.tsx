@@ -1,31 +1,60 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Search, Smartphone } from 'lucide-react';
+import { Search, Smartphone, X } from 'lucide-react';
 import { inventoryApi } from '@/api/inventory';
 import { SerialsModal } from '@/components/SerialsModal';
 import { formatNumber, formatDateTime } from '@/lib/format';
+import type { SerializedItemResponse } from '@/types/api';
+
+const STATUS_LABEL: Record<string, { text: string; cls: string }> = {
+  IN_STOCK: { text: 'อยู่ในสต็อก', cls: 'badge-green' },
+  RESERVED: { text: 'จองแล้ว', cls: 'badge-amber' },
+  SOLD: { text: 'ขายแล้ว', cls: 'bg-slate-200 text-slate-600 rounded-full px-2 py-0.5 text-xs font-medium' },
+  IN_SERVICE: { text: 'ส่งซ่อม/เคลม', cls: 'badge-amber' },
+  RETURNED: { text: 'คืนแล้ว', cls: 'bg-slate-200 text-slate-600 rounded-full px-2 py-0.5 text-xs font-medium' },
+};
+
+type ConditionFilter = '' | 'NEW' | 'SECOND_HAND';
 
 export function InventoryPage() {
   const [page, setPage] = useState(0);
   const [lowStockOnly, setLowStockOnly] = useState(false);
+  const [condition, setCondition] = useState<ConditionFilter>('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [scanResult, setScanResult] = useState<string | null>(null);
-  const [serialsFor, setSerialsFor] = useState<{ variantId: string; productName: string; sku: string } | null>(null);
+  const [foundDevice, setFoundDevice] = useState<SerializedItemResponse | null>(null);
+  const [notFound, setNotFound] = useState<string | null>(null);
+  const [serialsFor, setSerialsFor] = useState<{ variantId: string; productName: string; sku: string; highlightId?: string } | null>(null);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['inventory', { page, lowStockOnly }],
-    queryFn: () => inventoryApi.list({ page, size: 20, lowStockOnly }),
+    queryKey: ['inventory', { page, lowStockOnly, condition }],
+    queryFn: () => inventoryApi.list({ page, size: 20, lowStockOnly, condition: condition || undefined }),
   });
 
+  const { data: summary } = useQuery({
+    queryKey: ['inventory-summary'],
+    queryFn: () => inventoryApi.summary(),
+  });
+
+  const pickCondition = (c: ConditionFilter) => { setCondition(c); setPage(0); };
+
   const handleLookup = async () => {
-    if (!searchQuery.trim()) return;
+    const q = searchQuery.trim();
+    if (!q) return;
+    setNotFound(null);
     try {
-      const result = await inventoryApi.lookupSerial(searchQuery.trim());
-      setScanResult(`พบ: ${result.serialNumber} | IMEI: ${result.imei ?? '-'} | Status: ${result.status}`);
+      const result = await inventoryApi.lookupSerial(q);
+      setFoundDevice(result);
     } catch {
-      setScanResult(`ไม่พบ "${searchQuery}"`);
+      setFoundDevice(null);
+      setNotFound(q);
     }
   };
+
+  const clearSearch = () => { setFoundDevice(null); setNotFound(null); setSearchQuery(''); };
+
+  /** ชื่อรุ่นจากตารางสต็อก (match ด้วย variantId) — ใช้เปิด SerialsModal ของเครื่องที่เจอ */
+  const productNameOf = (variantId: string) =>
+    data?.content.find((r) => r.variantId === variantId)?.productName ?? null;
 
   return (
     <div className="space-y-6">
@@ -61,14 +90,106 @@ export function InventoryPage() {
               <Search className="h-4 w-4" /> ค้นหา
             </button>
           </div>
-          {scanResult && (
-            <div className="mt-3 rounded-md bg-slate-50 px-3 py-2 text-sm">{scanResult}</div>
+
+          {/* ผลค้นหา = การ์ดเครื่อง (รายเครื่อง ไม่ใช่หมวดรวม) */}
+          {foundDevice && (() => {
+            const st = STATUS_LABEL[foundDevice.status] ?? { text: foundDevice.status, cls: 'badge-green' };
+            const spec = [foundDevice.deviceColor, foundDevice.deviceStorage].filter(Boolean).join(' / ');
+            const pName = productNameOf(foundDevice.variantId);
+            return (
+              <div className="mt-3 rounded-lg border border-emerald-300 bg-emerald-50/60 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-emerald-100 text-emerald-700">
+                      <Smartphone className="h-5 w-5" />
+                    </div>
+                    <div className="text-sm">
+                      <div className="font-semibold text-slate-800">
+                        {pName ?? foundDevice.sku}{spec && <span className="font-normal text-slate-500"> · {spec}</span>}
+                      </div>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-slate-600">
+                        {foundDevice.stockCode && <span>รหัส: <span className="font-mono font-semibold text-slate-800">{foundDevice.stockCode}</span></span>}
+                        <span>IMEI: <span className="font-mono">{foundDevice.imei ?? '-'}</span></span>
+                        <span>SN: <span className="font-mono">{foundDevice.serialNumber}</span></span>
+                      </div>
+                      <div className="mt-1.5">
+                        <span className={st.cls}>{st.text}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <button onClick={clearSearch} className="rounded p-1 text-slate-400 hover:bg-slate-100" title="ล้าง">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="mt-3 flex justify-end">
+                  <button
+                    className="btn-primary text-sm"
+                    onClick={() => setSerialsFor({
+                      variantId: foundDevice.variantId,
+                      productName: pName ?? foundDevice.sku,
+                      sku: foundDevice.sku,
+                      highlightId: foundDevice.id,
+                    })}>
+                    <Smartphone className="h-4 w-4" /> เปิดดูเครื่องนี้
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
+          {notFound && (
+            <div className="mt-3 flex items-center justify-between rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              <span>ไม่พบเครื่องที่ตรงกับ "{notFound}" — ตรวจ IMEI/Serial อีกครั้ง</span>
+              <button onClick={clearSearch} className="rounded p-1 text-amber-500 hover:bg-amber-100"><X className="h-4 w-4" /></button>
+            </div>
           )}
         </div>
       </div>
 
+      {/* สรุปจำนวนเครื่องพร้อมขาย + filter มือ1/มือ2 (กดเพื่อกรองตาราง) */}
+      <div className="grid grid-cols-3 gap-3">
+        <button
+          type="button"
+          onClick={() => pickCondition('')}
+          className={`rounded-lg border p-3 text-left transition-colors ${
+            condition === '' ? 'border-brand-400 bg-brand-50 ring-1 ring-brand-300' : 'border-slate-200 bg-white hover:bg-slate-50'
+          }`}>
+          <div className="text-xs text-slate-500">พร้อมขายทั้งหมด</div>
+          <div className="mt-0.5 text-2xl font-bold text-slate-800">
+            {summary ? formatNumber(summary.totalAvailable) : '—'} <span className="text-sm font-normal text-slate-400">เครื่อง</span>
+          </div>
+        </button>
+        <button
+          type="button"
+          onClick={() => pickCondition('NEW')}
+          className={`rounded-lg border p-3 text-left transition-colors ${
+            condition === 'NEW' ? 'border-emerald-400 bg-emerald-50 ring-1 ring-emerald-300' : 'border-slate-200 bg-white hover:bg-slate-50'
+          }`}>
+          <div className="text-xs text-slate-500">มือ 1 (ใหม่)</div>
+          <div className="mt-0.5 text-2xl font-bold text-emerald-700">
+            {summary ? formatNumber(summary.newAvailable) : '—'} <span className="text-sm font-normal text-slate-400">เครื่อง</span>
+          </div>
+        </button>
+        <button
+          type="button"
+          onClick={() => pickCondition('SECOND_HAND')}
+          className={`rounded-lg border p-3 text-left transition-colors ${
+            condition === 'SECOND_HAND' ? 'border-amber-400 bg-amber-50 ring-1 ring-amber-300' : 'border-slate-200 bg-white hover:bg-slate-50'
+          }`}>
+          <div className="text-xs text-slate-500">มือ 2 (มือสอง)</div>
+          <div className="mt-0.5 text-2xl font-bold text-amber-700">
+            {summary ? formatNumber(summary.secondHandAvailable) : '—'} <span className="text-sm font-normal text-slate-400">เครื่อง</span>
+          </div>
+        </button>
+      </div>
+
       {/* Table */}
       <div className="card">
+        {condition && (
+          <div className="flex items-center justify-between border-b border-slate-100 px-5 py-2 text-sm text-slate-600">
+            <span>กรองเฉพาะ <span className="font-semibold">{condition === 'NEW' ? 'มือ 1 (ใหม่)' : 'มือ 2 (มือสอง)'}</span> · นับเฉพาะเครื่องพร้อมขาย</span>
+            <button onClick={() => pickCondition('')} className="text-brand-600 hover:underline">ดูทั้งหมด</button>
+          </div>
+        )}
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
@@ -139,6 +260,7 @@ export function InventoryPage() {
           variantId={serialsFor.variantId}
           productName={serialsFor.productName}
           sku={serialsFor.sku}
+          highlightId={serialsFor.highlightId}
           onClose={() => setSerialsFor(null)}
         />
       )}

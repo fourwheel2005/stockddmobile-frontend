@@ -37,8 +37,11 @@ const NETWORK_OPTIONS: { code: string; label: string }[] = [
 ];
 /** ประกัน — ติ๊ก "มือ 1" เติมค่านี้อัตโนมัติ (เลือก/แก้ได้) */
 const WARRANTY_NEW = 'ประกันศูนย์ 1 ปี (Apple)';
+/** เครื่อง activate แล้ว — ประกัน Apple นับจากวัน activate → ต้องระบุวันหมดเอง */
+const WARRANTY_APPLE_ACTIVATED = 'ประกัน Apple (activate แล้ว)';
 const WARRANTY_OPTIONS = [
   WARRANTY_NEW,
+  WARRANTY_APPLE_ACTIVATED,
   'ประกันร้าน 7 วัน',
   'ประกันร้าน 1 เดือน',
   'ประกันร้าน 3 เดือน',
@@ -66,6 +69,21 @@ const IPHONE_MODELS = [
   'iPhone 8 Plus', 'iPhone 8', 'iPhone 7 Plus', 'iPhone 7',
 ];
 
+/** อุปกรณ์เสริม Apple ยอดนิยม — dropdown ให้เลือกง่าย ชื่อ format ตรงกัน (รหัสสินค้าไม่เพี้ยน) */
+const ACCESSORY_MODELS = [
+  'Apple EarPods (3.5mm Headphone Plug)',
+  'Apple EarPods (Lightning Connector)',
+  'Apple Lightning to USB Cable 1m',
+  'Apple USB-C to Lightning Cable 1m',
+  'Apple 60W USB-C Charge Cable (1m)',
+  'Apple 20W USB-C Power Adapter',
+  'Apple 30W USB-C Power Adapter',
+  'Apple MagSafe Charger (1 m.)',
+  'Apple Watch Magnetic Woven Fast Charger',
+  'Apple AirTag FineWoven Key Ring',
+  'หูฟังไร้สาย Apple AirPods Max - Midnight',
+];
+
 type Condition = 'NEW' | 'SECOND_HAND';
 type ProductKind = 'phone' | 'accessory';
 
@@ -79,6 +97,7 @@ interface ItemRow {
   deviceStorage: string;
   deviceNetwork: string;
   warrantyTerms: string;
+  warrantyExpire: string;
   acquisitionType: AcquisitionType;
   purchasePrice: number | '';
   sellingPrice: number | '';
@@ -114,7 +133,7 @@ interface FormValues {
 const EMPTY_ITEM: ItemRow = {
   serialNumber: '', imei: '',
   condition: 'NEW', batteryHealth: '', deviceColor: '', modelNumber: '',
-  deviceStorage: '', deviceNetwork: '', warrantyTerms: '',
+  deviceStorage: '', deviceNetwork: '', warrantyTerms: '', warrantyExpire: '',
   acquisitionType: 'PURCHASE', purchasePrice: '', sellingPrice: '',
 };
 
@@ -425,14 +444,16 @@ export function ProductRegisterPage() {
   /* ชื่อรุ่น suggestion: iPhone ครบทุกรุ่น (ตั้งต้น) + ชื่อรุ่นที่เคยสร้างแล้ว (เช่น iPad/Mac/Android)
      → iPhone เลือกได้เลยตั้งแต่วันแรก · รุ่นอื่นโตเองตามการใช้งาน · ยังพิมพ์ค่าใหม่ได้อิสระ */
   const modelNameOptions = useMemo(() => {
-    const seen = new Set<string>(IPHONE_MODELS);
+    // เครื่อง → รุ่น iPhone · อุปกรณ์เสริม → รายการ Apple accessory ยอดนิยม (เลือกง่าย format ตรงกัน)
+    const base = productKind === 'accessory' ? ACCESSORY_MODELS : IPHONE_MODELS;
+    const seen = new Set<string>(base);
     const extras: string[] = [];
     for (const product of productPage?.content ?? []) {
       const nm = product.name?.trim();
       if (nm && !seen.has(nm)) { seen.add(nm); extras.push(nm); }
     }
-    return [...IPHONE_MODELS, ...extras.sort()];
-  }, [productPage]);
+    return [...base, ...extras.sort()];
+  }, [productPage, productKind]);
 
   /* รุ่นนี้มีในระบบแล้วไหม — match ตามชื่อรุ่น (กัน user ลงทะเบียนซ้ำรุ่นเดิม → ควร "รับสินค้าเข้า" แทน) */
   const existingProduct = useMemo(() => {
@@ -462,7 +483,7 @@ export function ProductRegisterPage() {
       batteryHealth?: number; deviceColor?: string; modelNumber?: string;
       deviceStorage?: string; deviceNetwork?: string;
       acquisitionType?: AcquisitionType; purchasePrice?: number; sellingPrice?: number;
-      warrantyTerms?: string;
+      warrantyTerms?: string; warrantyExpire?: string;
     }> | undefined;
     let qty: number | undefined;
 
@@ -489,6 +510,8 @@ export function ProductRegisterPage() {
           purchasePrice: it.purchasePrice === '' ? (Number(d.costPrice) || undefined) : Number(it.purchasePrice),
           sellingPrice: it.sellingPrice === '' ? (Number(d.sellingPrice) || undefined) : Number(it.sellingPrice),
           warrantyTerms: blank(it.warrantyTerms),
+          // วันหมดประกัน (FIX-025) — กรอกเมื่อเครื่อง activate แล้ว (ประกัน Apple นับจากวัน activate)
+          warrantyExpire: blank(it.warrantyExpire),
         }));
       if (validItems.length === 0) {
         toast.error('ใส่อย่างน้อย 1 ชิ้น (IMEI หรือ Serial)');
@@ -667,8 +690,11 @@ export function ProductRegisterPage() {
                 {errors.categoryId && <p className="mt-1 text-xs text-red-600">{errors.categoryId.message}</p>}
               </FieldRow>
 
-              <FieldRow label="ชื่อรุ่น (Model)" required hint="เลือกจากรายการ iPhone หรือพิมพ์เอง (iPad/Mac/Android) · เลือกให้ตรงกันทุกครั้งจะได้รหัสสินค้าตรงกัน">
-                <input className="input" list="model-name-list" placeholder="เช่น iPhone 16 Pro Max"
+              <FieldRow label="ชื่อรุ่น (Model)" required hint={productKind === 'accessory'
+                ? 'เลือกจากรายการอุปกรณ์เสริม Apple หรือพิมพ์เอง · เลือกให้ตรงกันทุกครั้งจะได้รหัสสินค้าตรงกัน'
+                : 'เลือกจากรายการ iPhone หรือพิมพ์เอง (iPad/Mac/Android) · เลือกให้ตรงกันทุกครั้งจะได้รหัสสินค้าตรงกัน'}>
+                <input className="input" list="model-name-list"
+                       placeholder={productKind === 'accessory' ? 'เช่น Apple 20W USB-C Power Adapter' : 'เช่น iPhone 16 Pro Max'}
                        {...register('name', { required: 'กรุณาใส่ชื่อรุ่น' })} />
                 {errors.name && <p className="mt-1 text-xs text-red-600">{errors.name.message}</p>}
               </FieldRow>
@@ -1125,6 +1151,9 @@ function ItemCard({
   baseSku?: string;
 }) {
   const condition = useWatch({ control, name: `items.${idx}.condition` }) ?? 'NEW';
+  const warrantyTerms = useWatch({ control, name: `items.${idx}.warrantyTerms` }) ?? '';
+  /* เครื่อง activate แล้ว → โชว์ช่อง "ประกันถึงวันที่" (ประกัน Apple นับจากวัน activate) */
+  const needsExpireDate = warrantyTerms === WARRANTY_APPLE_ACTIVATED || /activate/i.test(warrantyTerms);
 
   /* ประกันรายเครื่อง auto-fill ตามสภาพแถวนี้: มือ1 → ศูนย์ Apple, มือ2 → เว้น
      lock เมื่อผู้ใช้พิมพ์/เลือกเอง (ไม่ทับค่าที่แก้มือ) */
@@ -1159,9 +1188,24 @@ function ItemCard({
 
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <div>
-          <label className="mb-0.5 block text-xs font-semibold text-slate-600">IMEI</label>
-          <input className="input font-mono text-sm" placeholder="35xxxxxxxxxxxxx"
-                 {...register(`items.${idx}.imei`)} />
+          <label className="mb-0.5 block text-xs font-semibold text-slate-600">IMEI <span className="font-normal text-slate-400">(15 หลัก)</span></label>
+          {(() => {
+            const imeiReg = register(`items.${idx}.imei`);
+            return (
+              <input
+                className="input font-mono text-sm"
+                placeholder="35xxxxxxxxxxxxx"
+                inputMode="numeric"
+                maxLength={15}
+                {...imeiReg}
+                onChange={(e) => {
+                  // IMEI = เลขล้วน สูงสุด 15 หลัก (กันพิมพ์/วางตัวอักษรหรือเกิน)
+                  e.target.value = e.target.value.replace(/\D/g, '').slice(0, 15);
+                  imeiReg.onChange(e);
+                }}
+              />
+            );
+          })()}
         </div>
         <div>
           <label className="mb-0.5 block text-xs font-semibold text-slate-600">Serial <span className="font-normal text-slate-400">(เว้น = ใช้ IMEI)</span></label>
@@ -1215,6 +1259,18 @@ function ItemCard({
           </label>
           <input className="input text-sm" list="warranty-list" placeholder="เลือก/พิมพ์ประกัน"
                  {...register(`items.${idx}.warrantyTerms`)} />
+          {needsExpireDate && (
+            <div className="mt-1.5 rounded-md border border-sky-200 bg-sky-50 p-2">
+              <label className="mb-0.5 block text-[11px] font-semibold text-sky-800">
+                ประกันถึงวันที่ (Apple activate แล้ว)
+              </label>
+              <input type="date" className="input text-sm"
+                     {...register(`items.${idx}.warrantyExpire`)} />
+              <p className="mt-0.5 text-[10px] text-sky-700">
+                เครื่องเปิดใช้แล้ว — ประกัน Apple นับจากวัน activate ระบุวันหมดให้ตรงกับเครื่อง
+              </p>
+            </div>
+          )}
         </div>
         <div>
           <label className="mb-0.5 block text-xs font-semibold text-slate-600">ที่มา</label>

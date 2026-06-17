@@ -216,6 +216,13 @@ export interface InventoryResponse {
   updatedAt: string;
 }
 
+/** สรุปจำนวนเครื่องพร้อมขาย (IN_STOCK) แยกมือ1/มือ2 — total = new + secondHand */
+export interface StockSummaryResponse {
+  totalAvailable: number;
+  newAvailable: number;
+  secondHandAvailable: number;
+}
+
 export type SerializedStatus =
   | 'IN_STOCK' | 'RESERVED' | 'SOLD' | 'DEFECTIVE' | 'RETURNED' | 'TRANSFERRED';
 

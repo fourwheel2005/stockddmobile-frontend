@@ -8,14 +8,18 @@ import type {
   SerializedItemResponse,
   ServiceActionRequest,
   StockMovementResponse,
+  StockSummaryResponse,
   StockTransactionResponse,
   StockTxType,
   UpdateSerialRequest,
 } from '@/types/api';
 
 export const inventoryApi = {
-  list: (params: { page?: number; size?: number; lowStockOnly?: boolean } = {}) =>
+  list: (params: { page?: number; size?: number; lowStockOnly?: boolean; condition?: 'NEW' | 'SECOND_HAND' } = {}) =>
     api.get<PageResponse<InventoryResponse>>('/inventory', { params }).then((r) => r.data),
+
+  summary: () =>
+    api.get<StockSummaryResponse>('/inventory/summary').then((r) => r.data),
 
   get: (variantId: string) =>
     api.get<InventoryResponse>(`/inventory/${variantId}`).then((r) => r.data),

@@ -1026,6 +1026,19 @@ function InstallmentPanel({
               </button>
             ))}
           </div>
+          {/* กำหนดเดือนเอง — พนักงานเลือกได้ยืดหยุ่น (คำนวณ/เดือนอัตโนมัติ) */}
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <span className="text-xs text-slate-500">หรือกำหนดเอง:</span>
+            <input
+              type="number" min={1} max={60} step={1} inputMode="numeric"
+              className={`input w-24 text-center text-sm font-semibold ${
+                !MONTH_OPTIONS.includes(months) ? 'border-purple-400 bg-purple-50 text-purple-800' : ''
+              }`}
+              value={months}
+              onChange={(e) => setMonths(Math.max(1, Math.min(60, Math.floor(Number(e.target.value) || 1))))}
+            />
+            <span className="text-xs text-slate-500">เดือน · ระบบหาร/เดือนให้อัตโนมัติ (1–60)</span>
+          </div>
         </div>
 
         {/* Down payment */}
