@@ -146,6 +146,7 @@ export interface WizardVariantSpec {
 
 export interface WizardInitialItem {
   serialNumber: string;
+  stockCode?: string;
   imei?: string;
   imei2?: string;
   condition?: 'NEW' | 'SECOND_HAND' | 'LIKE_NEW' | 'REFURBISHED' | 'DEFECTIVE';
@@ -233,6 +234,7 @@ export interface SerializedItemResponse {
   imei: string | null;
   imei2: string | null;
   serialNumber: string;
+  stockCode: string | null;
   status: SerializedStatus;
   condition: string;
   receivedAt: string;

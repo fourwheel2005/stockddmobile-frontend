@@ -133,6 +133,11 @@ export function SerialsModal({ variantId, productName, sku, onClose }: Props) {
               {data?.content.map((s) => (
                 <tr key={s.id} className="hover:bg-slate-50">
                   <td className="px-4 py-2">
+                    {s.stockCode && (
+                      <div className="mb-0.5 inline-block rounded bg-brand-100 px-1.5 font-mono text-[11px] font-semibold text-brand-700">
+                        {s.stockCode}
+                      </div>
+                    )}
                     <div className="font-mono text-xs">{s.imei ?? '-'}</div>
                     <div className="font-mono text-xs text-slate-500">{s.serialNumber}</div>
                   </td>

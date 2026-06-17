@@ -37,9 +37,9 @@ export function AccessorySerialList({ items, onChange }: Props) {
     const tokens = raw.split(/[\s,;]+/).map((s) => s.trim()).filter(Boolean);
     if (tokens.length === 0) return 0;
 
-    // Check duplicates ทั้ง existing + new tokens
+    // Check duplicates ทั้ง existing + new tokens (อุปกรณ์เสริมใช้ serial/barcode อย่างเดียว)
     const existing = new Set(
-      items.flatMap((it) => [it.imei, it.serialNumber].filter(Boolean)),
+      items.map((it) => it.serialNumber).filter(Boolean),
     );
     const dup: string[] = [];
     const fresh: string[] = [];
@@ -59,17 +59,17 @@ export function AccessorySerialList({ items, onChange }: Props) {
 
     if (fresh.length === 0) return 0;
 
-    // Add to items — fill empty rows first, then append
+    // Add to items — fill empty rows first, then append (ค่าที่ยิง → serialNumber)
     const next = [...items];
     let cursor = 0;
     for (let i = 0; i < next.length && cursor < fresh.length; i++) {
-      if (!next[i].imei && !next[i].serialNumber) {
-        next[i] = { imei: fresh[cursor], serialNumber: '' };
+      if (!next[i].serialNumber) {
+        next[i] = { imei: '', serialNumber: fresh[cursor] };
         cursor++;
       }
     }
     for (; cursor < fresh.length; cursor++) {
-      next.push({ imei: fresh[cursor], serialNumber: '' });
+      next.push({ imei: '', serialNumber: fresh[cursor] });
     }
     onChange(next);
     return fresh.length;
@@ -93,7 +93,7 @@ export function AccessorySerialList({ items, onChange }: Props) {
   };
 
   // ─── Row management ──────────────────────────────────────────
-  const validCount = items.filter((it) => (it.imei || it.serialNumber).trim()).length;
+  const validCount = items.filter((it) => it.serialNumber.trim()).length;
   const updateRow = (idx: number, patch: Partial<AccessorySerialRow>) => {
     onChange(items.map((x, i) => i === idx ? { ...x, ...patch } : x));
   };
@@ -109,11 +109,8 @@ export function AccessorySerialList({ items, onChange }: Props) {
   // ─── Duplicate highlight ─────────────────────────────────────
   const seen: Record<string, number> = {};
   items.forEach((it, idx) => {
-    [it.imei, it.serialNumber].forEach((v) => {
-      const key = v.trim();
-      if (!key) return;
-      if (seen[key] === undefined) seen[key] = idx;
-    });
+    const key = it.serialNumber.trim();
+    if (key && seen[key] === undefined) seen[key] = idx;
   });
   const isDup = (idx: number, val: string): boolean => {
     const k = val.trim();
@@ -180,16 +177,14 @@ export function AccessorySerialList({ items, onChange }: Props) {
             <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
               <tr>
                 <th className="w-10 px-3 py-2">#</th>
-                <th className="px-3 py-2">IMEI / Barcode</th>
-                <th className="px-3 py-2">Serial <span className="font-normal text-slate-400">(เว้น = ใช้ IMEI)</span></th>
+                <th className="px-3 py-2">Serial / Barcode</th>
                 <th className="w-10 px-3 py-2"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {items.map((it, idx) => {
                 // hide fully-empty trailing row visually
-                if (!it.imei && !it.serialNumber) return null;
-                const imeiDup = isDup(idx, it.imei);
+                if (!it.serialNumber) return null;
                 const snDup = isDup(idx, it.serialNumber);
                 return (
                   <tr key={idx} className="hover:bg-slate-50">
@@ -198,24 +193,16 @@ export function AccessorySerialList({ items, onChange }: Props) {
                     </td>
                     <td className="px-3 py-1.5">
                       <input
-                        className={`input font-mono text-sm ${imeiDup ? 'border-red-400 bg-red-50' : ''}`}
-                        placeholder="35xxxxxxxxxxxxx"
-                        value={it.imei}
-                        onChange={(e) => updateRow(idx, { imei: e.target.value })}
+                        className={`input font-mono text-sm ${snDup ? 'border-red-400 bg-red-50' : ''}`}
+                        placeholder="ยิง/พิมพ์ Serial หรือ Barcode"
+                        value={it.serialNumber}
+                        onChange={(e) => updateRow(idx, { serialNumber: e.target.value })}
                       />
-                      {imeiDup && (
+                      {snDup && (
                         <div className="mt-0.5 flex items-center gap-1 text-[10px] text-red-600">
                           <AlertTriangle className="h-3 w-3" /> ซ้ำ
                         </div>
                       )}
-                    </td>
-                    <td className="px-3 py-1.5">
-                      <input
-                        className={`input font-mono text-sm ${snDup ? 'border-red-400 bg-red-50' : ''}`}
-                        placeholder="(ใช้ IMEI ถ้าเว้น)"
-                        value={it.serialNumber}
-                        onChange={(e) => updateRow(idx, { serialNumber: e.target.value })}
-                      />
                     </td>
                     <td className="px-3 py-1.5 text-center">
                       <button

@@ -122,8 +122,14 @@ function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-/* รหัสสินค้า (SKU) = running number "DDxxxxx" ออกจาก backend (/products/variants/next-sku)
-   sequential ไม่ซ้ำเลย — ไม่ผูกกับชื่อรุ่นอีกต่อไป */
+/* รหัสสินค้า running "DDxxxxx" ออกจาก backend (/products/variants/next-sku) = base
+   รหัส "รายเครื่อง" = base + ลำดับเครื่อง (เครื่อง 1 = base, เครื่อง 2 = base+1, ...)
+   → เครื่องแรก = variant SKU พอดี · sequential ไม่ซ้ำ */
+function deviceCode(base: string, idx: number): string {
+  const m = (base || '').match(/^DD(\d+)$/);
+  if (!m) return base ? (idx === 0 ? base : `${base}-${idx + 1}`) : '';
+  return 'DD' + String(parseInt(m[1], 10) + idx).padStart(5, '0');
+}
 
 /* ══════════════════════════════════════════════════════════════════════ */
 
@@ -452,7 +458,7 @@ export function ProductRegisterPage() {
     const blank = (s?: string) => (s && s.trim()) ? s.trim() : undefined;
 
     let validItems: Array<{
-      serialNumber: string; imei?: string; condition?: Condition;
+      serialNumber: string; stockCode?: string; imei?: string; condition?: Condition;
       batteryHealth?: number; deviceColor?: string; modelNumber?: string;
       deviceStorage?: string; deviceNetwork?: string;
       acquisitionType?: AcquisitionType; purchasePrice?: number; sellingPrice?: number;
@@ -463,8 +469,10 @@ export function ProductRegisterPage() {
     if (d.serialized) {
       validItems = d.items
         .filter((it) => (it.imei || it.serialNumber || '').trim())
-        .map((it) => ({
+        .map((it, j) => ({
           serialNumber: (it.serialNumber || it.imei).trim(),
+          // รหัสสินค้ารายเครื่อง running = base(d.sku) + ลำดับ (เครื่อง 1 = base = variant SKU)
+          stockCode: deviceCode(d.sku, j) || undefined,
           imei: blank(it.imei),
           condition: it.condition,
           batteryHealth: it.condition === 'NEW'
@@ -867,7 +875,7 @@ export function ProductRegisterPage() {
                                   setValue={setValue} getValues={getValues}
                                   onRemove={() => fields.length > 1 ? remove(idx) : null}
                                   disableRemove={fields.length === 1}
-                                  unitLabel="เครื่อง" />
+                                  unitLabel="เครื่อง" baseSku={skuVal} />
                       ))}
                       <button type="button"
                               onClick={() => append(nextItemDefaults())}
@@ -892,7 +900,10 @@ export function ProductRegisterPage() {
             <span className="text-xs text-slate-500">— รหัสสินค้า · บาร์โค้ด · ล็อต</span>
           </div>
           <div className="card-body space-y-5">
-              <FieldRow label="รหัสสินค้า" autoBadge hint="ระบบออกเลข running ให้อัตโนมัติ (DD00001, DD00002, ...) ไม่ซ้ำเลย — แก้เองได้">
+              {/* มือถือ: รหัสสินค้าเป็น "รายเครื่อง" (DD running) แสดงในส่วนที่ 3 แล้ว → ซ่อนที่นี่
+                  อุปกรณ์เสริม: รหัสระดับรุ่น (bulk รหัสเดียว) → โชว์ */}
+              {productKind === 'accessory' && (
+              <FieldRow label="รหัสสินค้า" autoBadge hint="ระบบออกเลข running ให้อัตโนมัติ (DD00001, ...) ไม่ซ้ำเลย — แก้เองได้">
                 <div className="relative">
                   <input className={`input pr-10 font-mono ${
                     skuStatus === 'taken' ? 'border-red-400 focus:border-red-500 focus:ring-red-500/15'
@@ -914,6 +925,7 @@ export function ProductRegisterPage() {
                 )}
                 {skuStatus === 'available' && <p className="mt-1 text-xs font-medium text-emerald-600">รหัสนี้ใช้ได้</p>}
               </FieldRow>
+              )}
 
               {/* บาร์โค้ด: มือถือใช้ IMEI เป็นบาร์โค้ดอยู่แล้ว → โชว์เฉพาะอุปกรณ์เสริม */}
               {productKind !== 'phone' && (
@@ -1098,7 +1110,7 @@ function ImageDropZone({
 /* ─── card 1 เครื่อง (มือถือ-friendly) ─────────────────────────────────── */
 
 function ItemCard({
-  idx, register, control, setValue, getValues, onRemove, disableRemove, unitLabel = 'เครื่อง',
+  idx, register, control, setValue, getValues, onRemove, disableRemove, unitLabel = 'เครื่อง', baseSku = '',
 }: {
   idx: number;
   register: UseFormRegister<FormValues>;
@@ -1109,6 +1121,8 @@ function ItemCard({
   disableRemove: boolean;
   /** ป้ายหน่วยที่จะแสดงในหัว card — "เครื่อง" สำหรับมือถือ, "ชิ้น" สำหรับอุปกรณ์เสริม */
   unitLabel?: string;
+  /** รหัส running ตัวแรก (base) — รหัสเครื่องนี้ = base + idx */
+  baseSku?: string;
 }) {
   const condition = useWatch({ control, name: `items.${idx}.condition` }) ?? 'NEW';
 
@@ -1128,7 +1142,14 @@ function ItemCard({
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-3 transition-shadow hover:shadow-sm">
       <div className="mb-2 flex items-center justify-between">
-        <span className="text-xs font-bold text-slate-500">{unitLabel}ที่ {idx + 1}</span>
+        <span className="flex items-center gap-2 text-xs font-bold text-slate-500">
+          {unitLabel}ที่ {idx + 1}
+          {baseSku && deviceCode(baseSku, idx) && (
+            <span className="rounded bg-brand-100 px-1.5 py-0.5 font-mono text-[11px] text-brand-700">
+              รหัส: {deviceCode(baseSku, idx)}
+            </span>
+          )}
+        </span>
         <button type="button" disabled={disableRemove} onClick={onRemove}
                 className="rounded p-1 text-red-500 transition-colors hover:bg-red-50 disabled:opacity-30"
                 title={`ลบ${unitLabel}`}>
