@@ -445,12 +445,17 @@ export function ProductRegisterPage() {
      → iPhone เลือกได้เลยตั้งแต่วันแรก · รุ่นอื่นโตเองตามการใช้งาน · ยังพิมพ์ค่าใหม่ได้อิสระ */
   const modelNameOptions = useMemo(() => {
     // เครื่อง → รุ่น iPhone · อุปกรณ์เสริม → รายการ Apple accessory ยอดนิยม (เลือกง่าย format ตรงกัน)
-    const base = productKind === 'accessory' ? ACCESSORY_MODELS : IPHONE_MODELS;
+    const isAccessory = productKind === 'accessory';
+    const base = isAccessory ? ACCESSORY_MODELS : IPHONE_MODELS;
     const seen = new Set<string>(base);
+    // โหมดอุปกรณ์เสริม: ตัดชื่อรุ่น iPhone ที่เคยสร้างออกจาก suggestion (ไม่ให้ปนในรายการอุปกรณ์เสริม)
+    const phoneNames = new Set<string>(IPHONE_MODELS);
     const extras: string[] = [];
     for (const product of productPage?.content ?? []) {
       const nm = product.name?.trim();
-      if (nm && !seen.has(nm)) { seen.add(nm); extras.push(nm); }
+      if (!nm || seen.has(nm)) continue;
+      if (isAccessory && (phoneNames.has(nm) || /^iphone/i.test(nm))) continue;
+      seen.add(nm); extras.push(nm);
     }
     return [...base, ...extras.sort()];
   }, [productPage, productKind]);
