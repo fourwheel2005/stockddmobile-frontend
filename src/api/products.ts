@@ -46,6 +46,10 @@ export const productsApi = {
   lookupVariant: (q: string) =>
     api.get<VariantResponse>('/products/variants/lookup', { params: { q } }).then((r) => r.data),
 
+  /** รหัสสินค้า running ตัวถัดไป (DDxxxxx) */
+  nextSku: () =>
+    api.get<{ sku: string }>('/products/variants/next-sku').then((r) => r.data),
+
   /** Fuzzy search — Unified Receive Page */
   searchVariants: (q: string, page = 0, size = 20) =>
     api

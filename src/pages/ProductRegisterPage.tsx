@@ -121,11 +121,8 @@ function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-/** SKU = ชื่อรุ่นล้วน (1 รุ่น = 1 SKU) — สี/ความจุ/เครือข่าย เป็น attribute รายเครื่อง
- *  จึงไม่อยู่ใน SKU. ตรงกับข้อมูล import (variant แบบ model-based). */
-function generateSku(name: string): string {
-  return name.trim().toUpperCase().replace(/[^A-Z0-9]+/g, '').slice(0, 20);
-}
+/* รหัสสินค้า (SKU) = running number "DDxxxxx" ออกจาก backend (/products/variants/next-sku)
+   sequential ไม่ซ้ำเลย — ไม่ผูกกับชื่อรุ่นอีกต่อไป */
 
 /* ══════════════════════════════════════════════════════════════════════ */
 
@@ -182,7 +179,7 @@ export function ProductRegisterPage() {
       modelNumber: sourceProduct.modelNumber ?? '',
       description: sourceProduct.description ?? '',
       serialized: sourceProduct.serialized,
-      sku: '',                                                   // clear — auto-gen ใหม่ (ห้ามซ้ำ)
+      sku: getValues('sku'),                                     // คงเลข running ที่ระบบออกให้ (ห้ามซ้ำ source)
       barcode: '',                                               // clear — unique constraint
       costPrice: sv?.costPrice ?? '',
       sellingPrice: sv?.sellingPrice ?? '',
@@ -232,54 +229,43 @@ export function ProductRegisterPage() {
   const profit = sell - cost;
   const margin = cost > 0 ? (profit / cost) * 100 : 0;
 
-  /* SKU auto-gen (= ชื่อรุ่น) + lock เมื่อผู้ใช้พิมพ์เอง.
-     ประกันย้ายไปรายเครื่อง (auto-fill ตามสภาพแต่ละแถวใน ItemCard). */
+  /* รหัสสินค้า = running number "DDxxxxx" (sequential — ไม่ซ้ำเลย) จาก backend.
+     โหลดเลขถัดไปมาเป็นค่าเริ่มต้น · lock เมื่อผู้ใช้พิมพ์เอง. */
   const lastAutoSkuRef = useRef('');
+  const nextSkuQuery = useQuery({
+    queryKey: ['next-sku'],
+    queryFn: () => productsApi.nextSku(),
+    staleTime: 0,
+    gcTime: 0,
+  });
   useEffect(() => {
-    const suggested = generateSku(name || '');
+    const sku = nextSkuQuery.data?.sku;
+    if (!sku) return;
     const current = getValues('sku');
     if (current === '' || current === lastAutoSkuRef.current) {
-      setValue('sku', suggested, { shouldDirty: false });
-      lastAutoSkuRef.current = suggested;
+      setValue('sku', sku, { shouldDirty: false });
+      lastAutoSkuRef.current = sku;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [name]);
+  }, [nextSkuQuery.data]);
 
-  /* Algorithm หา "รหัสสินค้าที่ยังไม่ซ้ำ": ลอง base, base-2, base-3, ... (query เช็คทีละตัว)
-     lookupVariant → resolve = มีแล้ว(ลองต่อ) · throw(404) = ว่าง(ใช้ได้). fallback timestamp กันลูปไม่จบ */
-  const findAvailableSku = async (base: string): Promise<string> => {
-    if (!base) return base;
-    for (let i = 1; i <= 99; i++) {
-      const candidate = i === 1 ? base : `${base}-${i}`;
-      try { await productsApi.lookupVariant(candidate); }   // เจอ = ใช้แล้ว
-      catch { return candidate; }                           // 404 = ว่าง
-    }
-    return `${base}-${Date.now().toString().slice(-4)}`;
-  };
-
-  /* Live SKU check + auto-uniquify เมื่อรหัส auto-gen ชนของเดิม */
+  /* Live SKU check — ถ้ารหัส running ชน (race) → ขอเลขใหม่จาก backend อัตโนมัติ */
   const [skuStatus, setSkuStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
-  const [skuAutoFixed, setSkuAutoFixed] = useState(false);
   useEffect(() => {
-    if (!skuVal || skuVal.length < 3) { setSkuStatus('idle'); setSkuAutoFixed(false); return; }
+    if (!skuVal || skuVal.length < 3) { setSkuStatus('idle'); return; }
     setSkuStatus('checking');
     const t = setTimeout(async () => {
       try {
         await productsApi.lookupVariant(skuVal);
         // ── รหัสซ้ำ ──
         if (skuVal === lastAutoSkuRef.current) {
-          // เป็นรหัสที่ระบบ gen เอง → หาเลขว่างให้อัตโนมัติ (ไม่ block user)
-          const unique = await findAvailableSku(generateSku(getValues('name') || ''));
-          if (unique && unique !== skuVal) {
-            lastAutoSkuRef.current = unique;
-            setSkuAutoFixed(true);
-            setValue('sku', unique, { shouldDirty: false });  // → effect re-run → available
-          } else {
-            setSkuStatus('taken');
-          }
+          const fresh = await productsApi.nextSku();        // ขอเลข running ใหม่
+          if (fresh.sku && fresh.sku !== skuVal) {
+            lastAutoSkuRef.current = fresh.sku;
+            setValue('sku', fresh.sku, { shouldDirty: false });  // → re-check → available
+          } else { setSkuStatus('taken'); }
         } else {
           setSkuStatus('taken');   // user พิมพ์รหัสเอง → ให้แก้เอง
-          setSkuAutoFixed(false);
         }
       } catch { setSkuStatus('available'); }
     }, 400);
@@ -897,7 +883,7 @@ export function ProductRegisterPage() {
             <span className="text-xs text-slate-500">— รหัสสินค้า · บาร์โค้ด · ล็อต</span>
           </div>
           <div className="card-body space-y-5">
-              <FieldRow label="รหัสสินค้า" autoBadge hint="ระบบสร้างจากชื่อรุ่น · ถ้าซ้ำของเดิม ระบบเติมเลขท้ายให้อัตโนมัติ (ไม่ซ้ำ) — แก้เองได้">
+              <FieldRow label="รหัสสินค้า" autoBadge hint="ระบบออกเลข running ให้อัตโนมัติ (DD00001, DD00002, ...) ไม่ซ้ำเลย — แก้เองได้">
                 <div className="relative">
                   <input className={`input pr-10 font-mono ${
                     skuStatus === 'taken' ? 'border-red-400 focus:border-red-500 focus:ring-red-500/15'
@@ -917,11 +903,7 @@ export function ProductRegisterPage() {
                     (ไม่ต้องลงทะเบียนใหม่) · หรือเปลี่ยนรหัสถ้าเป็น<strong>รุ่นใหม่จริง</strong>
                   </p>
                 )}
-                {skuStatus === 'available' && (
-                  <p className="mt-1 text-xs font-medium text-emerald-600">
-                    {skuAutoFixed ? 'รหัสเดิมซ้ำ — ระบบปรับเป็นเลขใหม่ที่ไม่ซ้ำให้แล้ว ✓' : 'รหัสนี้ใช้ได้'}
-                  </p>
-                )}
+                {skuStatus === 'available' && <p className="mt-1 text-xs font-medium text-emerald-600">รหัสนี้ใช้ได้</p>}
               </FieldRow>
 
               {/* บาร์โค้ด: มือถือใช้ IMEI เป็นบาร์โค้ดอยู่แล้ว → โชว์เฉพาะอุปกรณ์เสริม */}
