@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Search, Smartphone, X } from 'lucide-react';
+import { Search, Smartphone, X, ChevronRight, ChevronDown } from 'lucide-react';
 import { inventoryApi } from '@/api/inventory';
 import { SerialsModal } from '@/components/SerialsModal';
 import { formatNumber, formatDateTime } from '@/lib/format';
@@ -27,25 +27,35 @@ export function InventoryPage() {
   const [lowStockOnly, setLowStockOnly] = useState(false);
   const [condition, setCondition] = useState<ConditionFilter>('');
   const [deviceStatus, setDeviceStatus] = useState('');
+  const [deviceSearchInput, setDeviceSearchInput] = useState('');  // input ดิบ
+  const [deviceQ, setDeviceQ] = useState('');                      // debounced → ส่ง query
   const [searchQuery, setSearchQuery] = useState('');
   const [foundDevice, setFoundDevice] = useState<SerializedItemResponse | null>(null);
   const [notFound, setNotFound] = useState<string | null>(null);
   const [serialsFor, setSerialsFor] = useState<{ variantId: string; productName: string; sku: string; highlightId?: string } | null>(null);
 
+  // มุมมองรวมรุ่น — ดึงมาทั้งหมด (ร้านมี variant ไม่กี่สิบ) แล้ว group ตามชื่อรุ่นฝั่ง client
   const { data, isLoading } = useQuery({
-    queryKey: ['inventory', { page, lowStockOnly, condition }],
+    queryKey: ['inventory', { lowStockOnly, condition }],
     enabled: viewMode === 'variant',
-    queryFn: () => inventoryApi.list({ page, size: 20, lowStockOnly, condition: condition || undefined }),
+    queryFn: () => inventoryApi.list({ page: 0, size: 500, lowStockOnly, condition: condition || undefined }),
   });
 
-  // มุมมองรายเครื่อง (flat ทุกรุ่น) — filter ตาม condition (chips) + status
+  // debounce ค้นหาเครื่อง (IMEI/Serial/รหัส/รุ่น) — ค้นข้ามทุกสถานะรวมเครื่องที่ขายแล้ว
+  useEffect(() => {
+    const t = setTimeout(() => { setDeviceQ(deviceSearchInput.trim()); setPage(0); }, 350);
+    return () => clearTimeout(t);
+  }, [deviceSearchInput]);
+
+  // มุมมองรายเครื่อง (flat ทุกรุ่น) — filter ตาม condition (chips) + status + คำค้น
   const { data: devices, isLoading: devicesLoading } = useQuery({
-    queryKey: ['inventory-serials', { page, condition, deviceStatus }],
+    queryKey: ['inventory-serials', { page, condition, deviceStatus, deviceQ }],
     enabled: viewMode === 'device',
     queryFn: () => inventoryApi.listSerials({
       page, size: 50,
       condition: condition || undefined,
       status: deviceStatus || undefined,
+      q: deviceQ || undefined,
     }),
   });
 
@@ -56,6 +66,27 @@ export function InventoryPage() {
 
   const pickCondition = (c: ConditionFilter) => { setCondition(c); setPage(0); };
   const pickView = (v: ViewMode) => { setViewMode(v); setPage(0); };
+
+  // group variant ตามชื่อรุ่น (iPhone 13 ที่กระจายหลาย variant → รวมเป็นหมวดเดียว)
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const toggleGroup = (key: string) =>
+    setExpanded((prev) => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
+
+  const groups = useMemo(() => {
+    const rows = data?.content ?? [];
+    const map = new Map<string, { name: string; rows: typeof rows; quantity: number; reservedQty: number; availableQty: number; lowStock: boolean }>();
+    for (const r of rows) {
+      const key = (r.productName ?? r.sku).trim().toLowerCase();
+      const g = map.get(key) ?? { name: r.productName ?? r.sku, rows: [], quantity: 0, reservedQty: 0, availableQty: 0, lowStock: false };
+      g.rows.push(r);
+      g.quantity += r.quantity;
+      g.reservedQty += r.reservedQty;
+      g.availableQty += r.availableQty;
+      g.lowStock = g.lowStock || r.lowStock;
+      map.set(key, g);
+    }
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [data]);
 
   const handleLookup = async () => {
     const q = searchQuery.trim();
@@ -226,9 +257,19 @@ export function InventoryPage() {
       {viewMode === 'device' && (
       <div className="card">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-5 py-2 text-sm">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              className="input w-64 pl-8"
+              placeholder="ค้นหา IMEI / Serial / รหัส / รุ่น (รวมที่ขายแล้ว)"
+              value={deviceSearchInput}
+              onChange={(e) => setDeviceSearchInput(e.target.value)}
+            />
+          </div>
           <span className="text-slate-600">
             {condition ? <>กรองเฉพาะ <span className="font-semibold">{condition === 'NEW' ? 'มือ 1' : 'มือ 2'}</span> · </> : null}
-            แสดงเครื่องทีละตัว {devices ? `(${formatNumber(devices.totalElements)} เครื่อง)` : ''}
+            {devices ? `${formatNumber(devices.totalElements)} เครื่อง` : ''}
           </span>
           <select className="input w-44" value={deviceStatus}
                   onChange={(e) => { setDeviceStatus(e.target.value); setPage(0); }}>
@@ -322,65 +363,84 @@ export function InventoryPage() {
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
               <tr>
-                <th className="px-5 py-2.5">SKU</th>
-                <th className="px-5 py-2.5">Product</th>
-                <th className="px-5 py-2.5">Variant</th>
+                <th className="px-5 py-2.5">รุ่น / รหัส</th>
+                <th className="px-5 py-2.5">รายละเอียด</th>
                 <th className="px-5 py-2.5 text-right">Qty</th>
-                <th className="px-5 py-2.5 text-right">Reserved</th>
-                <th className="px-5 py-2.5 text-right">Available</th>
-                <th className="px-5 py-2.5 text-right">Reorder</th>
-                <th className="px-5 py-2.5">Status</th>
-                <th className="px-5 py-2.5">Updated</th>
+                <th className="px-5 py-2.5 text-right">จอง</th>
+                <th className="px-5 py-2.5 text-right">พร้อมขาย</th>
+                <th className="px-5 py-2.5">สถานะ</th>
                 <th className="px-5 py-2.5 text-right">เครื่อง</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {isLoading && (
-                <tr><td colSpan={10} className="px-5 py-8 text-center text-slate-400">กำลังโหลด...</td></tr>
+                <tr><td colSpan={7} className="px-5 py-8 text-center text-slate-400">กำลังโหลด...</td></tr>
               )}
-              {data?.content.map((row) => (
-                <tr key={row.variantId} className="hover:bg-slate-50">
-                  <td className="px-5 py-3 font-mono text-xs">{row.sku}</td>
-                  <td className="px-5 py-3 font-medium">{row.productName}</td>
-                  <td className="px-5 py-3 text-slate-600">
-                    {[row.color, row.storage].filter(Boolean).join(' / ') || '-'}
-                  </td>
-                  <td className="px-5 py-3 text-right font-semibold">{formatNumber(row.quantity)}</td>
-                  <td className="px-5 py-3 text-right text-slate-500">{formatNumber(row.reservedQty)}</td>
-                  <td className="px-5 py-3 text-right text-slate-700">{formatNumber(row.availableQty)}</td>
-                  <td className="px-5 py-3 text-right text-slate-500">{formatNumber(row.reorderPoint)}</td>
-                  <td className="px-5 py-3">
-                    {row.lowStock ? <span className="badge-amber">Low Stock</span> : <span className="badge-green">OK</span>}
-                  </td>
-                  <td className="px-5 py-3 text-xs text-slate-500">{formatDateTime(row.updatedAt)}</td>
-                  <td className="px-5 py-3 text-right">
-                    <button
-                      className="rounded p-1.5 text-brand-600 hover:bg-brand-50"
-                      title="ดูเครื่องทีละชิ้น (IMEI) + ส่งซ่อม/เคลม"
-                      onClick={() => setSerialsFor({
-                        variantId: row.variantId, productName: row.productName, sku: row.sku,
-                      })}>
-                      <Smartphone className="h-4 w-4" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {data && data.content.length === 0 && (
-                <tr><td colSpan={10} className="px-5 py-8 text-center text-slate-400">ไม่พบข้อมูล</td></tr>
+              {groups.map((g) => {
+                const key = g.name.trim().toLowerCase();
+                const isOpen = expanded.has(key) || g.rows.length === 1;
+                const single = g.rows.length === 1;
+                return (
+                  <Fragment key={key}>
+                    {/* แถวหัวกลุ่ม (รุ่น) — รวม qty ของทุก variant ในรุ่นนี้ */}
+                    <tr className={`hover:bg-slate-50 ${single ? '' : 'cursor-pointer bg-slate-50/40'}`}
+                        onClick={() => !single && toggleGroup(key)}>
+                      <td className="px-5 py-3 font-semibold">
+                        <span className="inline-flex items-center gap-1.5">
+                          {!single && (isOpen ? <ChevronDown className="h-4 w-4 text-slate-400" /> : <ChevronRight className="h-4 w-4 text-slate-400" />)}
+                          {single && <span className="inline-block w-4" />}
+                          {g.name}
+                          {!single && <span className="rounded-full bg-slate-200 px-1.5 text-[11px] font-medium text-slate-600">{g.rows.length} รหัส</span>}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3 text-slate-500">{single ? (g.rows[0].sku) : <span className="text-xs">รวมทุกรหัส</span>}</td>
+                      <td className="px-5 py-3 text-right font-bold">{formatNumber(g.quantity)}</td>
+                      <td className="px-5 py-3 text-right text-slate-500">{formatNumber(g.reservedQty)}</td>
+                      <td className="px-5 py-3 text-right text-slate-700">{formatNumber(g.availableQty)}</td>
+                      <td className="px-5 py-3">
+                        {g.lowStock ? <span className="badge-amber">ของน้อย</span> : <span className="badge-green">OK</span>}
+                      </td>
+                      <td className="px-5 py-3 text-right">
+                        {single && (
+                          <button
+                            className="rounded p-1.5 text-brand-600 hover:bg-brand-50"
+                            title="ดูเครื่องทีละชิ้น (IMEI) + ส่งซ่อม/เคลม"
+                            onClick={(e) => { e.stopPropagation(); setSerialsFor({ variantId: g.rows[0].variantId, productName: g.rows[0].productName, sku: g.rows[0].sku }); }}>
+                            <Smartphone className="h-4 w-4" />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                    {/* แถวย่อย variant (เมื่อขยาย) */}
+                    {!single && isOpen && g.rows.map((row) => (
+                      <tr key={row.variantId} className="hover:bg-slate-50">
+                        <td className="px-5 py-2 pl-12 font-mono text-xs text-slate-600">{row.sku}</td>
+                        <td className="px-5 py-2 text-slate-600">{[row.color, row.storage].filter(Boolean).join(' / ') || '-'}</td>
+                        <td className="px-5 py-2 text-right">{formatNumber(row.quantity)}</td>
+                        <td className="px-5 py-2 text-right text-slate-500">{formatNumber(row.reservedQty)}</td>
+                        <td className="px-5 py-2 text-right text-slate-700">{formatNumber(row.availableQty)}</td>
+                        <td className="px-5 py-2">
+                          {row.lowStock ? <span className="badge-amber">ของน้อย</span> : <span className="badge-green">OK</span>}
+                        </td>
+                        <td className="px-5 py-2 text-right">
+                          <button
+                            className="rounded p-1.5 text-brand-600 hover:bg-brand-50"
+                            title="ดูเครื่องทีละชิ้น (IMEI) + ส่งซ่อม/เคลม"
+                            onClick={() => setSerialsFor({ variantId: row.variantId, productName: row.productName, sku: row.sku })}>
+                            <Smartphone className="h-4 w-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </Fragment>
+                );
+              })}
+              {data && groups.length === 0 && (
+                <tr><td colSpan={7} className="px-5 py-8 text-center text-slate-400">ไม่พบข้อมูล</td></tr>
               )}
             </tbody>
           </table>
         </div>
-
-        {data && data.totalPages > 1 && (
-          <div className="flex items-center justify-between border-t border-slate-200 px-5 py-3 text-sm">
-            <div>หน้า {data.page + 1} / {data.totalPages} ({formatNumber(data.totalElements)} รายการ)</div>
-            <div className="flex gap-2">
-              <button className="btn-secondary" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>ก่อนหน้า</button>
-              <button className="btn-secondary" disabled={data.last} onClick={() => setPage((p) => p + 1)}>ถัดไป</button>
-            </div>
-          </div>
-        )}
       </div>
       )}
 
