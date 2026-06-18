@@ -27,6 +27,10 @@ export const inventoryApi = {
   getSerials: (variantId: string, params: { status?: string; page?: number; size?: number } = {}) =>
     api.get<PageResponse<SerializedItemResponse>>(`/inventory/${variantId}/serials`, { params }).then((r) => r.data),
 
+  /** มุมมองรายเครื่อง (flat ทุกรุ่น) สำหรับหน้า Stock */
+  listSerials: (params: { status?: string; condition?: 'NEW' | 'SECOND_HAND'; q?: string; page?: number; size?: number } = {}) =>
+    api.get<PageResponse<SerializedItemResponse>>('/inventory/serials', { params }).then((r) => r.data),
+
   lookupSerial: (q: string) =>
     api.get<SerializedItemResponse>('/inventory/serials/lookup', { params: { q } }).then((r) => r.data),
 

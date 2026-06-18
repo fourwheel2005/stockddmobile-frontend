@@ -238,6 +238,7 @@ export interface SerializedItemResponse {
   id: string;
   variantId: string;
   sku: string;
+  productName: string | null;
   imei: string | null;
   imei2: string | null;
   serialNumber: string;

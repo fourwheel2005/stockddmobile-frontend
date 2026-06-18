@@ -15,11 +15,18 @@ const STATUS_LABEL: Record<string, { text: string; cls: string }> = {
 };
 
 type ConditionFilter = '' | 'NEW' | 'SECOND_HAND';
+type ViewMode = 'device' | 'variant';
+
+const CONDITION_TH: Record<string, string> = {
+  NEW: 'มือ 1', SECOND_HAND: 'มือ 2', LIKE_NEW: 'สภาพดี', REFURBISHED: 'รีเฟอร์บ', DEFECTIVE: 'ชำรุด',
+};
 
 export function InventoryPage() {
+  const [viewMode, setViewMode] = useState<ViewMode>('device');
   const [page, setPage] = useState(0);
   const [lowStockOnly, setLowStockOnly] = useState(false);
   const [condition, setCondition] = useState<ConditionFilter>('');
+  const [deviceStatus, setDeviceStatus] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [foundDevice, setFoundDevice] = useState<SerializedItemResponse | null>(null);
   const [notFound, setNotFound] = useState<string | null>(null);
@@ -27,7 +34,19 @@ export function InventoryPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['inventory', { page, lowStockOnly, condition }],
+    enabled: viewMode === 'variant',
     queryFn: () => inventoryApi.list({ page, size: 20, lowStockOnly, condition: condition || undefined }),
+  });
+
+  // มุมมองรายเครื่อง (flat ทุกรุ่น) — filter ตาม condition (chips) + status
+  const { data: devices, isLoading: devicesLoading } = useQuery({
+    queryKey: ['inventory-serials', { page, condition, deviceStatus }],
+    enabled: viewMode === 'device',
+    queryFn: () => inventoryApi.listSerials({
+      page, size: 50,
+      condition: condition || undefined,
+      status: deviceStatus || undefined,
+    }),
   });
 
   const { data: summary } = useQuery({
@@ -36,6 +55,7 @@ export function InventoryPage() {
   });
 
   const pickCondition = (c: ConditionFilter) => { setCondition(c); setPage(0); };
+  const pickView = (v: ViewMode) => { setViewMode(v); setPage(0); };
 
   const handleLookup = async () => {
     const q = searchQuery.trim();
@@ -182,7 +202,115 @@ export function InventoryPage() {
         </button>
       </div>
 
-      {/* Table */}
+      {/* View toggle: รายเครื่อง / รวมรุ่น */}
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => pickView('device')}
+          className={`rounded-md border px-4 py-1.5 text-sm font-medium ${
+            viewMode === 'device' ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-slate-200 hover:bg-slate-50'
+          }`}>
+          📱 รายเครื่อง (ทีละตัว)
+        </button>
+        <button
+          type="button"
+          onClick={() => pickView('variant')}
+          className={`rounded-md border px-4 py-1.5 text-sm font-medium ${
+            viewMode === 'variant' ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-slate-200 hover:bg-slate-50'
+          }`}>
+          📦 รวมรุ่น (สรุปสต็อก)
+        </button>
+      </div>
+
+      {/* มุมมองรายเครื่อง — เครื่องทีละตัว (รหัส DD + IMEI + สถานะ) */}
+      {viewMode === 'device' && (
+      <div className="card">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-5 py-2 text-sm">
+          <span className="text-slate-600">
+            {condition ? <>กรองเฉพาะ <span className="font-semibold">{condition === 'NEW' ? 'มือ 1' : 'มือ 2'}</span> · </> : null}
+            แสดงเครื่องทีละตัว {devices ? `(${formatNumber(devices.totalElements)} เครื่อง)` : ''}
+          </span>
+          <select className="input w-44" value={deviceStatus}
+                  onChange={(e) => { setDeviceStatus(e.target.value); setPage(0); }}>
+            <option value="">ทุกสถานะ</option>
+            <option value="IN_STOCK">พร้อมขาย</option>
+            <option value="RESERVED">จองแล้ว</option>
+            <option value="SOLD">ขายแล้ว</option>
+            <option value="DEFECTIVE">ชำรุด/ซ่อม</option>
+            <option value="RETURNED">คืนแล้ว</option>
+          </select>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+              <tr>
+                <th className="px-5 py-2.5">รหัสสินค้า</th>
+                <th className="px-5 py-2.5">ชื่อรุ่น</th>
+                <th className="px-5 py-2.5">สี / ความจุ</th>
+                <th className="px-5 py-2.5">IMEI / SN</th>
+                <th className="px-5 py-2.5">สภาพ</th>
+                <th className="px-5 py-2.5">สถานะ</th>
+                <th className="px-5 py-2.5">รับเข้า</th>
+                <th className="px-5 py-2.5 text-right"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {devicesLoading && (
+                <tr><td colSpan={8} className="px-5 py-8 text-center text-slate-400">กำลังโหลด...</td></tr>
+              )}
+              {devices?.content.map((s) => {
+                const st = STATUS_LABEL[s.status] ?? { text: s.status, cls: 'badge-green' };
+                return (
+                  <tr key={s.id} className="hover:bg-slate-50">
+                    <td className="px-5 py-3">
+                      <span className="rounded bg-brand-100 px-1.5 font-mono text-xs font-semibold text-brand-700">
+                        {s.stockCode ?? '—'}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3 font-medium">{s.productName ?? s.sku}</td>
+                    <td className="px-5 py-3 text-slate-600">
+                      {[s.deviceColor, s.deviceStorage].filter(Boolean).join(' / ') || '-'}
+                    </td>
+                    <td className="px-5 py-3">
+                      <div className="font-mono text-xs">{s.imei ?? '-'}</div>
+                      <div className="font-mono text-xs text-slate-400">{s.serialNumber}</div>
+                    </td>
+                    <td className="px-5 py-3 text-xs">{CONDITION_TH[s.condition] ?? s.condition}</td>
+                    <td className="px-5 py-3"><span className={st.cls}>{st.text}</span></td>
+                    <td className="px-5 py-3 text-xs text-slate-500">{formatDateTime(s.receivedAt)}</td>
+                    <td className="px-5 py-3 text-right">
+                      <button
+                        className="rounded p-1.5 text-brand-600 hover:bg-brand-50"
+                        title="ดูรุ่นนี้ + จัดการเครื่อง"
+                        onClick={() => setSerialsFor({
+                          variantId: s.variantId, productName: s.productName ?? s.sku, sku: s.sku, highlightId: s.id,
+                        })}>
+                        <Smartphone className="h-4 w-4" />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+              {devices && devices.content.length === 0 && (
+                <tr><td colSpan={8} className="px-5 py-8 text-center text-slate-400">ไม่พบเครื่อง</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        {devices && devices.totalPages > 1 && (
+          <div className="flex items-center justify-between border-t border-slate-200 px-5 py-3 text-sm">
+            <div>หน้า {devices.page + 1} / {devices.totalPages} ({formatNumber(devices.totalElements)} เครื่อง)</div>
+            <div className="flex gap-2">
+              <button className="btn-secondary" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>ก่อนหน้า</button>
+              <button className="btn-secondary" disabled={devices.last} onClick={() => setPage((p) => p + 1)}>ถัดไป</button>
+            </div>
+          </div>
+        )}
+      </div>
+      )}
+
+      {/* Table — รวมรุ่น (variant aggregate) */}
+      {viewMode === 'variant' && (
       <div className="card">
         {condition && (
           <div className="flex items-center justify-between border-b border-slate-100 px-5 py-2 text-sm text-slate-600">
@@ -254,6 +382,7 @@ export function InventoryPage() {
           </div>
         )}
       </div>
+      )}
 
       {serialsFor && (
         <SerialsModal

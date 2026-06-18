@@ -15,7 +15,7 @@ export const posApi = {
   checkout: (req: CheckoutRequest) =>
     api.post<SalesOrderResponse>('/pos/checkout', req).then((r) => r.data),
 
-  listOrders: (params: { status?: SalesOrderStatus; page?: number; size?: number } = {}) =>
+  listOrders: (params: { status?: SalesOrderStatus; from?: string; to?: string; page?: number; size?: number } = {}) =>
     api.get<PageResponse<SalesOrderResponse>>('/pos/orders', { params }).then((r) => r.data),
 
   getOrder: (id: string) =>

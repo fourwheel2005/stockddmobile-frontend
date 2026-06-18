@@ -33,12 +33,18 @@ const PRESETS: Array<{ label: string; days: number }> = [
 
 export function ReportsPage() {
   const today = useMemo(() => new Date(), []);
-  const [days, setDays] = useState(30);
-  const range = useMemo(() => {
-    const from = new Date(today);
-    from.setDate(from.getDate() - (days - 1));
-    return { from: isoDate(from), to: isoDate(today) };
-  }, [days, today]);
+  // days = preset ที่ active (null = เลือกวันที่เอง) · from/to = source of truth
+  const [days, setDays] = useState<number | null>(30);
+  const [from, setFrom] = useState(() => {
+    const d = new Date(today); d.setDate(d.getDate() - 29); return isoDate(d);
+  });
+  const [to, setTo] = useState(() => isoDate(today));
+  const range = useMemo(() => ({ from, to }), [from, to]);
+
+  const applyPreset = (d: number) => {
+    const f = new Date(today); f.setDate(f.getDate() - (d - 1));
+    setDays(d); setFrom(isoDate(f)); setTo(isoDate(today));
+  };
 
   const summary       = useQuery({ queryKey: ['report-summary', range],     queryFn: () => reportsApi.summary(range) });
   const daily         = useQuery({ queryKey: ['report-daily', range],       queryFn: () => reportsApi.salesByDay(range) });
@@ -57,14 +63,25 @@ export function ReportsPage() {
             ยอดขาย, กำไร, สินค้าขายดี — ช่วง {range.from} ถึง {range.to}
           </p>
         </div>
-        <div className="flex gap-2">
-          {PRESETS.map((p) => (
-            <button key={p.days}
-                    className={days === p.days ? 'btn-primary' : 'btn-secondary'}
-                    onClick={() => setDays(p.days)}>
-              {p.label}
-            </button>
-          ))}
+        <div className="flex flex-col items-end gap-2">
+          <div className="flex flex-wrap gap-2">
+            {PRESETS.map((p) => (
+              <button key={p.days}
+                      className={days === p.days ? 'btn-primary' : 'btn-secondary'}
+                      onClick={() => applyPreset(p.days)}>
+                {p.label}
+              </button>
+            ))}
+          </div>
+          {/* เลือกช่วงวันที่เอง */}
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <span className="text-slate-500">วันที่:</span>
+            <input type="date" className="input w-40" value={from} max={to}
+                   onChange={(e) => { setDays(null); setFrom(e.target.value); }} />
+            <span className="text-slate-400">ถึง</span>
+            <input type="date" className="input w-40" value={to} min={from} max={isoDate(today)}
+                   onChange={(e) => { setDays(null); setTo(e.target.value); }} />
+          </div>
         </div>
       </div>
 
