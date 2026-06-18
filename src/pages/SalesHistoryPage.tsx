@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { Receipt, Printer, Undo2, Landmark, CheckCircle2, Clock, XCircle, PackageOpen } from 'lucide-react';
+import { Receipt, Printer, Undo2, Landmark, CheckCircle2, Clock, XCircle, PackageOpen, Search } from 'lucide-react';
 import { posApi } from '@/api/pos';
+import { SalesCalendar } from '@/components/SalesCalendar';
 import { extractErrorMessage } from '@/api/client';
 import { useAuthStore } from '@/stores/authStore';
 import { ReceiptPrintView } from '@/components/ReceiptPrintView';
@@ -54,19 +55,27 @@ export function SalesHistoryPage() {
   const canRefund = useAuthStore((s) => s.hasRole('ADMIN', 'MANAGER'));
   const [page, setPage] = useState(0);
   const [status, setStatus] = useState<SalesOrderStatus | ''>('');
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  const [day, setDay] = useState<string | null>(null);   // วันที่เลือกจากปฏิทิน (YYYY-MM-DD)
+  const [search, setSearch] = useState('');              // input ดิบ
+  const [q, setQ] = useState('');                        // debounced → ส่ง query
   const [printOrder, setPrintOrder] = useState<SalesOrderResponse | null>(null);
   const [refundOrder, setRefundOrder] = useState<SalesOrderResponse | null>(null);
   const [returnOrder, setReturnOrder] = useState<SalesOrderResponse | null>(null);
 
+  // debounce คำค้น (เลขบิล/ลูกค้า)
+  useEffect(() => {
+    const t = setTimeout(() => { setQ(search.trim()); setPage(0); }, 350);
+    return () => clearTimeout(t);
+  }, [search]);
+
   const { data, isLoading } = useQuery({
-    queryKey: ['sales-orders', { page, status, from, to }],
+    queryKey: ['sales-orders', { page, status, day, q }],
     queryFn: () => posApi.listOrders({
       page, size: 50,
       status: status || undefined,
-      from: from || undefined,
-      to: to || undefined,
+      from: day || undefined,
+      to: day || undefined,
+      q: q || undefined,
     }),
   });
 
@@ -129,34 +138,29 @@ export function SalesHistoryPage() {
           </h1>
           <p className="text-sm text-slate-500">บิลทั้งหมดที่ออกจากระบบ POS</p>
         </div>
-        <div className="flex flex-wrap items-end gap-2 text-sm">
-          {/* ช่วงวันที่ */}
-          <div>
-            <label className="mb-0.5 block text-xs text-slate-500">วันที่เริ่ม</label>
-            <input type="date" className="input w-40" value={from} max={to || undefined}
-                   onChange={(e) => { setFrom(e.target.value); setPage(0); }} />
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          {/* ค้นหาเลขบิล / ลูกค้า */}
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              className="input w-56 pl-8"
+              placeholder="ค้นหาเลขบิล / ชื่อลูกค้า"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
           </div>
-          <div>
-            <label className="mb-0.5 block text-xs text-slate-500">ถึงวันที่</label>
-            <input type="date" className="input w-40" value={to} min={from || undefined}
-                   onChange={(e) => { setTo(e.target.value); setPage(0); }} />
-          </div>
-          {(from || to) && (
-            <button className="btn-secondary" onClick={() => { setFrom(''); setTo(''); setPage(0); }}>
-              ล้างวันที่
-            </button>
-          )}
-          <div>
-            <label className="mb-0.5 block text-xs text-slate-500">สถานะ</label>
-            <select className="input w-40" value={status}
-                    onChange={(e) => { setStatus(e.target.value as SalesOrderStatus | ''); setPage(0); }}>
-              <option value="">ทุกสถานะ</option>
-              <option value="PAID">จ่ายแล้ว</option>
-              <option value="REFUNDED">คืนเงินแล้ว</option>
-              <option value="DRAFT">ยังไม่ปิด</option>
-              <option value="CANCELLED">ยกเลิก</option>
-            </select>
-          </div>
+          {/* ปฏิทินยอดขาย — มาร์กวันที่มีการขาย */}
+          <SalesCalendar selected={day} onSelect={(d) => { setDay(d); setPage(0); }} />
+          {/* สถานะ */}
+          <select className="input w-40" value={status}
+                  onChange={(e) => { setStatus(e.target.value as SalesOrderStatus | ''); setPage(0); }}>
+            <option value="">ทุกสถานะ</option>
+            <option value="PAID">จ่ายแล้ว</option>
+            <option value="REFUNDED">คืนเงินแล้ว</option>
+            <option value="DRAFT">ยังไม่ปิด</option>
+            <option value="CANCELLED">ยกเลิก</option>
+          </select>
         </div>
       </div>
 

@@ -223,6 +223,13 @@ export interface StockSummaryResponse {
   secondHandAvailable: number;
 }
 
+/** จำนวนบิล/ยอดรวมต่อวัน — มาร์กวันที่มีการขายบนปฏิทิน */
+export interface SalesDayCount {
+  date: string;   // YYYY-MM-DD
+  count: number;
+  total: number;
+}
+
 export type SerializedStatus =
   | 'IN_STOCK' | 'RESERVED' | 'SOLD' | 'DEFECTIVE' | 'RETURNED' | 'TRANSFERRED';
 

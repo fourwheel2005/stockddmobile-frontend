@@ -4,6 +4,7 @@ import type {
   CheckoutRequest,
   InStockItem,
   PageResponse,
+  SalesDayCount,
   SalesOrderResponse,
   SalesOrderStatus,
 } from '@/types/api';
@@ -15,8 +16,12 @@ export const posApi = {
   checkout: (req: CheckoutRequest) =>
     api.post<SalesOrderResponse>('/pos/checkout', req).then((r) => r.data),
 
-  listOrders: (params: { status?: SalesOrderStatus; from?: string; to?: string; page?: number; size?: number } = {}) =>
+  listOrders: (params: { status?: SalesOrderStatus; from?: string; to?: string; q?: string; page?: number; size?: number } = {}) =>
     api.get<PageResponse<SalesOrderResponse>>('/pos/orders', { params }).then((r) => r.data),
+
+  /** ปฏิทินยอดขาย — จำนวนบิล/ยอดต่อวัน (มาร์กวันที่มีการขาย) */
+  salesCalendar: (from: string, to: string) =>
+    api.get<SalesDayCount[]>('/pos/orders/calendar', { params: { from, to } }).then((r) => r.data),
 
   getOrder: (id: string) =>
     api.get<SalesOrderResponse>(`/pos/orders/${id}`).then((r) => r.data),
