@@ -998,9 +998,18 @@ function InstallmentPanel({
   downCash, setDownCash, downTransfer, setDownTransfer,
 }: InstallmentPanelProps) {
   const remaining = Math.max(0, grandTotalTarget - downAmount);
-  const perMonth = months > 0 ? remaining / months : 0;
   const splitSum = downCash + downTransfer;
   const splitMatches = !splitDown || Math.abs(splitSum - downAmount) < 0.01;
+
+  // ค่างวด/เดือน — พนักงานกรอกเองได้ (ยืดหยุ่น รองรับดอกเบี้ยบริษัทผ่อน) แล้วคูณกับจำนวนเดือน
+  // ค่าตั้งต้น = เงินต้นคงเหลือ ÷ เดือน (ปัดขึ้น) จนกว่าผู้ใช้จะแก้เอง
+  const [monthly, setMonthly] = useState(0);
+  const [monthlyTouched, setMonthlyTouched] = useState(false);
+  useEffect(() => {
+    if (!monthlyTouched) setMonthly(months > 0 ? Math.ceil(remaining / months) : 0);
+  }, [remaining, months, monthlyTouched]);
+  const totalInstallment = monthly * months;
+  const interest = Math.max(0, totalInstallment - remaining);
 
   return (
     <div className="card border-2 border-purple-300">
@@ -1037,7 +1046,7 @@ function InstallmentPanel({
               value={months}
               onChange={(e) => setMonths(Math.max(1, Math.min(60, Math.floor(Number(e.target.value) || 1))))}
             />
-            <span className="text-xs text-slate-500">เดือน · ระบบหาร/เดือนให้อัตโนมัติ (1–60)</span>
+            <span className="text-xs text-slate-500">เดือน (1–60) · กรอกค่างวด/เดือนด้านล่างเองได้</span>
           </div>
         </div>
 
@@ -1056,10 +1065,34 @@ function InstallmentPanel({
             </p>
           </div>
           <div className="rounded-md bg-slate-50 p-3">
-            <div className="text-xs text-slate-500">ส่วนที่เหลือผ่อน</div>
-            <div className="text-lg font-semibold">{formatTHB(remaining)}</div>
-            <div className="mt-1 text-xs text-slate-600">
-              ÷ {months} เดือน = <strong className="text-purple-700">{formatTHB(perMonth)} / เดือน</strong>
+            <div className="flex items-center justify-between">
+              <div className="text-xs text-slate-500">ส่วนที่เหลือผ่อน (เงินต้น)</div>
+              <div className="text-sm font-semibold">{formatTHB(remaining)}</div>
+            </div>
+            <div className="mt-2">
+              <div className="flex items-center justify-between gap-2">
+                <label className="text-xs font-medium text-slate-600">ค่างวด / เดือน (บาท)</label>
+                {monthlyTouched && (
+                  <button type="button"
+                    onClick={() => setMonthlyTouched(false)}
+                    className="text-[11px] text-purple-600 hover:underline">
+                    ↻ คำนวณจากเงินต้น
+                  </button>
+                )}
+              </div>
+              <input
+                type="number" min={0} step="100" inputMode="numeric"
+                className="input mt-1 text-base font-semibold"
+                value={monthly}
+                onChange={(e) => { setMonthlyTouched(true); setMonthly(Math.max(0, Number(e.target.value) || 0)); }}
+              />
+            </div>
+            <div className="mt-2 border-t border-slate-200 pt-2 text-xs text-slate-600">
+              <strong className="text-purple-700">{formatTHB(monthly)}</strong> × {months} เดือน =
+              {' '}<strong className="text-purple-700">{formatTHB(totalInstallment)}</strong> รวมที่ต้องผ่อน
+              {interest > 0 && (
+                <span className="text-slate-400"> · ส่วนต่าง/ดอกเบี้ย {formatTHB(interest)}</span>
+              )}
             </div>
           </div>
         </div>
