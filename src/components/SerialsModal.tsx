@@ -6,6 +6,7 @@ import { inventoryApi } from '@/api/inventory';
 import { extractErrorMessage } from '@/api/client';
 import { formatDate } from '@/lib/format';
 import { acqLabel } from '@/lib/acquisition';
+import { RepairIntakeModal } from '@/components/RepairIntakeModal';
 import type { SerializedStatus, ServiceState, SerializedItemResponse, SerializedCondition } from '@/types/api';
 
 interface Props {
@@ -52,6 +53,7 @@ export function SerialsModal({ variantId, productName, sku, onClose, highlightId
   const qc = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<SerializedStatus | ''>('');
   const [editing, setEditing] = useState<SerializedItemResponse | null>(null);
+  const [repairFor, setRepairFor] = useState<SerializedItemResponse | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['serials', variantId, statusFilter],
@@ -196,6 +198,13 @@ export function SerialsModal({ variantId, productName, sku, onClose, highlightId
                           <Undo2 className="h-4 w-4" />
                         </button>
                       )}
+                      {s.status === 'SOLD' && (
+                        <button className="rounded p-1.5 text-amber-700 hover:bg-amber-50"
+                                title="ลูกค้าส่งเครื่องกลับมาซ่อม (เปิดใบรับซ่อม)"
+                                onClick={() => setRepairFor(s)}>
+                          <Wrench className="h-4 w-4" />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -208,7 +217,7 @@ export function SerialsModal({ variantId, productName, sku, onClose, highlightId
         </div>
 
         <div className="border-t px-5 py-2 text-xs text-slate-500">
-          ✏️ แก้ไข · 🔧 ส่งซ่อม · 🛡️ ส่งเคลม · ↩️ คืนเข้าสต็อก (หลังซ่อม/เคลมเสร็จ)
+          ✏️ แก้ไข · 🔧 ส่งซ่อม · 🛡️ ส่งเคลม · ↩️ คืนเข้าสต็อก (หลังซ่อม/เคลมเสร็จ) · 🔧 เครื่องขายแล้ว = เปิดใบรับซ่อมลูกค้า
         </div>
       </div>
     </div>
@@ -220,6 +229,22 @@ export function SerialsModal({ variantId, productName, sku, onClose, highlightId
         onSaved={() => {
           qc.invalidateQueries({ queryKey: ['serials', variantId] });
           qc.invalidateQueries({ queryKey: ['inventory'] });
+        }}
+      />
+    )}
+
+    {/* เครื่องที่ขายแล้วกลับมาซ่อม → เปิดใบรับซ่อม (prefill ข้อมูลเครื่อง) */}
+    {repairFor && (
+      <RepairIntakeModal
+        onClose={() => setRepairFor(null)}
+        onCreated={() => setRepairFor(null)}
+        initial={{
+          deviceBrand: 'Apple',
+          deviceModel: repairFor.productName ?? productName ?? '',
+          deviceColor: repairFor.deviceColor ?? '',
+          imei: repairFor.imei ?? '',
+          serialNumber: repairFor.serialNumber ?? '',
+          reportedSymptom: '',
         }}
       />
     )}

@@ -12,6 +12,8 @@ interface Props {
   onClose: () => void;
   /** ส่ง ticket ที่สร้างเสร็จกลับให้หน้า POS เพื่อพิมพ์ใบรับซ่อม. */
   onCreated: (ticket: RepairTicket) => void;
+  /** prefill ข้อมูลเครื่อง (เช่น เครื่องที่ขายไปแล้วกลับมาซ่อม — รุ่น/สี/IMEI/Serial). */
+  initial?: Partial<CreateRepairRequest>;
 }
 
 const EMPTY: CreateRepairRequest = {
@@ -25,10 +27,10 @@ const EMPTY: CreateRepairRequest = {
  * ฟอร์มรับซ่อมเครื่องของลูกค้า (ไม่ใช่เครื่องในสต็อกร้าน).
  * บันทึกแล้วได้เลขใบรับซ่อม + ส่งต่อให้พิมพ์บิลรับซ่อม.
  */
-export function RepairIntakeModal({ onClose, onCreated }: Props) {
+export function RepairIntakeModal({ onClose, onCreated, initial }: Props) {
   const qc = useQueryClient();
   const firstRef = useRef<HTMLInputElement>(null);
-  const [form, setForm] = useState<CreateRepairRequest>({ ...EMPTY });
+  const [form, setForm] = useState<CreateRepairRequest>({ ...EMPTY, ...initial });
   const [customerId, setCustomerId] = useState<string | undefined>(undefined);
   const [showCustomerPicker, setShowCustomerPicker] = useState(false);
 
