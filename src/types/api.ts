@@ -626,6 +626,7 @@ export interface CheckoutRequest {
   paymentSplit?: PaymentSplit;
   // Installment fields (used only when paymentMethod=INSTALLMENT)
   installmentMonths?: number;
+  installmentMonthlyAmount?: number;
   downPaymentAmount?: number;
   downPaymentCashAmount?: number;
   downPaymentTransferAmount?: number;
@@ -673,6 +674,7 @@ export interface SalesOrderResponse {
   paidAmount: number;
   paymentMethod: PaymentMethod | null;
   installmentMonths: number | null;
+  installmentMonthlyAmount: number | null;
   downPaymentAmount: number | null;
   paymentSlipUrl: string | null;
   shippingPartner: ShippingPartner | null;

@@ -113,8 +113,11 @@ export function ReceiptPrintView({ order, shopName = 'Stockdd Mobile' }: Props) 
               <span>ผ่อน {order.installmentMonths} เดือน × :</span>
               <span>
                 {formatTHB(
-                  ((order.grandTotal ?? 0) - (order.downPaymentAmount ?? 0)) /
-                    Math.max(1, order.installmentMonths)
+                  // ค่างวดที่พนักงานกำหนด (รวมดอกเบี้ย) ถ้ามี · ไม่งั้น fallback (ยอด−ดาวน์)/งวด
+                  order.installmentMonthlyAmount != null && order.installmentMonthlyAmount > 0
+                    ? order.installmentMonthlyAmount
+                    : ((order.grandTotal ?? 0) - (order.downPaymentAmount ?? 0)) /
+                        Math.max(1, order.installmentMonths)
                 )} / เดือน
               </span>
             </div>

@@ -85,6 +85,8 @@ export function PosTerminalPage() {
 
   // ─── Installment-only state ─────────────────────────────────────────
   const [installmentMonths, setInstallmentMonths] = useState<number>(6);
+  const [installmentMonthly, setInstallmentMonthly] = useState<number>(0);  // ค่างวด/เดือน ที่พนักงานกำหนด
+  const [installmentMonthlyTouched, setInstallmentMonthlyTouched] = useState(false);  // พนักงานแก้ค่างวดเองแล้ว (กัน auto ทับ)
   const [downAmount, setDownAmount] = useState<number>(0);
   const [splitDown, setSplitDown] = useState<boolean>(false);
   const [downCash, setDownCash] = useState<number>(0);
@@ -295,6 +297,7 @@ export function PosTerminalPage() {
         shippingFeeGrandma: shippingFeeGrandma > 0 ? shippingFeeGrandma : undefined,
         ...(isInstallment ? {
           installmentMonths,
+          installmentMonthlyAmount: installmentMonthly > 0 ? installmentMonthly : undefined,
           downPaymentAmount: downAmount,
           downPaymentCashAmount: splitDown ? downCash : undefined,
           downPaymentTransferAmount: splitDown ? downTransfer : undefined,
@@ -322,6 +325,10 @@ export function PosTerminalPage() {
       setSplitDown(false);
       setDownCash(0);
       setDownTransfer(0);
+      // ผ่อน — reset ให้บิลถัดไปเริ่มใหม่ (กันค่างวด/เดือนของลูกค้าคนก่อนค้างมา)
+      setInstallmentMonths(6);
+      setInstallmentMonthly(0);
+      setInstallmentMonthlyTouched(false);
       // setFinancePartner(''); — ซ่อนชั่วคราว
       setMixedSplit({ cash: 0, transfer: 0, card: 0, qr: 0 });
       setVatRate(0);
@@ -763,6 +770,8 @@ export function PosTerminalPage() {
         <InstallmentPanel
           grandTotalTarget={Math.max(0, cart.reduce((s, l) => s + l.sellPrice * l.quantity, 0) - discount)}
           months={installmentMonths} setMonths={setInstallmentMonths}
+          monthly={installmentMonthly} setMonthly={setInstallmentMonthly}
+          monthlyTouched={installmentMonthlyTouched} setMonthlyTouched={setInstallmentMonthlyTouched}
           downAmount={downAmount} setDownAmount={setDownAmount}
           splitDown={splitDown} setSplitDown={setSplitDown}
           downCash={downCash} setDownCash={setDownCash}
@@ -986,6 +995,8 @@ const MONTH_OPTIONS = [3, 6, 10, 12, 18, 24, 36];
 interface InstallmentPanelProps {
   grandTotalTarget: number;
   months: number; setMonths: (m: number) => void;
+  monthly: number; setMonthly: (n: number) => void;   // ค่างวด/เดือน — ส่งเข้า checkout เพื่อใช้ใน LINE/บิล
+  monthlyTouched: boolean; setMonthlyTouched: (b: boolean) => void;  // state อยู่ที่ parent (reset ได้หลังปิดบิล)
   downAmount: number; setDownAmount: (n: number) => void;
   splitDown: boolean; setSplitDown: (b: boolean) => void;
   downCash: number; setDownCash: (n: number) => void;
@@ -993,7 +1004,7 @@ interface InstallmentPanelProps {
 }
 
 function InstallmentPanel({
-  grandTotalTarget, months, setMonths,
+  grandTotalTarget, months, setMonths, monthly, setMonthly, monthlyTouched, setMonthlyTouched,
   downAmount, setDownAmount, splitDown, setSplitDown,
   downCash, setDownCash, downTransfer, setDownTransfer,
 }: InstallmentPanelProps) {
@@ -1002,11 +1013,10 @@ function InstallmentPanel({
   const splitMatches = !splitDown || Math.abs(splitSum - downAmount) < 0.01;
 
   // ค่างวด/เดือน — พนักงานกรอกเองได้ (ยืดหยุ่น รองรับดอกเบี้ยบริษัทผ่อน) แล้วคูณกับจำนวนเดือน
-  // ค่าตั้งต้น = เงินต้นคงเหลือ ÷ เดือน (ปัดขึ้น) จนกว่าผู้ใช้จะแก้เอง
-  const [monthly, setMonthly] = useState(0);
-  const [monthlyTouched, setMonthlyTouched] = useState(false);
+  // ค่าตั้งต้น = เงินต้นคงเหลือ ÷ เดือน (ปัดขึ้น) จนกว่าผู้ใช้จะแก้เอง · state+touched อยู่ที่ parent (reset หลังปิดบิล)
   useEffect(() => {
     if (!monthlyTouched) setMonthly(months > 0 ? Math.ceil(remaining / months) : 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [remaining, months, monthlyTouched]);
   const totalInstallment = monthly * months;
   const interest = Math.max(0, totalInstallment - remaining);

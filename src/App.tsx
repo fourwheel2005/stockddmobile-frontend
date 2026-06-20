@@ -18,6 +18,7 @@ import { RepairListPage } from '@/pages/RepairListPage';
 import { CustomersPage } from '@/pages/CustomersPage';
 import { LotsPage } from '@/pages/LotsPage';
 import { SalesHistoryPage } from '@/pages/SalesHistoryPage';
+import { OrderDetailPage } from '@/pages/OrderDetailPage';
 import { ReportsPage } from '@/pages/ReportsPage';
 import { WarrantyPage } from '@/pages/WarrantyPage';
 import { ScannerTestPage } from '@/pages/ScannerTestPage';
@@ -54,6 +55,7 @@ export default function App() {
           <Route path="/labels" element={<PrintLabelsPage />} />
           {/* /sales: STAFF เข้าได้ — แต่ปุ่ม refund จะ disable ตาม role ใน UI */}
           <Route path="/sales" element={<SalesHistoryPage />} />
+          <Route path="/pos/orders/:id" element={<OrderDetailPage />} />
         </Route>
       </Route>
 
