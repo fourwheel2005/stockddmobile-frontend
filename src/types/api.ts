@@ -64,6 +64,7 @@ export interface VariantResponse {
   sellingPrice: number;
   reorderPoint: number;
   imageUrl: string | null;
+  imageUrls?: string[] | null;
   active: boolean;
   createdAt: string;
   updatedAt: string;
@@ -102,6 +103,7 @@ export interface CreateVariantRequest {
   sellingPrice: number;
   reorderPoint: number;
   imageUrl?: string;
+  imageUrls?: string[];
 }
 
 // ─── Edit (แก้ที่พิมพ์ผิด หลังสร้าง/รับของ) ────────────────────────────
@@ -114,6 +116,7 @@ export interface UpdateVariantRequest {
   sellingPrice: number;
   reorderPoint: number;
   imageUrl?: string;
+  imageUrls?: string[];
   active: boolean;
 }
 
@@ -142,6 +145,7 @@ export interface WizardVariantSpec {
   sellingPrice: number;
   reorderPoint: number;
   imageUrl?: string;
+  imageUrls?: string[];
 }
 
 export interface WizardInitialItem {
@@ -213,6 +217,8 @@ export interface InventoryResponse {
   availableQty: number;
   reorderPoint: number;
   lowStock: boolean;
+  imageUrl?: string | null;       // รูปปก
+  imageUrls?: string[] | null;    // รูปทั้งหมด (เว็บหน้าร้านดึงไปแสดง)
   updatedAt: string;
 }
 

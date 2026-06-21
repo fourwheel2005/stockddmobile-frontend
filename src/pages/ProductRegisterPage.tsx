@@ -219,10 +219,9 @@ export function ProductRegisterPage() {
       lotInvoiceNo: '',
     });
 
-    if (sv?.imageUrl) {
-      setProductImageUrl(sv.imageUrl);
-      setImagePreview(sv.imageUrl);
-    }
+    // รูปเดิม (รับเข้ารุ่นที่มี) — รองรับหลายรูป (fallback imageUrl เดี่ยว)
+    const existingImgs = sv?.imageUrls?.length ? sv.imageUrls : (sv?.imageUrl ? [sv.imageUrl] : []);
+    if (existingImgs.length) setProductImages(existingImgs);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sourceProduct]);
 
@@ -236,8 +235,7 @@ export function ProductRegisterPage() {
   const [scannerMode, setScannerMode] = useState(false);
   const [scanText, setScanText] = useState('');
   const scannerRef = useRef<HTMLInputElement>(null);
-  const [productImageUrl, setProductImageUrl] = useState('');
-  const [imagePreview, setImagePreview] = useState('');
+  const [productImages, setProductImages] = useState<string[]>([]);   // หลายรูป (รูปแรก = ปก)
   const [uploadingImage, setUploadingImage] = useState(false);
   const [dragOver, setDragOver] = useState(false);
 
@@ -343,24 +341,27 @@ export function ProductRegisterPage() {
   /* Scanner auto-focus */
   useEffect(() => { if (scannerMode) scannerRef.current?.focus(); }, [scannerMode]);
 
-  /* Image upload */
-  const handleImageFile = async (file: File) => {
-    if (!file.type.startsWith('image/')) { toast.error('อัปโหลดได้เฉพาะไฟล์รูป'); return; }
-    if (file.size > 10 * 1024 * 1024) { toast.error('ขนาดไม่เกิน 10MB'); return; }
-    const localPreview = URL.createObjectURL(file);
-    setImagePreview((prev) => { if (prev) URL.revokeObjectURL(prev); return localPreview; });
+  /* Image upload — รองรับหลายรูป (เลือก/ลากหลายไฟล์พร้อมกัน) */
+  const handleImageFiles = async (files: File[]) => {
+    const imgs = files.filter((f) => {
+      if (!f.type.startsWith('image/')) { toast.error(`"${f.name}" ไม่ใช่ไฟล์รูป`); return false; }
+      if (f.size > 10 * 1024 * 1024) { toast.error(`"${f.name}" เกิน 10MB`); return false; }
+      return true;
+    });
+    if (imgs.length === 0) return;
     setUploadingImage(true);
     try {
-      const uploaded = await filesApi.upload(file);
-      setProductImageUrl(uploaded.url);
-      toast.success('อัปโหลดรูปสำเร็จ', { duration: 1200 });
-    } catch (e) { toast.error(extractErrorMessage(e)); setProductImageUrl(''); }
+      const uploaded = await Promise.all(imgs.map((f) => filesApi.upload(f)));
+      setProductImages((prev) => [...prev, ...uploaded.map((u) => u.url)]);
+      toast.success(`อัปโหลด ${uploaded.length} รูปสำเร็จ`, { duration: 1200 });
+    } catch (e) { toast.error(extractErrorMessage(e)); }
     finally { setUploadingImage(false); }
   };
-  const clearImage = () => {
-    if (imagePreview) URL.revokeObjectURL(imagePreview);
-    setImagePreview(''); setProductImageUrl('');
-  };
+  const removeImage = (idx: number) => setProductImages((prev) => prev.filter((_, i) => i !== idx));
+  const makeCover = (idx: number) => setProductImages((prev) => {
+    if (idx <= 0) return prev;
+    const next = [...prev]; const [pick] = next.splice(idx, 1); next.unshift(pick); return next;
+  });
 
   /** ค่าเริ่มต้นของแถวเครื่องใหม่ — ลอก สภาพ/ที่มา/สี/ความจุ/เครือข่าย จากแถวล่าสุด
    *  (รับเครื่องล็อตเดียวกันสะดวก ไม่ต้องกรอกซ้ำ) · ประกันปล่อยว่างให้ auto-fill ตามสภาพ */
@@ -549,7 +550,8 @@ export function ProductRegisterPage() {
           costPrice: Number(d.costPrice) || Number(validItems?.[0]?.purchasePrice) || 0,
           sellingPrice: Number(d.sellingPrice) || Number(validItems?.[0]?.sellingPrice) || 0,
           reorderPoint: Number(d.reorderPoint),
-          ...(productImageUrl ? { imageUrl: productImageUrl } : {}),
+          // หลายรูป — รูปแรก = ปก (backend ตั้ง imageUrl=imageUrls[0] ให้)
+          ...(productImages.length ? { imageUrl: productImages[0], imageUrls: productImages } : {}),
         },
         ...(d.serialized
           ? { items: validItems }
@@ -709,14 +711,14 @@ export function ProductRegisterPage() {
                 <datalist id="brand-list">{BRAND_OPTIONS.map((b) => <option key={b} value={b} />)}</datalist>
               </FieldRow>
 
-              <FieldRow label="รูปสินค้า" hint="ลาก-วางหรือคลิกเลือก · ไม่บังคับ">
-                <ImageDropZone
-                  preview={imagePreview} uploaded={!!productImageUrl} uploading={uploadingImage}
-                  dragOver={dragOver}
+              <FieldRow label="รูปสินค้า" hint="เพิ่มได้หลายรูป · ลาก-วาง/เลือกหลายไฟล์ · รูปแรก = ปก (แสดงบนเว็บหน้าร้าน)">
+                <MultiImageUpload
+                  images={productImages} uploading={uploadingImage} dragOver={dragOver}
                   onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
                   onDragLeave={() => setDragOver(false)}
-                  onDrop={(e) => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files?.[0]; if (f) handleImageFile(f); }}
-                  onSelect={(f) => handleImageFile(f)} onClear={clearImage}
+                  onDrop={(e) => { e.preventDefault(); setDragOver(false); handleImageFiles(Array.from(e.dataTransfer.files || [])); }}
+                  onSelect={(files) => handleImageFiles(files)}
+                  onRemove={removeImage} onMakeCover={makeCover}
                 />
               </FieldRow>
           </div>
@@ -1087,52 +1089,55 @@ function FieldRow({
   );
 }
 
-function ImageDropZone({
-  preview, uploaded, uploading, dragOver,
-  onDragOver, onDragLeave, onDrop, onSelect, onClear,
+function MultiImageUpload({
+  images, uploading, dragOver,
+  onDragOver, onDragLeave, onDrop, onSelect, onRemove, onMakeCover,
 }: {
-  preview: string; uploaded: boolean; uploading: boolean; dragOver: boolean;
+  images: string[]; uploading: boolean; dragOver: boolean;
   onDragOver: (e: React.DragEvent<HTMLDivElement>) => void;
   onDragLeave: () => void;
   onDrop: (e: React.DragEvent<HTMLDivElement>) => void;
-  onSelect: (file: File) => void;
-  onClear: () => void;
+  onSelect: (files: File[]) => void;
+  onRemove: (idx: number) => void;
+  onMakeCover: (idx: number) => void;
 }) {
   return (
     <div onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}
-         className={`flex items-stretch gap-3 rounded-xl border-2 border-dashed p-3 transition-all
+         className={`rounded-xl border-2 border-dashed p-3 transition-all
                      ${dragOver ? 'border-brand-500 bg-brand-50' : 'border-slate-300'}`}>
-      {preview ? (
-        <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg border border-slate-200">
-          <img src={preview} alt="product" className="h-full w-full object-cover" />
-          {uploading && (
-            <div className="absolute inset-0 grid place-items-center bg-black/40">
-              <Loader2 className="h-5 w-5 animate-spin text-white" />
-            </div>
-          )}
-          {!uploading && uploaded && (
-            <span className="absolute bottom-1 left-1 rounded bg-emerald-500/90 px-1 text-[10px] font-semibold text-white">
-              อัปแล้ว
-            </span>
-          )}
-          <button type="button" onClick={onClear}
-                  className="absolute right-1 top-1 grid h-6 w-6 place-items-center rounded-full bg-black/60 text-white hover:bg-black"
-                  title="ลบรูป">
-            <X className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      ) : (
+      <div className="flex flex-wrap gap-2">
+        {images.map((url, idx) => (
+          <div key={url + idx} className="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg border border-slate-200 group">
+            <img src={url} alt={`product-${idx}`} className="h-full w-full object-cover" />
+            {idx === 0 && (
+              <span className="absolute bottom-0 left-0 right-0 bg-brand-600/90 py-0.5 text-center text-[10px] font-semibold text-white">
+                ปก
+              </span>
+            )}
+            <button type="button" onClick={() => onRemove(idx)}
+                    className="absolute right-1 top-1 grid h-5 w-5 place-items-center rounded-full bg-black/60 text-white hover:bg-black"
+                    title="ลบรูป">
+              <X className="h-3 w-3" />
+            </button>
+            {idx !== 0 && (
+              <button type="button" onClick={() => onMakeCover(idx)}
+                      className="absolute bottom-0 left-0 right-0 bg-black/55 py-0.5 text-center text-[10px] text-white opacity-0 transition-opacity group-hover:opacity-100"
+                      title="ตั้งเป็นรูปปก">
+                ตั้งเป็นปก
+              </button>
+            )}
+          </div>
+        ))}
+        {/* ปุ่มเพิ่มรูป */}
         <label className="grid h-20 w-20 shrink-0 cursor-pointer place-items-center rounded-lg bg-slate-100 text-slate-400 transition-colors hover:bg-slate-200 hover:text-slate-600">
-          <input type="file" accept="image/*" className="hidden"
-                 onChange={(e) => { const f = e.target.files?.[0]; if (f) onSelect(f); }} />
-          <ImageIcon className="h-6 w-6" />
+          <input type="file" accept="image/*" multiple className="hidden"
+                 onChange={(e) => { onSelect(Array.from(e.target.files || [])); e.target.value = ''; }} />
+          {uploading ? <Loader2 className="h-6 w-6 animate-spin" /> : <ImageIcon className="h-6 w-6" />}
         </label>
-      )}
-      <div className="flex flex-1 flex-col justify-center text-sm">
-        <div className="flex items-center gap-1 font-semibold text-slate-700">
-          <Upload className="h-4 w-4" /> ลาก-วาง หรือคลิกเลือก
-        </div>
-        <div className="text-xs text-slate-500">JPG/PNG/WebP/HEIC · ไม่เกิน 10MB</div>
+      </div>
+      <div className="mt-2 flex items-center gap-1 text-xs text-slate-500">
+        <Upload className="h-3.5 w-3.5" /> ลาก-วาง/เลือกหลายไฟล์ · JPG/PNG/WebP/HEIC · ไม่เกิน 10MB/รูป
+        {images.length > 0 && <span className="ml-auto font-medium text-slate-600">{images.length} รูป</span>}
       </div>
     </div>
   );
