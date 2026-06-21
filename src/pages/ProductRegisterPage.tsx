@@ -101,6 +101,7 @@ interface ItemRow {
   acquisitionType: AcquisitionType;
   purchasePrice: number | '';
   sellingPrice: number | '';
+  imageUrls: string[];
 }
 
 interface FormValues {
@@ -134,7 +135,7 @@ const EMPTY_ITEM: ItemRow = {
   serialNumber: '', imei: '',
   condition: 'NEW', batteryHealth: '', deviceColor: '', modelNumber: '',
   deviceStorage: '', deviceNetwork: '', warrantyTerms: '', warrantyExpire: '',
-  acquisitionType: 'PURCHASE', purchasePrice: '', sellingPrice: '',
+  acquisitionType: 'PURCHASE', purchasePrice: '', sellingPrice: '', imageUrls: [],
 };
 
 function todayIso(): string {
@@ -219,9 +220,6 @@ export function ProductRegisterPage() {
       lotInvoiceNo: '',
     });
 
-    // รูปเดิม (รับเข้ารุ่นที่มี) — รองรับหลายรูป (fallback imageUrl เดี่ยว)
-    const existingImgs = sv?.imageUrls?.length ? sv.imageUrls : (sv?.imageUrl ? [sv.imageUrl] : []);
-    if (existingImgs.length) setProductImages(existingImgs);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sourceProduct]);
 
@@ -235,9 +233,6 @@ export function ProductRegisterPage() {
   const [scannerMode, setScannerMode] = useState(false);
   const [scanText, setScanText] = useState('');
   const scannerRef = useRef<HTMLInputElement>(null);
-  const [productImages, setProductImages] = useState<string[]>([]);   // หลายรูป (รูปแรก = ปก)
-  const [uploadingImage, setUploadingImage] = useState(false);
-  const [dragOver, setDragOver] = useState(false);
 
   /* watchers */
   const serialized = watch('serialized');
@@ -341,27 +336,6 @@ export function ProductRegisterPage() {
   /* Scanner auto-focus */
   useEffect(() => { if (scannerMode) scannerRef.current?.focus(); }, [scannerMode]);
 
-  /* Image upload — รองรับหลายรูป (เลือก/ลากหลายไฟล์พร้อมกัน) */
-  const handleImageFiles = async (files: File[]) => {
-    const imgs = files.filter((f) => {
-      if (!f.type.startsWith('image/')) { toast.error(`"${f.name}" ไม่ใช่ไฟล์รูป`); return false; }
-      if (f.size > 10 * 1024 * 1024) { toast.error(`"${f.name}" เกิน 10MB`); return false; }
-      return true;
-    });
-    if (imgs.length === 0) return;
-    setUploadingImage(true);
-    try {
-      const uploaded = await Promise.all(imgs.map((f) => filesApi.upload(f)));
-      setProductImages((prev) => [...prev, ...uploaded.map((u) => u.url)]);
-      toast.success(`อัปโหลด ${uploaded.length} รูปสำเร็จ`, { duration: 1200 });
-    } catch (e) { toast.error(extractErrorMessage(e)); }
-    finally { setUploadingImage(false); }
-  };
-  const removeImage = (idx: number) => setProductImages((prev) => prev.filter((_, i) => i !== idx));
-  const makeCover = (idx: number) => setProductImages((prev) => {
-    if (idx <= 0) return prev;
-    const next = [...prev]; const [pick] = next.splice(idx, 1); next.unshift(pick); return next;
-  });
 
   /** ค่าเริ่มต้นของแถวเครื่องใหม่ — ลอก สภาพ/ที่มา/สี/ความจุ/เครือข่าย จากแถวล่าสุด
    *  (รับเครื่องล็อตเดียวกันสะดวก ไม่ต้องกรอกซ้ำ) · ประกันปล่อยว่างให้ auto-fill ตามสภาพ */
@@ -489,7 +463,7 @@ export function ProductRegisterPage() {
       batteryHealth?: number; deviceColor?: string; modelNumber?: string;
       deviceStorage?: string; deviceNetwork?: string;
       acquisitionType?: AcquisitionType; purchasePrice?: number; sellingPrice?: number;
-      warrantyTerms?: string; warrantyExpire?: string;
+      warrantyTerms?: string; warrantyExpire?: string; imageUrls?: string[];
     }> | undefined;
     let qty: number | undefined;
 
@@ -518,6 +492,8 @@ export function ProductRegisterPage() {
           warrantyTerms: blank(it.warrantyTerms),
           // วันหมดประกัน (FIX-025) — กรอกเมื่อเครื่อง activate แล้ว (ประกัน Apple นับจากวัน activate)
           warrantyExpire: blank(it.warrantyExpire),
+          // รูปรายเครื่อง (FIX-043) — เว็บหน้าร้านดึงไปแสดง
+          imageUrls: it.imageUrls?.length ? it.imageUrls : undefined,
         }));
       if (validItems.length === 0) {
         toast.error('ใส่อย่างน้อย 1 ชิ้น (IMEI หรือ Serial)');
@@ -550,8 +526,6 @@ export function ProductRegisterPage() {
           costPrice: Number(d.costPrice) || Number(validItems?.[0]?.purchasePrice) || 0,
           sellingPrice: Number(d.sellingPrice) || Number(validItems?.[0]?.sellingPrice) || 0,
           reorderPoint: Number(d.reorderPoint),
-          // หลายรูป — รูปแรก = ปก (backend ตั้ง imageUrl=imageUrls[0] ให้)
-          ...(productImages.length ? { imageUrl: productImages[0], imageUrls: productImages } : {}),
         },
         ...(d.serialized
           ? { items: validItems }
@@ -711,16 +685,6 @@ export function ProductRegisterPage() {
                 <datalist id="brand-list">{BRAND_OPTIONS.map((b) => <option key={b} value={b} />)}</datalist>
               </FieldRow>
 
-              <FieldRow label="รูปสินค้า" hint="เพิ่มได้หลายรูป · ลาก-วาง/เลือกหลายไฟล์ · รูปแรก = ปก (แสดงบนเว็บหน้าร้าน)">
-                <MultiImageUpload
-                  images={productImages} uploading={uploadingImage} dragOver={dragOver}
-                  onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-                  onDragLeave={() => setDragOver(false)}
-                  onDrop={(e) => { e.preventDefault(); setDragOver(false); handleImageFiles(Array.from(e.dataTransfer.files || [])); }}
-                  onSelect={(files) => handleImageFiles(files)}
-                  onRemove={removeImage} onMakeCover={makeCover}
-                />
-              </FieldRow>
           </div>
         </div>
 
@@ -1178,6 +1142,27 @@ function ItemCard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [condition]);
 
+  /* รูปรายเครื่อง — อัปโหลดหลายรูป เก็บใน items.${idx}.imageUrls (เว็บหน้าร้านดึงไปแสดง) */
+  const images = (useWatch({ control, name: `items.${idx}.imageUrls` }) as string[] | undefined) ?? [];
+  const [imgUploading, setImgUploading] = useState(false);
+  const [imgDrag, setImgDrag] = useState(false);
+  const setImages = (next: string[]) => setValue(`items.${idx}.imageUrls`, next, { shouldDirty: true });
+  const uploadImages = async (files: File[]) => {
+    const ok = files.filter((f) => {
+      if (!f.type.startsWith('image/')) { toast.error(`"${f.name}" ไม่ใช่ไฟล์รูป`); return false; }
+      if (f.size > 10 * 1024 * 1024) { toast.error(`"${f.name}" เกิน 10MB`); return false; }
+      return true;
+    });
+    if (!ok.length) return;
+    setImgUploading(true);
+    try {
+      const up = await Promise.all(ok.map((f) => filesApi.upload(f)));
+      setImages([...images, ...up.map((u) => u.url)]);
+      toast.success(`อัปโหลด ${up.length} รูป`, { duration: 1000 });
+    } catch (e) { toast.error(extractErrorMessage(e)); }
+    finally { setImgUploading(false); }
+  };
+
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-3 transition-shadow hover:shadow-sm">
       <div className="mb-2 flex items-center justify-between">
@@ -1307,6 +1292,22 @@ function ItemCard({
           <input type="number" step="0.01" min={0} className="input text-sm" placeholder="เช่น 22900"
                  {...register(`items.${idx}.sellingPrice`)} />
         </div>
+      </div>
+
+      {/* รูปเครื่องนี้ (รายเครื่อง) — เว็บหน้าร้านดึงไปแสดง · รูปแรก = ปก */}
+      <div className="mt-2">
+        <label className="mb-1 block text-xs font-semibold text-slate-600">
+          รูปเครื่องนี้ <span className="font-normal text-slate-400">(หลายรูปได้ · รูปแรก = ปก)</span>
+        </label>
+        <MultiImageUpload
+          images={images} uploading={imgUploading} dragOver={imgDrag}
+          onDragOver={(e) => { e.preventDefault(); setImgDrag(true); }}
+          onDragLeave={() => setImgDrag(false)}
+          onDrop={(e) => { e.preventDefault(); setImgDrag(false); uploadImages(Array.from(e.dataTransfer.files || [])); }}
+          onSelect={(files) => uploadImages(files)}
+          onRemove={(i) => setImages(images.filter((_, k) => k !== i))}
+          onMakeCover={(i) => { if (i <= 0) return; const n = [...images]; const [p] = n.splice(i, 1); n.unshift(p); setImages(n); }}
+        />
       </div>
     </div>
   );

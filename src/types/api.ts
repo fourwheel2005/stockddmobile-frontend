@@ -165,6 +165,8 @@ export interface WizardInitialItem {
   warrantyTerms?: string;
   /** วันหมดประกัน YYYY-MM-DD */
   warrantyExpire?: string;
+  /** รูปรายเครื่อง (หลายรูป) — รูปแรก = ปก */
+  imageUrls?: string[];
 }
 
 export interface WizardVariantBlock {
@@ -273,6 +275,7 @@ export interface SerializedItemResponse {
   acquisitionType: AcquisitionType | null;
   serviceState: ServiceState | null;
   defectNote: string | null;
+  imageUrls?: string[] | null;     // รูปรายเครื่อง — เว็บหน้าร้านดึงไปแสดง
 }
 
 export interface ServiceActionRequest {
