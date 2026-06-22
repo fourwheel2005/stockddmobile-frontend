@@ -297,7 +297,7 @@ function EditSerialModal({ item, onClose, onSaved }: {
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+    <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/50 p-4">
       <form onSubmit={submit} className="w-full max-w-md rounded-lg bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b px-5 py-3">
           <h3 className="font-semibold">แก้ไขเครื่อง</h3>
@@ -305,7 +305,7 @@ function EditSerialModal({ item, onClose, onSaved }: {
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="max-h-[65vh] space-y-3 overflow-y-auto px-5 py-4">
+        <div className="space-y-3 px-5 py-4">
           <div>
             <label className="mb-0.5 block text-xs font-semibold text-slate-600">IMEI</label>
             <input className="input font-mono" value={imei} onChange={(e) => setImei(e.target.value)}

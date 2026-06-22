@@ -311,7 +311,7 @@ function AddVariantModal({ productId, serialized, editVariant, onClose }: {
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4">
       <div className="w-full max-w-lg rounded-lg bg-white shadow-xl">
         <div className="flex items-center justify-between border-b px-5 py-3">
           <h2 className="font-semibold">{isEdit ? 'แก้ไขรุ่นย่อย (Variant)' : addingPhone ? 'เพิ่มสี + เครื่อง (เข้ารุ่นนี้)' : 'เพิ่มรุ่นย่อย (Variant)'}</h2>
@@ -333,7 +333,7 @@ function AddVariantModal({ productId, serialized, editVariant, onClose }: {
             reorderPoint: Number(d.reorderPoint),
           });
         })}>
-          <div className="max-h-[65vh] space-y-3 overflow-y-auto p-5">
+          <div className="space-y-3 p-5">
           {addingPhone && (
             <div className="rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
               📱 เพิ่ม <strong>สี/ความจุใหม่</strong> เข้ารุ่นนี้ — กรอกสี · ความจุ · ราคา · รูป แล้ววาง/พิมพ์ IMEI ด้านล่าง
@@ -456,8 +456,7 @@ function AddVariantModal({ productId, serialized, editVariant, onClose }: {
           </div>
 
           </div>
-          {/* footer ปุ่ม — ติดล่างเสมอ (ไม่ scroll หาย) */}
-          <div className="flex shrink-0 justify-end gap-2 border-t bg-white px-5 py-3">
+          <div className="flex justify-end gap-2 border-t px-5 py-3">
             <button type="button" className="btn-secondary" onClick={onClose}>ยกเลิก</button>
             <button type="submit" className="btn-primary" disabled={create.isPending}>
               {create.isPending ? 'กำลังบันทึก...' : 'บันทึก'}
