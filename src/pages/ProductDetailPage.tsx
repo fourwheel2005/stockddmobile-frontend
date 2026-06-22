@@ -9,6 +9,7 @@ import { inventoryApi } from '@/api/inventory';
 import { extractErrorMessage } from '@/api/client';
 import { useAuthStore } from '@/stores/authStore';
 import { BarcodeDisplay } from '@/components/BarcodeDisplay';
+import { ImageEditor } from '@/components/MultiImageUpload';
 import { formatTHB } from '@/lib/format';
 import type { CreateVariantRequest, VariantResponse, ProductDetail } from '@/types/api';
 
@@ -226,6 +227,10 @@ function AddVariantModal({ productId, editVariant, onClose }: {
 }) {
   const qc = useQueryClient();
   const isEdit = !!editVariant;
+  // รูป variant (หลายรูป) — มือ 1 เว็บอ่านรูปจาก variant (FIX-046)
+  const [variantImages, setVariantImages] = useState<string[]>(
+    editVariant?.imageUrls?.length ? editVariant.imageUrls
+      : (editVariant?.imageUrl ? [editVariant.imageUrl] : []));
   const { register, handleSubmit, watch, formState: { errors } } = useForm<CreateVariantRequest>({
     defaultValues: isEdit ? {
       sku: editVariant!.sku,
@@ -246,10 +251,11 @@ function AddVariantModal({ productId, editVariant, onClose }: {
     mutationFn: (req: CreateVariantRequest) => isEdit
       ? productsApi.updateVariant(productId, editVariant!.id, {
           color: req.color, storage: req.storage, network: req.network, barcode: req.barcode,
-          imageUrl: req.imageUrl, costPrice: req.costPrice, sellingPrice: req.sellingPrice,
+          imageUrl: variantImages[0], imageUrls: variantImages,
+          costPrice: req.costPrice, sellingPrice: req.sellingPrice,
           reorderPoint: req.reorderPoint, active: editVariant!.active,
         })
-      : productsApi.addVariant(productId, req),
+      : productsApi.addVariant(productId, { ...req, imageUrl: variantImages[0], imageUrls: variantImages }),
     onSuccess: () => {
       toast.success(isEdit ? 'แก้ไขรุ่นย่อยสำเร็จ' : 'เพิ่มรุ่นย่อยสำเร็จ');
       qc.invalidateQueries({ queryKey: ['product', productId] });
@@ -260,7 +266,7 @@ function AddVariantModal({ productId, editVariant, onClose }: {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-lg rounded-lg bg-white shadow-xl">
+      <div className="flex max-h-[92vh] w-full max-w-lg flex-col rounded-lg bg-white shadow-xl">
         <div className="flex items-center justify-between border-b px-5 py-3">
           <h2 className="font-semibold">{isEdit ? 'แก้ไขรุ่นย่อย (Variant)' : 'เพิ่มรุ่นย่อย (Variant)'}</h2>
           <button onClick={onClose} className="rounded p-1 hover:bg-slate-100">
@@ -280,7 +286,7 @@ function AddVariantModal({ productId, editVariant, onClose }: {
             sellingPrice: Number(d.sellingPrice),
             reorderPoint: Number(d.reorderPoint),
           });
-        })} className="space-y-3 p-5">
+        })} className="flex-1 space-y-3 overflow-y-auto p-5">
           <div>
             <label className="mb-1 block text-sm font-medium">
               รหัสสินค้า / SKU <span className="text-red-500">*</span>
@@ -367,6 +373,13 @@ function AddVariantModal({ productId, editVariant, onClose }: {
               {profit < 0 && <> ⚠️ ราคาขายต่ำกว่าทุน!</>}
             </div>
           )}
+
+          <div>
+            <label className="mb-1 block text-sm font-medium">
+              รูปสีนี้ <span className="text-xs font-normal text-slate-500">(หลายรูปได้ · รูปแรก = ปก · เว็บหน้าร้านมือ 1 ดึงจากตรงนี้)</span>
+            </label>
+            <ImageEditor value={variantImages} onChange={setVariantImages} />
+          </div>
 
           <div className="rounded-md bg-blue-50 px-3 py-2 text-xs text-blue-800">
             💡 <strong>จุดสั่งใหม่ (Reorder Point):</strong> ถ้าสต็อกเหลือ ≤ จำนวนนี้ ระบบจะแจ้งเตือน Manager
