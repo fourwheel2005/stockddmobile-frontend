@@ -311,8 +311,8 @@ function AddVariantModal({ productId, serialized, editVariant, onClose }: {
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-4">
-      <div className="my-auto w-full max-w-lg rounded-lg bg-white shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-lg rounded-lg bg-white shadow-xl">
         <div className="flex items-center justify-between border-b px-5 py-3">
           <h2 className="font-semibold">{isEdit ? 'แก้ไขรุ่นย่อย (Variant)' : addingPhone ? 'เพิ่มสี + เครื่อง (เข้ารุ่นนี้)' : 'เพิ่มรุ่นย่อย (Variant)'}</h2>
           <button onClick={onClose} className="rounded p-1 hover:bg-slate-100">

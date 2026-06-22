@@ -297,8 +297,8 @@ function EditSerialModal({ item, onClose, onSaved }: {
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto bg-black/50 p-4">
-      <form onSubmit={submit} className="my-auto w-full max-w-md rounded-lg bg-white shadow-2xl">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+      <form onSubmit={submit} className="w-full max-w-md rounded-lg bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b px-5 py-3">
           <h3 className="font-semibold">แก้ไขเครื่อง</h3>
           <button type="button" onClick={onClose} className="rounded p-1 hover:bg-slate-100">
