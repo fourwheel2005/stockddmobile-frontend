@@ -312,8 +312,8 @@ function AddVariantModal({ productId, serialized, editVariant, onClose }: {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="flex max-h-[92vh] w-full max-w-lg flex-col rounded-lg bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b px-5 py-3">
+      <div className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-lg bg-white shadow-xl">
+        <div className="flex shrink-0 items-center justify-between border-b px-5 py-3">
           <h2 className="font-semibold">{isEdit ? 'แก้ไขรุ่นย่อย (Variant)' : addingPhone ? 'เพิ่มสี + เครื่อง (เข้ารุ่นนี้)' : 'เพิ่มรุ่นย่อย (Variant)'}</h2>
           <button onClick={onClose} className="rounded p-1 hover:bg-slate-100">
             <X className="h-4 w-4" />
@@ -333,7 +333,7 @@ function AddVariantModal({ productId, serialized, editVariant, onClose }: {
             reorderPoint: Number(d.reorderPoint),
           });
         })} className="flex min-h-0 flex-1 flex-col">
-          <div className="flex-1 space-y-3 overflow-y-auto p-5">
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-5">
           {addingPhone && (
             <div className="rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
               📱 เพิ่ม <strong>สี/ความจุใหม่</strong> เข้ารุ่นนี้ — กรอกสี · ความจุ · ราคา · รูป แล้ววาง/พิมพ์ IMEI ด้านล่าง
