@@ -155,11 +155,12 @@ export function ProductsPage() {
                   </span>
                 </div>
                 {canEdit && (
+                  // เข้าหมวด (product เดิม) ไปเพิ่มสี/เครื่อง — ไม่สร้าง product ซ้ำ
                   <Link
-                    to={`/products/new?name=${encodeURIComponent(album.name)}`}
+                    to={`/products/${album.items[0].id}`}
                     className="btn-secondary text-sm"
-                    title="เพิ่มเครื่องเข้ารุ่นนี้">
-                    <Plus className="h-4 w-4" /> เพิ่มเครื่อง
+                    title="เปิดรุ่นนี้ → เพิ่มสี/เครื่อง">
+                    <Plus className="h-4 w-4" /> เพิ่มสี/เครื่อง
                   </Link>
                 )}
               </div>

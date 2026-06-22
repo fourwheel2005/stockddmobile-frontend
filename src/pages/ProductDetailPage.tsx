@@ -104,17 +104,17 @@ export function ProductDetailPage() {
         <div className="card-header flex flex-wrap items-center justify-between gap-2">
           <span>สี / ความจุ ที่มี <span className="font-normal text-slate-500">({product.variants.length} SKU)</span></span>
           <div className="flex flex-wrap gap-2">
-            {canEdit && product.variants.length > 0 && (
-              <Link to={`/products?q=${encodeURIComponent(product.name)}`} className="btn-secondary"
-                    title="เพิ่มสต็อกให้ SKU ที่มีอยู่">
-                <ArrowDownToLine className="h-4 w-4" /> รับสินค้าเข้า
-              </Link>
+            {canEdit && (
+              // เพิ่ม "สี/ความจุใหม่ + เครื่อง" เข้า "รุ่นนี้" (ไม่สร้าง product ซ้ำ) — เสร็จในหน้าเดียว
+              <button type="button" onClick={() => setShowAddVariant(true)} className="btn-primary bg-emerald-600 hover:bg-emerald-700"
+                      title="เพิ่มสี/ความจุใหม่ + ใส่ IMEI เข้ารุ่นนี้ เสร็จในหน้าเดียว">
+                <Plus className="h-4 w-4" /> เพิ่มสี + เครื่อง
+              </button>
             )}
             {canEdit && product.variants.length > 0 && (
-              <Link to={`/products/new?cloneProduct=${product.id}`}
-                    className="btn-primary"
-                    title="คัดลอกข้อมูลรุ่นนี้ → เปิดหน้าลงทะเบียนสินค้า แก้สี/ความจุ + ใส่ IMEI → สร้างสินค้าใหม่ 1 รายการ">
-                <Copy className="h-4 w-4" /> คัดลอกสร้างสินค้าใหม่
+              <Link to={`/products?q=${encodeURIComponent(product.name)}`} className="btn-secondary"
+                    title="เพิ่มสต็อกให้ SKU/สีที่มีอยู่แล้ว">
+                <ArrowDownToLine className="h-4 w-4" /> รับเข้าสีเดิม
               </Link>
             )}
           </div>
@@ -209,10 +209,11 @@ export function ProductDetailPage() {
       </div>
 
       {showAddVariant && (
-        <AddVariantModal productId={product.id} onClose={() => setShowAddVariant(false)} />
+        <AddVariantModal productId={product.id} serialized={product.serialized}
+                         onClose={() => setShowAddVariant(false)} />
       )}
       {editingVariant && (
-        <AddVariantModal productId={product.id} editVariant={editingVariant}
+        <AddVariantModal productId={product.id} serialized={product.serialized} editVariant={editingVariant}
                          onClose={() => setEditingVariant(null)} />
       )}
       {editingProduct && (
@@ -222,15 +223,18 @@ export function ProductDetailPage() {
   );
 }
 
-function AddVariantModal({ productId, editVariant, onClose }: {
-  productId: string; editVariant?: VariantResponse; onClose: () => void;
+function AddVariantModal({ productId, serialized, editVariant, onClose }: {
+  productId: string; serialized?: boolean; editVariant?: VariantResponse; onClose: () => void;
 }) {
   const qc = useQueryClient();
   const isEdit = !!editVariant;
+  const addingPhone = !!serialized && !isEdit;   // เพิ่มสีใหม่ + เครื่อง (มือถือ) ในหน้าเดียว
   // รูป variant (หลายรูป) — มือ 1 เว็บอ่านรูปจาก variant (FIX-046)
   const [variantImages, setVariantImages] = useState<string[]>(
     editVariant?.imageUrls?.length ? editVariant.imageUrls
       : (editVariant?.imageUrl ? [editVariant.imageUrl] : []));
+  const [condition, setCondition] = useState<'NEW' | 'SECOND_HAND'>('NEW');
+  const [imeiText, setImeiText] = useState('');   // IMEI ทีละบรรทัด/วางหลายเลข
   const { register, handleSubmit, watch, formState: { errors } } = useForm<CreateVariantRequest>({
     defaultValues: isEdit ? {
       sku: editVariant!.sku,
@@ -247,17 +251,59 @@ function AddVariantModal({ productId, editVariant, onClose }: {
   const profit = sell - cost;
   const margin = cost > 0 ? ((profit / cost) * 100) : 0;
 
+  // รหัสเครื่อง running จาก base "DDxxxxx" + ลำดับ (เครื่องแรก = base = SKU ของ variant)
+  const deviceCode = (base: string, idx: number) => {
+    const m = (base || '').match(/^DD(\d+)$/);
+    if (!m) return base ? (idx === 0 ? base : `${base}-${idx + 1}`) : '';
+    return 'DD' + String(parseInt(m[1], 10) + idx).padStart(5, '0');
+  };
+
   const create = useMutation({
-    mutationFn: (req: CreateVariantRequest) => isEdit
-      ? productsApi.updateVariant(productId, editVariant!.id, {
+    mutationFn: async (req: CreateVariantRequest) => {
+      if (isEdit) {
+        return productsApi.updateVariant(productId, editVariant!.id, {
           color: req.color, storage: req.storage, network: req.network, barcode: req.barcode,
           imageUrl: variantImages[0], imageUrls: variantImages,
           costPrice: req.costPrice, sellingPrice: req.sellingPrice,
           reorderPoint: req.reorderPoint, active: editVariant!.active,
-        })
-      : productsApi.addVariant(productId, { ...req, imageUrl: variantImages[0], imageUrls: variantImages }),
+        });
+      }
+      // เพิ่มสีมือถือ + เครื่อง (IMEI) ในครั้งเดียว → variant + serial เข้า product เดิม
+      const imeis = imeiText.split(/[\s,;]+/).map((s) => s.trim()).filter(Boolean);
+      if (addingPhone && imeis.length > 0) {
+        const { sku: base } = await productsApi.nextSku();   // running DD ไม่ซ้ำ
+        const items = imeis.map((imei, i) => ({
+          serialNumber: imei,
+          imei,
+          stockCode: deviceCode(base, i),
+          condition,
+          batteryHealth: condition === 'NEW' ? 100 : undefined,
+          deviceColor: req.color,
+          deviceStorage: req.storage,
+          deviceNetwork: req.network,
+          purchasePrice: Number(req.costPrice) || undefined,
+          sellingPrice: Number(req.sellingPrice) || undefined,
+          imageUrls: variantImages.length ? variantImages : undefined,
+        }));
+        return productsApi.addVariantWithStock(productId, {
+          variant: {
+            spec: {
+              sku: deviceCode(base, 0),   // SKU variant = รหัสเครื่องแรก
+              color: req.color, storage: req.storage, network: req.network,
+              costPrice: Number(req.costPrice), sellingPrice: Number(req.sellingPrice),
+              reorderPoint: Number(req.reorderPoint),
+              imageUrls: variantImages,
+            },
+            items,
+          },
+        });
+      }
+      // ไม่มี IMEI (หรืออุปกรณ์เสริม) → สร้าง variant เปล่า
+      return productsApi.addVariant(productId, { ...req, imageUrl: variantImages[0], imageUrls: variantImages });
+    },
     onSuccess: () => {
-      toast.success(isEdit ? 'แก้ไขรุ่นย่อยสำเร็จ' : 'เพิ่มรุ่นย่อยสำเร็จ');
+      toast.success(isEdit ? 'แก้ไขรุ่นย่อยสำเร็จ'
+        : addingPhone ? 'เพิ่มสี + เครื่องเข้ารุ่นนี้สำเร็จ' : 'เพิ่มรุ่นย่อยสำเร็จ');
       qc.invalidateQueries({ queryKey: ['product', productId] });
       onClose();
     },
@@ -268,7 +314,7 @@ function AddVariantModal({ productId, editVariant, onClose }: {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="flex max-h-[92vh] w-full max-w-lg flex-col rounded-lg bg-white shadow-xl">
         <div className="flex items-center justify-between border-b px-5 py-3">
-          <h2 className="font-semibold">{isEdit ? 'แก้ไขรุ่นย่อย (Variant)' : 'เพิ่มรุ่นย่อย (Variant)'}</h2>
+          <h2 className="font-semibold">{isEdit ? 'แก้ไขรุ่นย่อย (Variant)' : addingPhone ? 'เพิ่มสี + เครื่อง (เข้ารุ่นนี้)' : 'เพิ่มรุ่นย่อย (Variant)'}</h2>
           <button onClick={onClose} className="rounded p-1 hover:bg-slate-100">
             <X className="h-4 w-4" />
           </button>
@@ -276,7 +322,7 @@ function AddVariantModal({ productId, editVariant, onClose }: {
         <form onSubmit={handleSubmit((d) => {
           const blank = (s?: string) => (s && s.trim()) ? s.trim() : undefined;
           create.mutate({
-            sku: d.sku.trim(),
+            sku: (d.sku ?? '').trim(),   // มือถือเพิ่มสี: ระบบออก DD ให้ (ไม่ใช้ค่านี้)
             color: blank(d.color),
             storage: blank(d.storage),
             network: blank(d.network),
@@ -287,6 +333,14 @@ function AddVariantModal({ productId, editVariant, onClose }: {
             reorderPoint: Number(d.reorderPoint),
           });
         })} className="flex-1 space-y-3 overflow-y-auto p-5">
+          {addingPhone && (
+            <div className="rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+              📱 เพิ่ม <strong>สี/ความจุใหม่</strong> เข้ารุ่นนี้ — กรอกสี · ความจุ · ราคา · รูป แล้ววาง/พิมพ์ IMEI ด้านล่าง
+              <strong> เสร็จในหน้าเดียว</strong> · รหัสสินค้า (DD) ระบบออกให้อัตโนมัติ
+            </div>
+          )}
+          {/* SKU — โชว์เฉพาะอุปกรณ์เสริม/แก้ไข (มือถือใช้ DD อัตโนมัติ) */}
+          {!addingPhone && (
           <div>
             <label className="mb-1 block text-sm font-medium">
               รหัสสินค้า / SKU <span className="text-red-500">*</span>
@@ -298,19 +352,9 @@ function AddVariantModal({ productId, editVariant, onClose }: {
             <p className="mt-1 text-xs text-slate-500">
               รหัสไม่ซ้ำกับ variant อื่น — แนะนำใช้รูปแบบ {`{รุ่น}-{สี}-{ความจุ}-{เครือข่าย}`}
             </p>
-            <div className="mt-2 rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600">
-              💡 <strong>ตัวอย่างคำต่อท้ายเครือข่าย/เวอร์ชัน:</strong>
-              <div className="mt-1 grid grid-cols-2 gap-x-3 gap-y-1 font-mono">
-                <span><strong>TH</strong> — เครื่องศูนย์ไทย</span>
-                <span><strong>DS</strong> — Dual SIM (2 ซิมจริง)</span>
-                <span><strong>DN</strong> — Demo / เครื่องโชว์</span>
-                <span><strong>HK</strong> — เครื่องนอก ฮ่องกง</span>
-                <span><strong>JP</strong> — เครื่องนอก ญี่ปุ่น</span>
-                <span><strong>KH</strong> — เครื่องนอก กัมพูชา</span>
-              </div>
-            </div>
             {errors.sku && <p className="mt-1 text-xs text-red-600">{errors.sku.message}</p>}
           </div>
+          )}
           <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="mb-1 block text-sm font-medium">สี (Color)</label>
@@ -380,6 +424,30 @@ function AddVariantModal({ productId, editVariant, onClose }: {
             </label>
             <ImageEditor value={variantImages} onChange={setVariantImages} />
           </div>
+
+          {/* เครื่อง (IMEI) — เพิ่มสีมือถือใหม่ ใส่เครื่องได้เลยในหน้าเดียว */}
+          {addingPhone && (
+            <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3">
+              <div className="mb-2 flex items-center gap-4 text-sm">
+                <span className="font-medium">สภาพ:</span>
+                <label className="inline-flex items-center gap-1">
+                  <input type="radio" checked={condition === 'NEW'} onChange={() => setCondition('NEW')} /> มือ 1
+                </label>
+                <label className="inline-flex items-center gap-1">
+                  <input type="radio" checked={condition === 'SECOND_HAND'} onChange={() => setCondition('SECOND_HAND')} /> มือ 2
+                </label>
+              </div>
+              <label className="mb-1 block text-sm font-medium">
+                IMEI เครื่อง <span className="text-xs font-normal text-slate-500">(1 บรรทัด = 1 เครื่อง · วางหลายเลขได้)</span>
+              </label>
+              <textarea className="input font-mono text-sm" rows={4}
+                        placeholder={'350000000000001\n350000000000002\n...'}
+                        value={imeiText} onChange={(e) => setImeiText(e.target.value)} />
+              <p className="mt-1 text-xs text-slate-500">
+                {imeiText.split(/[\s,;]+/).filter(Boolean).length} เครื่อง · เว้นว่างได้ (สร้างสีไว้ก่อน ค่อยเพิ่มเครื่องทีหลัง)
+              </p>
+            </div>
+          )}
 
           <div className="rounded-md bg-blue-50 px-3 py-2 text-xs text-blue-800">
             💡 <strong>จุดสั่งใหม่ (Reorder Point):</strong> ถ้าสต็อกเหลือ ≤ จำนวนนี้ ระบบจะแจ้งเตือน Manager
