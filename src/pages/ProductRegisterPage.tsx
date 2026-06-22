@@ -17,6 +17,7 @@ import { formatTHB } from '@/lib/format';
 import { ACQ_INFO, ACQ_ORDER } from '@/lib/acquisition';
 import type { AcquisitionType, ProductWizardRequest } from '@/types/api';
 import { AccessorySerialList } from '@/components/products/AccessorySerialList';
+import { MultiImageUpload } from '@/components/MultiImageUpload';
 
 /* ─── ตัวเลือกแนะนำ ─────────────────────────────────────────────────── */
 /** ดึงสินค้าหน้าเดียวพอ (ร้านมีรุ่นหลักสิบ) มาทำ autocomplete เลขรุ่น */
@@ -1036,60 +1037,6 @@ function FieldRow({
       <div className="min-w-0">
         {children}
         {hint && <p className="mt-1 text-xs text-slate-500">💡 {hint}</p>}
-      </div>
-    </div>
-  );
-}
-
-function MultiImageUpload({
-  images, uploading, dragOver,
-  onDragOver, onDragLeave, onDrop, onSelect, onRemove, onMakeCover,
-}: {
-  images: string[]; uploading: boolean; dragOver: boolean;
-  onDragOver: (e: React.DragEvent<HTMLDivElement>) => void;
-  onDragLeave: () => void;
-  onDrop: (e: React.DragEvent<HTMLDivElement>) => void;
-  onSelect: (files: File[]) => void;
-  onRemove: (idx: number) => void;
-  onMakeCover: (idx: number) => void;
-}) {
-  return (
-    <div onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}
-         className={`rounded-xl border-2 border-dashed p-3 transition-all
-                     ${dragOver ? 'border-brand-500 bg-brand-50' : 'border-slate-300'}`}>
-      <div className="flex flex-wrap gap-2">
-        {images.map((url, idx) => (
-          <div key={url + idx} className="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg border border-slate-200 group">
-            <img src={url} alt={`product-${idx}`} className="h-full w-full object-cover" />
-            {idx === 0 && (
-              <span className="absolute bottom-0 left-0 right-0 bg-brand-600/90 py-0.5 text-center text-[10px] font-semibold text-white">
-                ปก
-              </span>
-            )}
-            <button type="button" onClick={() => onRemove(idx)}
-                    className="absolute right-1 top-1 grid h-5 w-5 place-items-center rounded-full bg-black/60 text-white hover:bg-black"
-                    title="ลบรูป">
-              <X className="h-3 w-3" />
-            </button>
-            {idx !== 0 && (
-              <button type="button" onClick={() => onMakeCover(idx)}
-                      className="absolute bottom-0 left-0 right-0 bg-black/55 py-0.5 text-center text-[10px] text-white opacity-0 transition-opacity group-hover:opacity-100"
-                      title="ตั้งเป็นรูปปก">
-                ตั้งเป็นปก
-              </button>
-            )}
-          </div>
-        ))}
-        {/* ปุ่มเพิ่มรูป */}
-        <label className="grid h-20 w-20 shrink-0 cursor-pointer place-items-center rounded-lg bg-slate-100 text-slate-400 transition-colors hover:bg-slate-200 hover:text-slate-600">
-          <input type="file" accept="image/*" multiple className="hidden"
-                 onChange={(e) => { onSelect(Array.from(e.target.files || [])); e.target.value = ''; }} />
-          {uploading ? <Loader2 className="h-6 w-6 animate-spin" /> : <ImageIcon className="h-6 w-6" />}
-        </label>
-      </div>
-      <div className="mt-2 flex items-center gap-1 text-xs text-slate-500">
-        <Upload className="h-3.5 w-3.5" /> ลาก-วาง/เลือกหลายไฟล์ · JPG/PNG/WebP/HEIC · ไม่เกิน 10MB/รูป
-        {images.length > 0 && <span className="ml-auto font-medium text-slate-600">{images.length} รูป</span>}
       </div>
     </div>
   );

@@ -132,6 +132,7 @@ export interface UpdateSerialRequest {
   batteryHealth?: number;
   condition?: SerializedCondition;
   note?: string;
+  imageUrls?: string[];   // แก้รูปรายเครื่อง (แทนที่ทั้งชุด · รูปแรก = ปก)
 }
 
 // ─── Product Wizard (สร้างหน้าเดียว — atomic, รองรับหลาย variants) ────

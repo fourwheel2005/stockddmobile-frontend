@@ -7,6 +7,7 @@ import { extractErrorMessage } from '@/api/client';
 import { formatDate } from '@/lib/format';
 import { acqLabel } from '@/lib/acquisition';
 import { RepairIntakeModal } from '@/components/RepairIntakeModal';
+import { ImageEditor } from '@/components/MultiImageUpload';
 import type { SerializedStatus, ServiceState, SerializedItemResponse, SerializedCondition } from '@/types/api';
 
 interface Props {
@@ -270,6 +271,7 @@ function EditSerialModal({ item, onClose, onSaved }: {
   const [battery, setBattery] = useState(item.batteryHealth != null ? String(item.batteryHealth) : '');
   const [condition, setCondition] = useState<SerializedCondition>(
     (item.condition as SerializedCondition) ?? 'SECOND_HAND');
+  const [imageUrls, setImageUrls] = useState<string[]>(item.imageUrls ?? []);
 
   const save = useMutation({
     mutationFn: () => inventoryApi.updateSerial(item.id, {
@@ -282,6 +284,7 @@ function EditSerialModal({ item, onClose, onSaved }: {
       warrantyTerms: warrantyTerms.trim() || undefined,
       batteryHealth: battery === '' ? undefined : Number(battery),
       condition,
+      imageUrls,   // แทนที่รูปทั้งชุด (รูปแรก = ปก)
     }),
     onSuccess: () => { toast.success('แก้ไขเครื่องแล้ว'); onSaved(); onClose(); },
     onError: (e) => toast.error(extractErrorMessage(e)),
@@ -295,14 +298,14 @@ function EditSerialModal({ item, onClose, onSaved }: {
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
-      <form onSubmit={submit} className="w-full max-w-md rounded-lg bg-white shadow-2xl">
+      <form onSubmit={submit} className="flex max-h-[92vh] w-full max-w-md flex-col rounded-lg bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b px-5 py-3">
           <h3 className="font-semibold">แก้ไขเครื่อง</h3>
           <button type="button" onClick={onClose} className="rounded p-1 hover:bg-slate-100">
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="space-y-3 px-5 py-4">
+        <div className="flex-1 space-y-3 overflow-y-auto px-5 py-4">
           <div>
             <label className="mb-0.5 block text-xs font-semibold text-slate-600">IMEI</label>
             <input className="input font-mono" value={imei} onChange={(e) => setImei(e.target.value)}
@@ -355,6 +358,12 @@ function EditSerialModal({ item, onClose, onSaved }: {
                 <option key={c} value={c}>{CONDITION_TH[c] ?? c}</option>
               ))}
             </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-slate-600">
+              รูปเครื่องนี้ <span className="font-normal text-slate-400">(เพิ่ม/ลบ/ตั้งปกได้)</span>
+            </label>
+            <ImageEditor value={imageUrls} onChange={setImageUrls} />
           </div>
         </div>
         <div className="flex justify-end gap-2 border-t px-5 py-3">
