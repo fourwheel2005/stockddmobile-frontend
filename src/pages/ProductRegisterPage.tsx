@@ -501,6 +501,13 @@ export function ProductRegisterPage() {
         scrollToSection('section-stock');
         return null;
       }
+      // เตือน: มือ 1 ต้องมีสี+ความจุ (variant ห้าม null) — กันตัวเลือกเว็บเพี้ยน (ไม่บล็อก)
+      const newMissing = validItems.some(
+        (it) => it.condition === 'NEW' && (!it.deviceColor || !it.deviceStorage));
+      if (newMissing) {
+        toast('⚠️ มือ 1 บางเครื่องไม่ได้ใส่สี/ความจุ — แนะนำใส่ให้ครบ เพื่อให้ตัวเลือกบนเว็บถูกต้อง',
+          { duration: 4000, icon: '📱' });
+      }
     } else {
       qty = Number(d.quantity) || 0;
       if (qty <= 0) {
@@ -510,6 +517,57 @@ export function ProductRegisterPage() {
       }
     }
 
+    // ── สร้าง variants ตามสเปกเว็บ DD ──────────────────────────────────
+    // มือถือ (serialized): 1 variant = (สภาพ × สี × ความจุ)
+    //   • มือ 1 (NEW): ตั้ง variant.color/storage/sellingPrice/imageUrls ครบ (เว็บอ่านมือ1จาก variant)
+    //   • มือ 2 (USED): แยก variant ตามสี/ความจุเช่นกัน · ราคา/รูปจริงอยู่ที่ serial
+    //   • NEW กับ USED แยกคนละ variant เสมอ (อยู่ใน key)
+    // อุปกรณ์เสริม (bulk): variant เดียวตามเดิม
+    let variantBlocks;
+    if (d.serialized && validItems) {
+      const groups = new Map<string, typeof validItems>();
+      for (const it of validItems) {
+        const key = `${it.condition ?? 'NEW'}|${(it.deviceColor ?? '').trim().toLowerCase()}|${(it.deviceStorage ?? '').trim().toLowerCase()}`;
+        const arr = groups.get(key) ?? [];
+        arr.push(it);
+        groups.set(key, arr);
+      }
+      variantBlocks = Array.from(groups.values()).map((items) => {
+        const first = items[0];
+        // รูปต่อสี = รูปของเครื่องแรกในกลุ่มที่มีรูป (เว็บมือ1เอาจาก variant)
+        const coverImages = items.find((x) => x.imageUrls?.length)?.imageUrls;
+        return {
+          spec: {
+            sku: first.stockCode ?? d.sku.trim(),   // SKU variant = รหัสเครื่องแรกในกลุ่ม
+            color: first.deviceColor,                // ตั้งสีที่ variant (มือ1 ห้าม null)
+            storage: first.deviceStorage,
+            network: first.deviceNetwork,
+            costPrice: Number(first.purchasePrice) || 0,
+            sellingPrice: Number(first.sellingPrice) || 0,
+            reorderPoint: Number(d.reorderPoint),
+            imageUrls: coverImages,
+          },
+          items,
+        };
+      });
+    } else {
+      variantBlocks = [{
+        spec: {
+          sku: d.sku.trim(),
+          barcode: blank(d.barcode),
+          costPrice: Number(d.costPrice) || 0,
+          sellingPrice: Number(d.sellingPrice) || 0,
+          reorderPoint: Number(d.reorderPoint),
+        },
+        quantity: qty,
+        acquisitionType: d.lotAcquisitionType || 'PURCHASE',
+        unitCost: d.lotUnitCost === '' ? undefined : Number(d.lotUnitCost),
+        supplierRef: blank(d.lotSupplierRef),
+        invoiceNo: blank(d.lotInvoiceNo),
+        lotNote: blank(d.lotNote),
+      }];
+    }
+
     return {
       categoryId: d.categoryId,
       name: d.name.trim(),
@@ -517,28 +575,7 @@ export function ProductRegisterPage() {
       modelNumber: blank(d.modelNumber),
       description: blank(d.description),
       serialized: d.serialized,
-      variants: [{
-        spec: {
-          // approach C: variant = ระดับรุ่น (1 รุ่น = 1 variant) — สี/ความจุ/เครือข่าย
-          // อยู่รายเครื่อง จึงเว้นที่ variant (ตรงกับข้อมูล import)
-          sku: d.sku.trim(),
-          barcode: blank(d.barcode),
-          // ราคา variant = ค่าตัวแทน · มือถือ (per-device) → ใช้ราคาเครื่องแรก · อุปกรณ์เสริม → ราคา section 2
-          costPrice: Number(d.costPrice) || Number(validItems?.[0]?.purchasePrice) || 0,
-          sellingPrice: Number(d.sellingPrice) || Number(validItems?.[0]?.sellingPrice) || 0,
-          reorderPoint: Number(d.reorderPoint),
-        },
-        ...(d.serialized
-          ? { items: validItems }
-          : {
-              quantity: qty,
-              acquisitionType: d.lotAcquisitionType || 'PURCHASE',
-              unitCost: d.lotUnitCost === '' ? undefined : Number(d.lotUnitCost),
-              supplierRef: blank(d.lotSupplierRef),
-              invoiceNo: blank(d.lotInvoiceNo),
-              lotNote: blank(d.lotNote),
-            }),
-      }],
+      variants: variantBlocks,
       ...(d.serialized ? {
         lotNo: blank(d.lotNo),
         importDate: d.importDate,
