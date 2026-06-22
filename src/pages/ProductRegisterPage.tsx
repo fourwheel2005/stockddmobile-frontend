@@ -894,7 +894,7 @@ export function ProductRegisterPage() {
           <div className="card-header flex items-center gap-2">
             <span className="grid h-6 w-6 place-items-center rounded-full bg-brand-100 text-xs font-bold text-brand-700">4</span>
             <span className="font-semibold">อื่นๆ</span>
-            <span className="text-xs text-slate-500">— รหัสสินค้า · บาร์โค้ด · ล็อต</span>
+            <span className="text-xs text-slate-500">— รายละเอียดเพิ่มเติม</span>
           </div>
           <div className="card-body space-y-5">
               {/* มือถือ: รหัสสินค้าเป็น "รายเครื่อง" (DD running) แสดงในส่วนที่ 3 แล้ว → ซ่อนที่นี่
@@ -934,20 +934,8 @@ export function ProductRegisterPage() {
               <FieldRow label="รายละเอียด">
                 <textarea className="input" rows={2} {...register('description')} />
               </FieldRow>
-
-              {serialized && (<>
-                <FieldRow label="เลขล็อต" autoBadge hint="เว้นว่าง = ระบบสร้างให้อัตโนมัติ">
-                  <input className="input" placeholder="LOT-AUTO" {...register('lotNo')} />
-                </FieldRow>
-
-                <FieldRow label="วันที่นำเข้า" autoBadge hint="ค่าเริ่มต้น = วันนี้ (เปลี่ยนได้)">
-                  <input type="date" className="input" {...register('importDate')} />
-                </FieldRow>
-
-                <FieldRow label="หมายเหตุล็อต">
-                  <input className="input" {...register('lotNote')} />
-                </FieldRow>
-              </>)}
+              {/* เลขล็อต/วันที่นำเข้า/หมายเหตุล็อต — ตัด UI ออกให้ง่าย (FIX-044)
+                  ระบบใส่ให้อัตโนมัติ: lotNo auto-gen · วันที่นำเข้า = วันนี้ */}
           </div>
         </div>
 

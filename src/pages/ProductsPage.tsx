@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
-import { PackagePlus, Plus, Eye, Sparkles } from 'lucide-react';
+import { PackagePlus, Plus, Eye, Sparkles, FolderOpen } from 'lucide-react';
 import { productsApi } from '@/api/products';
 import { useAuthStore } from '@/stores/authStore';
 import { formatDate, formatTHB } from '@/lib/format';
@@ -23,18 +23,30 @@ import type { VariantResponse } from '@/types/api';
  */
 export function ProductsPage() {
   const [searchParams] = useSearchParams();
-  const [page, setPage] = useState(0);
   // pre-fill search จาก ?q= (deep-link จากหน้าลงทะเบียน "เพิ่มเครื่องเข้ารุ่นนี้")
   const [query, setQuery] = useState(searchParams.get('q') ?? '');
   const [receiveTarget, setReceiveTarget] = useState<VariantResponse | null>(null);
   const canEdit = useAuthStore((s) => s.hasRole('ADMIN', 'MANAGER'));
 
-  // List (default view)
+  // List (default view) — ดึงทั้งหมด แล้วจัดกลุ่มตามรุ่น (album-as-heading) ฝั่ง client
   const productsList = useQuery({
-    queryKey: ['products', { page }],
-    queryFn: () => productsApi.list({ page, size: 20 }),
+    queryKey: ['products', 'all'],
+    queryFn: () => productsApi.list({ page: 0, size: 500 }),
     enabled: !query.trim(),
   });
+
+  // จัดกลุ่มสินค้าตามชื่อรุ่น (iPhone 17 / iPhone 11 / iPhone 11 Pro แยกหัวข้อ) เรียง ก-ฮ/A-Z
+  const albums = useMemo(() => {
+    const rows = productsList.data?.content ?? [];
+    const map = new Map<string, { name: string; items: typeof rows }>();
+    for (const p of rows) {
+      const key = (p.name ?? '').trim().toLowerCase();
+      const g = map.get(key) ?? { name: p.name, items: [] };
+      g.items.push(p);
+      map.set(key, g);
+    }
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, 'th'));
+  }, [productsList.data]);
 
   // Search variants (when user types)
   const variantSearch = useQuery({
@@ -119,65 +131,67 @@ export function ProductsPage() {
         </div>
       )}
 
-      {/* PRODUCTS LIST view (default — no search) */}
+      {/* PRODUCTS LIST view (default — no search) — จัดกลุ่มเป็น "อัลบั้มตามรุ่น" */}
       {!isSearchMode && (
-        <div className="card">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
-                <tr>
-                  <th className="px-5 py-2.5">ชื่อสินค้า</th>
-                  <th className="px-5 py-2.5">ยี่ห้อ</th>
-                  <th className="px-5 py-2.5">รุ่น</th>
-                  <th className="px-5 py-2.5">หมวดหมู่</th>
-                  <th className="px-5 py-2.5">ประเภท</th>
-                  <th className="px-5 py-2.5">สถานะ</th>
-                  <th className="px-5 py-2.5">สร้าง</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {productsList.isLoading && (
-                  <tr><td colSpan={7} className="px-5 py-8 text-center text-slate-400">กำลังโหลด...</td></tr>
+        <div className="space-y-4">
+          {productsList.isLoading && (
+            <div className="rounded-lg border border-slate-200 p-8 text-center text-sm text-slate-400">กำลังโหลด...</div>
+          )}
+          {productsList.data && albums.length === 0 && (
+            <div className="rounded-lg border border-slate-200 p-8 text-center text-sm text-slate-400">
+              ยังไม่มีสินค้า — กด "สร้างสินค้าใหม่" เพื่อเริ่ม
+            </div>
+          )}
+
+          {albums.map((album) => (
+            <div key={album.name} className="card overflow-hidden">
+              {/* หัวข้ออัลบั้ม = ชื่อรุ่น */}
+              <div className="flex items-center justify-between gap-2 border-b border-slate-100 bg-slate-50/60 px-5 py-3">
+                <div className="flex items-center gap-2">
+                  <FolderOpen className="h-5 w-5 text-brand-500" />
+                  <h3 className="text-base font-bold text-slate-800">{album.name}</h3>
+                  <span className="rounded-full bg-slate-200 px-2 text-xs font-medium text-slate-600">
+                    {album.items.length} รายการ
+                  </span>
+                </div>
+                {canEdit && (
+                  <Link
+                    to={`/products/new?name=${encodeURIComponent(album.name)}`}
+                    className="btn-secondary text-sm"
+                    title="เพิ่มเครื่องเข้ารุ่นนี้">
+                    <Plus className="h-4 w-4" /> เพิ่มเครื่อง
+                  </Link>
                 )}
-                {productsList.data?.content.map((p) => (
-                  <tr key={p.id} className="hover:bg-slate-50">
-                    <td className="px-5 py-3">
+              </div>
+              {/* รายการในอัลบั้ม */}
+              <div className="divide-y divide-slate-100">
+                {album.items.map((p) => (
+                  <div key={p.id} className="flex items-center justify-between gap-3 px-5 py-3 hover:bg-slate-50">
+                    <div className="min-w-0">
                       <Link to={`/products/${p.id}`} className="font-medium text-brand-700 hover:underline">
                         {p.name}
                       </Link>
-                    </td>
-                    <td className="px-5 py-3">{p.brand}</td>
-                    <td className="px-5 py-3 font-mono text-xs text-slate-600">{p.modelNumber ?? '-'}</td>
-                    <td className="px-5 py-3">{p.categoryName}</td>
-                    <td className="px-5 py-3">
-                      {p.serialized
-                        ? <span className="badge-blue">นับชิ้น</span>
-                        : <span className="badge-slate">นับจำนวน</span>}
-                    </td>
-                    <td className="px-5 py-3">
-                      {p.active ? <span className="badge-green">ใช้งาน</span> : <span className="badge-red">ปิด</span>}
-                    </td>
-                    <td className="px-5 py-3 text-xs text-slate-500">{formatDate(p.createdAt)}</td>
-                  </tr>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                        <span>{p.brand || 'Apple'}</span>
+                        <span>· {p.categoryName}</span>
+                        {p.serialized
+                          ? <span className="badge-blue">นับชิ้น</span>
+                          : <span className="badge-slate">นับจำนวน</span>}
+                        {!p.active && <span className="badge-red">ปิด</span>}
+                        <span className="text-slate-400">· {formatDate(p.createdAt)}</span>
+                      </div>
+                    </div>
+                    <Link
+                      to={`/products/${p.id}`}
+                      className="shrink-0 rounded-md border border-slate-200 p-2 text-slate-600 hover:border-brand-400 hover:bg-brand-50 hover:text-brand-700"
+                      title="ดูรายละเอียด + เครื่องในรุ่น">
+                      <Eye className="h-4 w-4" />
+                    </Link>
+                  </div>
                 ))}
-                {productsList.data && productsList.data.content.length === 0 && (
-                  <tr><td colSpan={7} className="px-5 py-8 text-center text-slate-400">
-                    ยังไม่มีสินค้า — กด "สร้างสินค้าใหม่" เพื่อเริ่ม
-                  </td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {productsList.data && productsList.data.totalPages > 1 && (
-            <div className="flex items-center justify-between border-t border-slate-200 px-5 py-3 text-sm">
-              <div>หน้า {productsList.data.page + 1} / {productsList.data.totalPages}</div>
-              <div className="flex gap-2">
-                <button className="btn-secondary" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>ก่อนหน้า</button>
-                <button className="btn-secondary" disabled={productsList.data.last} onClick={() => setPage((p) => p + 1)}>ถัดไป</button>
               </div>
             </div>
-          )}
+          ))}
         </div>
       )}
 
