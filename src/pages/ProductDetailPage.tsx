@@ -332,7 +332,8 @@ function AddVariantModal({ productId, serialized, editVariant, onClose }: {
             sellingPrice: Number(d.sellingPrice),
             reorderPoint: Number(d.reorderPoint),
           });
-        })} className="flex-1 space-y-3 overflow-y-auto p-5">
+        })} className="flex min-h-0 flex-1 flex-col">
+          <div className="flex-1 space-y-3 overflow-y-auto p-5">
           {addingPhone && (
             <div className="rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
               📱 เพิ่ม <strong>สี/ความจุใหม่</strong> เข้ารุ่นนี้ — กรอกสี · ความจุ · ราคา · รูป แล้ววาง/พิมพ์ IMEI ด้านล่าง
@@ -454,7 +455,9 @@ function AddVariantModal({ productId, serialized, editVariant, onClose }: {
             ตัวอย่าง: ตั้ง 3 = พอเหลือ 3 ชิ้น จะมี toast แดง "Low Stock"
           </div>
 
-          <div className="flex justify-end gap-2 pt-2">
+          </div>
+          {/* footer ปุ่ม — ติดล่างเสมอ (ไม่ scroll หาย) */}
+          <div className="flex shrink-0 justify-end gap-2 border-t bg-white px-5 py-3">
             <button type="button" className="btn-secondary" onClick={onClose}>ยกเลิก</button>
             <button type="submit" className="btn-primary" disabled={create.isPending}>
               {create.isPending ? 'กำลังบันทึก...' : 'บันทึก'}
