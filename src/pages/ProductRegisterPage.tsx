@@ -13,6 +13,7 @@ import {
 import { categoriesApi, productsApi } from '@/api/products';
 import { inventoryApi } from '@/api/inventory';
 import { compressImage } from '@/lib/imageCompress';
+import { WARRANTY_NEW, WARRANTY_APPLE_ACTIVATED, WARRANTY_OPTIONS, COLOR_OPTIONS, STORAGE_OPTIONS } from '@/lib/deviceOptions';
 import { filesApi } from '@/api/files';
 import { extractErrorMessage } from '@/api/client';
 import { formatTHB } from '@/lib/format';
@@ -26,24 +27,6 @@ import { MultiImageUpload } from '@/components/MultiImageUpload';
 const PRODUCT_SUGGESTION_PAGE_SIZE = 500;
 /** ซ่อนโหมดยิงสแกน IMEI ไว้ก่อน (ลดความสับสน) — เก็บโค้ดไว้ เปลี่ยนเป็น true เพื่อเปิดใช้อนาคต */
 const SHOW_SCANNER_MODE = false;
-const STORAGE_OPTIONS = ['64GB', '128GB', '256GB', '512GB', '1TB'];
-/** ประกัน — ติ๊ก "มือ 1" เติมค่านี้อัตโนมัติ (เลือก/แก้ได้) */
-const WARRANTY_NEW = 'ประกันศูนย์ 1 ปี (Apple)';
-/** เครื่อง activate แล้ว — ประกัน Apple นับจากวัน activate → ต้องระบุวันหมดเอง */
-const WARRANTY_APPLE_ACTIVATED = 'ประกัน Apple (activate แล้ว)';
-const WARRANTY_OPTIONS = [
-  WARRANTY_NEW,
-  WARRANTY_APPLE_ACTIVATED,
-  'ประกันร้าน 7 วัน',
-  'ประกันร้าน 1 เดือน',
-  'ประกันร้าน 3 เดือน',
-  'ประกันร้าน 6 เดือน',
-  'ไม่มีประกัน',
-];
-const COLOR_OPTIONS = [
-  'Black', 'White', 'Blue', 'Pink', 'Yellow', 'Green', 'Red', 'Purple',
-  'Natural Titanium', 'Blue Titanium', 'Black Titanium', 'White Titanium', 'Desert Titanium',
-];
 const BRAND_OPTIONS = ['Apple', 'Samsung', 'Xiaomi', 'OPPO', 'Vivo', 'Google', 'Huawei', 'realme'];
 /** ชื่อรุ่น iPhone ทุกรุ่น (ใหม่→เก่า) — ใช้เป็น suggestion ให้ format ชื่อเหมือนกัน
  *  (สำคัญหลัง FIX-013: SKU = ชื่อรุ่น → ชื่อต่างกันนิดเดียว = variant ซ้ำ).
