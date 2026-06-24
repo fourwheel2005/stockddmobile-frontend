@@ -7,6 +7,7 @@ import { ArrowLeft, Plus, X, ArrowDownToLine, Copy, PackageOpen, Pencil, Trash2 
 import { productsApi, categoriesApi } from '@/api/products';
 import { inventoryApi } from '@/api/inventory';
 import { extractErrorMessage } from '@/api/client';
+import { useBranchStore } from '@/stores/branchStore';
 import { useAuthStore } from '@/stores/authStore';
 import { BarcodeDisplay } from '@/components/BarcodeDisplay';
 import { ImageEditor } from '@/components/MultiImageUpload';
@@ -478,6 +479,7 @@ function AddVariantModal({ productId, serialized, productModelNumber, editVarian
           const first = grp[0];
           const cover = grp.find((x) => x.imageUrls?.length)?.imageUrls;
           await productsApi.addVariantWithStock(productId, {
+            branchId: useBranchStore.getState().activeBranchId ?? undefined,  // รับเข้าสาขาที่เลือก (Phase 2A)
             variant: {
               spec: {
                 sku: first.stockCode!,               // SKU variant = รหัสเครื่องแรกในกลุ่ม

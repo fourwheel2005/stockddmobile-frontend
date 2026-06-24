@@ -20,6 +20,7 @@ import { LotsPage } from '@/pages/LotsPage';
 import { SalesHistoryPage } from '@/pages/SalesHistoryPage';
 import { OrderDetailPage } from '@/pages/OrderDetailPage';
 import { ReportsPage } from '@/pages/ReportsPage';
+import { BranchesPage } from '@/pages/BranchesPage';
 import { WarrantyPage } from '@/pages/WarrantyPage';
 import { ScannerTestPage } from '@/pages/ScannerTestPage';
 import { PrintLabelsPage } from '@/pages/PrintLabelsPage';
@@ -56,6 +57,7 @@ export default function App() {
           {/* /sales: STAFF เข้าได้ — แต่ปุ่ม refund จะ disable ตาม role ใน UI */}
           <Route path="/sales" element={<SalesHistoryPage />} />
           <Route path="/pos/orders/:id" element={<OrderDetailPage />} />
+          <Route path="/branches" element={<BranchesPage />} />
         </Route>
       </Route>
 

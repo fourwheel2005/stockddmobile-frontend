@@ -6,10 +6,11 @@ import { useStockSocket } from '@/hooks/useStockSocket';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { WsStatusIndicator } from '@/components/WsStatusIndicator';
 import { CashDrawerIndicator } from '@/components/CashDrawerIndicator';
+import { BranchSelector } from '@/components/BranchSelector';
 import {
   LayoutDashboard, Boxes, Package, ArrowUpFromLine,
   History, BellRing, LogOut, SlidersHorizontal, ScanLine, Users, Layers, Receipt,
-  BarChart3, ShieldCheck, Tag, Wrench, Menu, X, Wallet, Landmark,
+  BarChart3, ShieldCheck, Tag, Wrench, Menu, X, Wallet, Landmark, Building2,
 } from 'lucide-react';
 
 const navItems = [
@@ -33,6 +34,7 @@ const navItems = [
   { to: '/transactions', label: 'ประวัติสต็อก',  icon: History,           roles: ['ADMIN', 'MANAGER'] as const },
   { to: '/reports',      label: 'รายงาน',        icon: BarChart3,         roles: ['ADMIN', 'MANAGER'] as const },
   { to: '/alerts',       label: 'แจ้งเตือน',     icon: BellRing,          roles: ['ADMIN', 'MANAGER'] as const },
+  { to: '/branches',     label: 'สาขา',          icon: Building2,         roles: ['ADMIN', 'MANAGER'] as const },
 ];
 
 function Wordmark() {
@@ -107,6 +109,7 @@ export function AppShell() {
         </div>
 
         <CashDrawerIndicator />
+        <BranchSelector />
 
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
           {visibleNav.map(({ to, label, icon: Icon }) => (

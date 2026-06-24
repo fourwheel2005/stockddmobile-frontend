@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Search, Smartphone, X, ChevronRight, ChevronDown } from 'lucide-react';
 import { inventoryApi } from '@/api/inventory';
+import { useBranchStore } from '@/stores/branchStore';
 import { SerialsModal } from '@/components/SerialsModal';
 import { formatNumber, formatDateTime } from '@/lib/format';
 import type { SerializedItemResponse } from '@/types/api';
@@ -48,13 +49,15 @@ export function InventoryPage() {
   }, [deviceSearchInput]);
 
   // มุมมองรายเครื่อง (flat ทุกรุ่น) — filter ตาม condition (chips) + status + คำค้น
+  const activeBranchId = useBranchStore((s) => s.activeBranchId);
   const { data: devices, isLoading: devicesLoading } = useQuery({
-    queryKey: ['inventory-serials', { page, condition, deviceStatus, deviceQ }],
+    queryKey: ['inventory-serials', { page, condition, deviceStatus, deviceQ, activeBranchId }],
     enabled: viewMode === 'device',
     queryFn: () => inventoryApi.listSerials({
       page, size: 50,
       condition: condition || undefined,
       status: deviceStatus || undefined,
+      branchId: activeBranchId || undefined,   // กรองตามสาขาที่เลือก (Phase 2A)
       q: deviceQ || undefined,
     }),
   });
@@ -308,7 +311,14 @@ export function InventoryPage() {
                         {s.stockCode ?? '—'}
                       </span>
                     </td>
-                    <td className="px-5 py-3 font-medium">{s.productName ?? s.sku}</td>
+                    <td className="px-5 py-3 font-medium">
+                      {s.productName ?? s.sku}
+                      {s.branchName && (
+                        <span className="ml-1.5 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-normal text-slate-500">
+                          🏪 {s.branchName}
+                        </span>
+                      )}
+                    </td>
                     <td className="px-5 py-3 text-slate-600">
                       {[s.deviceColor, s.deviceStorage].filter(Boolean).join(' / ') || '-'}
                     </td>

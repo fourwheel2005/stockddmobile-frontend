@@ -191,6 +191,8 @@ export interface ProductWizardRequest {
   modelNumber?: string;
   description?: string;
   serialized: boolean;
+  /** รับเข้าสาขาไหน (Phase 2A) — เว้น = สาขาเริ่มต้น (MAIN) */
+  branchId?: string;
   // ≥1 variants
   variants: WizardVariantBlock[];
   // shared lot info (serialized only, optional)
@@ -202,6 +204,7 @@ export interface ProductWizardRequest {
 /** เพิ่ม SKU ใหม่ใน Product ที่มีอยู่ + รับสต็อกล็อตแรก (Clone Flow). */
 export interface AddVariantWithStockRequest {
   variant: WizardVariantBlock;
+  branchId?: string;
   lotNo?: string;
   importDate?: string;
   note?: string;
@@ -277,6 +280,28 @@ export interface SerializedItemResponse {
   serviceState: ServiceState | null;
   defectNote: string | null;
   imageUrls?: string[] | null;     // รูปรายเครื่อง — เว็บหน้าร้านดึงไปแสดง
+  branchId?: string | null;        // เครื่องอยู่สาขาไหน (Phase 2A)
+  branchName?: string | null;
+}
+
+/** สาขา (Phase 2A) */
+export interface Branch {
+  id: string;
+  code: string;
+  name: string;
+  address?: string | null;
+  phone?: string | null;
+  defaultPrinterId?: string | null;
+  active: boolean;
+}
+
+export interface BranchRequest {
+  code: string;
+  name: string;
+  address?: string;
+  phone?: string;
+  defaultPrinterId?: string;
+  active?: boolean;
 }
 
 export interface ServiceActionRequest {

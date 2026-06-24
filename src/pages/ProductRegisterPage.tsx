@@ -13,6 +13,7 @@ import {
 import { categoriesApi, productsApi } from '@/api/products';
 import { inventoryApi } from '@/api/inventory';
 import { compressImage } from '@/lib/imageCompress';
+import { useBranchStore } from '@/stores/branchStore';
 import { WARRANTY_NEW, WARRANTY_APPLE_ACTIVATED, WARRANTY_OPTIONS, COLOR_OPTIONS, STORAGE_OPTIONS } from '@/lib/deviceOptions';
 import { filesApi } from '@/api/files';
 import { extractErrorMessage } from '@/api/client';
@@ -564,6 +565,7 @@ export function ProductRegisterPage() {
       modelNumber: blank(d.modelNumber),
       description: blank(d.description),
       serialized: d.serialized,
+      branchId: useBranchStore.getState().activeBranchId ?? undefined,  // รับเข้าสาขาที่เลือก (Phase 2A)
       variants: variantBlocks,
       ...(d.serialized ? {
         lotNo: blank(d.lotNo),
