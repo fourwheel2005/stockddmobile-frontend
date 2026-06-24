@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { categoriesApi, productsApi } from '@/api/products';
 import { inventoryApi } from '@/api/inventory';
+import { compressImage } from '@/lib/imageCompress';
 import { filesApi } from '@/api/files';
 import { extractErrorMessage } from '@/api/client';
 import { formatTHB } from '@/lib/format';
@@ -1126,13 +1127,14 @@ function ItemCard({
   const uploadImages = async (files: File[]) => {
     const ok = files.filter((f) => {
       if (!f.type.startsWith('image/')) { toast.error(`"${f.name}" ไม่ใช่ไฟล์รูป`); return false; }
-      if (f.size > 10 * 1024 * 1024) { toast.error(`"${f.name}" เกิน 10MB`); return false; }
+      if (f.size > 25 * 1024 * 1024) { toast.error(`"${f.name}" เกิน 25MB`); return false; }
       return true;
     });
     if (!ok.length) return;
     setImgUploading(true);
     try {
-      const up = await Promise.all(ok.map((f) => filesApi.upload(f)));
+      const compressed = await Promise.all(ok.map((f) => compressImage(f)));
+      const up = await Promise.all(compressed.map((f) => filesApi.upload(f)));
       setImages([...images, ...up.map((u) => u.url)]);
       toast.success(`อัปโหลด ${up.length} รูป`, { duration: 1000 });
     } catch (e) { toast.error(extractErrorMessage(e)); }

@@ -3,6 +3,7 @@ import { ImageIcon, Loader2, Upload, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { filesApi } from '@/api/files';
 import { extractErrorMessage } from '@/api/client';
+import { compressImage } from '@/lib/imageCompress';
 
 interface Props {
   images: string[];
@@ -55,7 +56,7 @@ export function MultiImageUpload({
         </label>
       </div>
       <div className="mt-2 flex items-center gap-1 text-xs text-slate-500">
-        <Upload className="h-3.5 w-3.5" /> ลาก-วาง/เลือกหลายไฟล์ · JPG/PNG/WebP/HEIC · ไม่เกิน 10MB/รูป
+        <Upload className="h-3.5 w-3.5" /> ลาก-วาง/เลือกหลายไฟล์ · JPG/PNG/WebP/HEIC · ไม่เกิน 25MB/รูป (ระบบย่อให้อัตโนมัติ)
         {images.length > 0 && <span className="ml-auto font-medium text-slate-600">{images.length} รูป</span>}
       </div>
     </div>
@@ -73,13 +74,14 @@ export function ImageEditor({ value, onChange }: { value: string[]; onChange: (n
   const upload = async (files: File[]) => {
     const ok = files.filter((f) => {
       if (!f.type.startsWith('image/')) { toast.error(`"${f.name}" ไม่ใช่ไฟล์รูป`); return false; }
-      if (f.size > 10 * 1024 * 1024) { toast.error(`"${f.name}" เกิน 10MB`); return false; }
+      if (f.size > 25 * 1024 * 1024) { toast.error(`"${f.name}" เกิน 25MB`); return false; }
       return true;
     });
     if (!ok.length) return;
     setUploading(true);
     try {
-      const up = await Promise.all(ok.map((f) => filesApi.upload(f)));
+      const compressed = await Promise.all(ok.map((f) => compressImage(f)));
+      const up = await Promise.all(compressed.map((f) => filesApi.upload(f)));
       onChange([...value, ...up.map((u) => u.url)]);
       toast.success(`อัปโหลด ${up.length} รูป`, { duration: 1000 });
     } catch (e) { toast.error(extractErrorMessage(e)); }
