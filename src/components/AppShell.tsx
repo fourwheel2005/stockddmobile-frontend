@@ -10,7 +10,7 @@ import { BranchSelector } from '@/components/BranchSelector';
 import {
   LayoutDashboard, Boxes, Package, ArrowUpFromLine,
   History, BellRing, LogOut, SlidersHorizontal, ScanLine, Users, Layers, Receipt,
-  BarChart3, ShieldCheck, Tag, Wrench, Menu, X, Wallet, Landmark, Building2,
+  BarChart3, ShieldCheck, Tag, Wrench, Menu, X, Wallet, Landmark, Building2, ArrowLeftRight,
 } from 'lucide-react';
 
 const navItems = [
@@ -34,6 +34,7 @@ const navItems = [
   { to: '/transactions', label: 'ประวัติสต็อก',  icon: History,           roles: ['ADMIN', 'MANAGER'] as const },
   { to: '/reports',      label: 'รายงาน',        icon: BarChart3,         roles: ['ADMIN', 'MANAGER'] as const },
   { to: '/alerts',       label: 'แจ้งเตือน',     icon: BellRing,          roles: ['ADMIN', 'MANAGER'] as const },
+  { to: '/transfers',    label: 'โอนสาขา',       icon: ArrowLeftRight },
   { to: '/branches',     label: 'สาขา',          icon: Building2,         roles: ['ADMIN', 'MANAGER'] as const },
 ];
 

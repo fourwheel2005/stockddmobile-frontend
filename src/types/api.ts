@@ -304,6 +304,42 @@ export interface BranchRequest {
   active?: boolean;
 }
 
+/** โอนสต๊อกระหว่างสาขา (Phase 2B) */
+export type TransferStatus = 'PENDING' | 'RECEIVED' | 'CANCELLED';
+
+export interface TransferItem {
+  serialItemId: string;
+  stockCode: string | null;
+  imei: string | null;
+  serialNumber: string;
+  productName: string | null;
+  deviceColor: string | null;
+  deviceStorage: string | null;
+}
+
+export interface Transfer {
+  id: string;
+  transferNo: string;
+  fromBranchId: string;
+  fromBranchName: string;
+  toBranchId: string;
+  toBranchName: string;
+  status: TransferStatus;
+  createdBy: string;
+  createdAt: string;
+  receivedBy: string | null;
+  receivedAt: string | null;
+  note: string | null;
+  itemCount: number;
+  items: TransferItem[];
+}
+
+export interface CreateTransferRequest {
+  toBranchId: string;
+  serialItemIds: string[];
+  note?: string;
+}
+
 export interface ServiceActionRequest {
   serviceState: ServiceState;
   defectNote?: string;

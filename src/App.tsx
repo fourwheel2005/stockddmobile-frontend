@@ -21,6 +21,7 @@ import { SalesHistoryPage } from '@/pages/SalesHistoryPage';
 import { OrderDetailPage } from '@/pages/OrderDetailPage';
 import { ReportsPage } from '@/pages/ReportsPage';
 import { BranchesPage } from '@/pages/BranchesPage';
+import { TransfersPage } from '@/pages/TransfersPage';
 import { WarrantyPage } from '@/pages/WarrantyPage';
 import { ScannerTestPage } from '@/pages/ScannerTestPage';
 import { PrintLabelsPage } from '@/pages/PrintLabelsPage';
@@ -58,6 +59,7 @@ export default function App() {
           <Route path="/sales" element={<SalesHistoryPage />} />
           <Route path="/pos/orders/:id" element={<OrderDetailPage />} />
           <Route path="/branches" element={<BranchesPage />} />
+          <Route path="/transfers" element={<TransfersPage />} />
         </Route>
       </Route>
 
