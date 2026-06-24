@@ -11,6 +11,7 @@ import {
   CircleAlert, Upload, ImageIcon, X, BatteryFull, Zap, Sparkles, Copy, PackageOpen,
 } from 'lucide-react';
 import { categoriesApi, productsApi } from '@/api/products';
+import { inventoryApi } from '@/api/inventory';
 import { filesApi } from '@/api/files';
 import { extractErrorMessage } from '@/api/client';
 import { formatTHB } from '@/lib/format';
@@ -25,17 +26,6 @@ const PRODUCT_SUGGESTION_PAGE_SIZE = 500;
 /** ซ่อนโหมดยิงสแกน IMEI ไว้ก่อน (ลดความสับสน) — เก็บโค้ดไว้ เปลี่ยนเป็น true เพื่อเปิดใช้อนาคต */
 const SHOW_SCANNER_MODE = false;
 const STORAGE_OPTIONS = ['64GB', '128GB', '256GB', '512GB', '1TB'];
-/** เครือข่าย/เครื่องศูนย์ — code ใช้ใน SKU, label โชว์ให้พนักงานเข้าใจ */
-const NETWORK_OPTIONS: { code: string; label: string }[] = [
-  { code: 'TH', label: 'ศูนย์ไทย' },
-  { code: 'DS', label: 'Dual SIM (เครื่องนอก)' },
-  { code: 'DN', label: 'เครื่องนอก ซิงเกิล' },
-  { code: 'HK', label: 'ฮ่องกง' },
-  { code: 'JP', label: 'ญี่ปุ่น' },
-  { code: 'LL', label: 'อเมริกา' },
-  { code: 'ZP', label: 'สิงคโปร์/เอเชีย' },
-  { code: 'Intl', label: 'อินเตอร์ (ทั่วไป)' },
-];
 /** ประกัน — ติ๊ก "มือ 1" เติมค่านี้อัตโนมัติ (เลือก/แก้ได้) */
 const WARRANTY_NEW = 'ประกันศูนย์ 1 ปี (Apple)';
 /** เครื่อง activate แล้ว — ประกัน Apple นับจากวัน activate → ต้องระบุวันหมดเอง */
@@ -408,14 +398,29 @@ export function ProductRegisterPage() {
     queryFn: () => productsApi.list({ size: PRODUCT_SUGGESTION_PAGE_SIZE }),
     staleTime: 5 * 60 * 1000,
   });
+  /* เลขรุ่น + สี ที่เคยกรอก (distinct จาก DB) — ระบบจำให้ user หยิบซ้ำได้ (กันพิมพ์ซ้ำ/ผิด) */
+  const { data: serialSuggest } = useQuery({
+    queryKey: ['serial-suggestions'],
+    queryFn: () => inventoryApi.serialSuggestions(),
+    staleTime: 60 * 1000,
+  });
   const modelNumberOptions = useMemo(() => {
     const seen = new Set<string>();
     for (const product of productPage?.content ?? []) {
-      const modelNumber = product.modelNumber?.trim();
-      if (modelNumber) seen.add(modelNumber);
+      const m = product.modelNumber?.trim(); if (m) seen.add(m);
     }
+    for (const m of serialSuggest?.modelNumbers ?? []) { const v = m?.trim(); if (v) seen.add(v); }
+    for (const it of itemsW ?? []) { const v = it.modelNumber?.trim(); if (v) seen.add(v); }
     return [...seen].sort();
-  }, [productPage]);
+  }, [productPage, serialSuggest, itemsW]);
+
+  /* สี: ค่าตั้งต้น (COLOR_OPTIONS) + ที่เคยกรอก (DB) + ที่กำลังพิมพ์รอบนี้ — มีสีใหม่เพิ่มเรื่อยๆ */
+  const colorOptions = useMemo(() => {
+    const seen = new Set<string>(COLOR_OPTIONS);
+    for (const c of serialSuggest?.colors ?? []) { const v = c?.trim(); if (v) seen.add(v); }
+    for (const it of itemsW ?? []) { const v = it.deviceColor?.trim(); if (v) seen.add(v); }
+    return [...seen].sort();
+  }, [serialSuggest, itemsW]);
 
   /* ชื่อรุ่น suggestion: iPhone ครบทุกรุ่น (ตั้งต้น) + ชื่อรุ่นที่เคยสร้างแล้ว (เช่น iPad/Mac/Android)
      → iPhone เลือกได้เลยตั้งแต่วันแรก · รุ่นอื่นโตเองตามการใช้งาน · ยังพิมพ์ค่าใหม่ได้อิสระ */
@@ -650,9 +655,8 @@ export function ProductRegisterPage() {
         {/* datalist ใช้ร่วม — รายการแนะนำสำหรับช่องรายเครื่อง (สี/ความจุ/เครือข่าย/เลขรุ่น/ประกัน)
             ประกาศที่เดียว ใช้ได้ทุก ItemCard ผ่าน list="..." */}
         <datalist id="model-name-list">{modelNameOptions.map((m) => <option key={m} value={m} />)}</datalist>
-        <datalist id="color-list">{COLOR_OPTIONS.map((c) => <option key={c} value={c} />)}</datalist>
+        <datalist id="color-list">{colorOptions.map((c) => <option key={c} value={c} />)}</datalist>
         <datalist id="storage-list">{STORAGE_OPTIONS.map((s) => <option key={s} value={s} />)}</datalist>
-        <datalist id="network-list">{NETWORK_OPTIONS.map((n) => <option key={n.code} value={n.code}>{n.label}</option>)}</datalist>
         <datalist id="model-number-list">{modelNumberOptions.map((m) => <option key={m} value={m} />)}</datalist>
         <datalist id="warranty-list">{WARRANTY_OPTIONS.map((w) => <option key={w} value={w} />)}</datalist>
 
@@ -1209,11 +1213,6 @@ function ItemCard({
           <label className="mb-0.5 block text-xs font-semibold text-slate-600">ความจุ</label>
           <input className="input text-sm" list="storage-list" placeholder="เช่น 256GB"
                  {...register(`items.${idx}.deviceStorage`)} />
-        </div>
-        <div>
-          <label className="mb-0.5 block text-xs font-semibold text-slate-600">เครือข่าย</label>
-          <input className="input text-sm" list="network-list" placeholder="เช่น TH, DS"
-                 {...register(`items.${idx}.deviceNetwork`)} />
         </div>
         <div>
           <label className="mb-0.5 block text-xs font-semibold text-slate-600">เลขรุ่น</label>

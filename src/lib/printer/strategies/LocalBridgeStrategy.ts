@@ -47,7 +47,11 @@ export class LocalBridgeStrategy implements PrinterStrategy {
       const t = setTimeout(() => ctrl.abort(), 1000);
       const res = await fetch(`${getBridgeUrl()}/health`, {
         signal: ctrl.signal,
-        headers: this.token ? { Authorization: `Bearer ${this.token}` } : {},
+        // ngrok-skip-browser-warning → ข้ามหน้าเตือน interstitial ของ ngrok free (กัน bridge ตรวจไม่เจอ)
+        headers: {
+          'ngrok-skip-browser-warning': 'true',
+          ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}),
+        },
       });
       clearTimeout(t);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -65,6 +69,7 @@ export class LocalBridgeStrategy implements PrinterStrategy {
   async print(bytes: Uint8Array, meta: PrintJobMeta): Promise<void> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/octet-stream',
+      'ngrok-skip-browser-warning': 'true',
       'X-Bill-No': meta.billNo,
       'X-Duplicate': meta.duplicate ? '1' : '0',
       'X-Open-Drawer': meta.openDrawer ? '1' : '0',
@@ -87,7 +92,7 @@ export class LocalBridgeStrategy implements PrinterStrategy {
 
   /** เปิดลิ้นชักโดยตรง (ไม่พิมพ์) */
   async openDrawer(): Promise<void> {
-    const headers: Record<string, string> = {};
+    const headers: Record<string, string> = { 'ngrok-skip-browser-warning': 'true' };
     if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
     const res = await fetch(`${getBridgeUrl()}/drawer/open`, {
       method: 'POST',

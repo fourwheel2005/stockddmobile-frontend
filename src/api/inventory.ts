@@ -31,6 +31,10 @@ export const inventoryApi = {
   listSerials: (params: { status?: string; condition?: 'NEW' | 'SECOND_HAND'; q?: string; page?: number; size?: number } = {}) =>
     api.get<PageResponse<SerializedItemResponse>>('/inventory/serials', { params }).then((r) => r.data),
 
+  /** suggestion เลขรุ่น + สี (distinct ที่เคยกรอก) — autocomplete ตอนรับเครื่อง */
+  serialSuggestions: () =>
+    api.get<{ modelNumbers: string[]; colors: string[] }>('/inventory/serials/suggestions').then((r) => r.data),
+
   lookupSerial: (q: string) =>
     api.get<SerializedItemResponse>('/inventory/serials/lookup', { params: { q } }).then((r) => r.data),
 
