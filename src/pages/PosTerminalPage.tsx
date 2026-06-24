@@ -21,6 +21,7 @@ import { cashRegisterApi } from '@/api/cashRegister';
 import { OpenSessionModal } from '@/components/OpenSessionModal';
 import { PrinterStatusBadge } from '@/components/PrinterStatusBadge';
 import { PrinterSettingsModal } from '@/components/PrinterSettingsModal';
+import { useBranchStore } from '@/stores/branchStore';
 import { QuickReprintModal } from '@/components/QuickReprintModal';
 import { OwnerShippingModal } from '@/components/OwnerShippingModal';
 import { usePrinter } from '@/hooks/usePrinter';
@@ -264,6 +265,7 @@ export function PosTerminalPage() {
       const isInstallment = paymentMethod === 'INSTALLMENT';
       return posApi.checkout({
         customerId: customer?.id,
+        branchId: useBranchStore.getState().activeBranchId ?? undefined,  // ขายที่สาขาที่เลือก (Phase 2C)
         items: cart.map((l) => ({
           variantId: l.variantId,
           serialItemId: l.serialItemId,

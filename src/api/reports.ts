@@ -5,6 +5,7 @@ import type {
   PaymentMethodSummary,
   SalesSummaryResponse,
   TopProductRow,
+  BranchSalesRow,
 } from '@/types/api';
 
 interface DateRange {
@@ -18,6 +19,9 @@ export const reportsApi = {
 
   salesByDay: (r: DateRange) =>
     api.get<DailySalesPoint[]>('/reports/sales-by-day', { params: r }).then((x) => x.data),
+
+  salesByBranch: (r: DateRange) =>
+    api.get<BranchSalesRow[]>('/reports/sales-by-branch', { params: r }).then((x) => x.data),
 
   topProducts: (r: DateRange & { limit?: number }) =>
     api.get<TopProductRow[]>('/reports/top-products', { params: r }).then((x) => x.data),

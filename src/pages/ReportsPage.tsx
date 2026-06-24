@@ -51,6 +51,7 @@ export function ReportsPage() {
   const topProducts   = useQuery({ queryKey: ['report-top', range],         queryFn: () => reportsApi.topProducts({ ...range, limit: 10 }) });
   const paymentMethods= useQuery({ queryKey: ['report-payments', range],    queryFn: () => reportsApi.paymentMethods(range) });
   const inventory     = useQuery({ queryKey: ['report-inv'],                queryFn: reportsApi.inventoryValue });
+  const byBranch      = useQuery({ queryKey: ['report-by-branch', range],   queryFn: () => reportsApi.salesByBranch(range) });
 
   return (
     <div className="space-y-6">
@@ -228,6 +229,38 @@ export function ReportsPage() {
             </tbody>
           </table>
         </div>
+
+        {/* ยอดขายแยกสาขา (Phase 2C) — โชว์เมื่อมี >1 สาขา */}
+        {(byBranch.data?.length ?? 0) > 1 && (
+          <div className="card overflow-hidden">
+            <div className="card-header font-semibold">🏪 ยอดขายแยกสาขา</div>
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 text-left text-xs text-slate-500">
+                <tr>
+                  <th className="px-5 py-2.5">สาขา</th>
+                  <th className="px-5 py-2.5 text-right">บิล</th>
+                  <th className="px-5 py-2.5 text-right">ยอดขาย</th>
+                  <th className="px-5 py-2.5 text-right">ทุน</th>
+                  <th className="px-5 py-2.5 text-right">กำไร</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {(byBranch.data ?? []).map((b) => (
+                  <tr key={b.branchName}>
+                    <td className="px-5 py-3 font-medium">{b.branchName}</td>
+                    <td className="px-5 py-3 text-right">{formatNumber(b.orders)}</td>
+                    <td className="px-5 py-3 text-right">{formatTHB(b.revenue)}</td>
+                    <td className="px-5 py-3 text-right text-slate-500">{formatTHB(b.cost)}</td>
+                    <td className={`px-5 py-3 text-right font-semibold ${b.profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                      {formatTHB(b.profit)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="px-5 py-2 text-[11px] text-slate-400">* กำไร = ยอดขาย − ทุนสินค้า (ไม่รวมค่าส่ง/ค่าซ่อม)</p>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -190,6 +190,9 @@ export function SalesHistoryPage() {
                     <Link to={`/pos/orders/${o.id}`} className="font-mono font-semibold text-brand-700 hover:underline">
                       {o.billNo}
                     </Link>
+                    {o.branchName && (
+                      <span className="ml-1.5 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">🏪 {o.branchName}</span>
+                    )}
                     {/* FinanceBadge ซ่อนชั่วคราว — ร้านผ่อนเอง ไม่ผ่านไฟแนนซ์ */}
                   </td>
                   <td className="px-5 py-3">{o.customerName ?? <span className="text-slate-400">Walk-in</span>}</td>

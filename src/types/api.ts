@@ -284,6 +284,15 @@ export interface SerializedItemResponse {
   branchName?: string | null;
 }
 
+/** ยอดขายแยกสาขา (Phase 2C) */
+export interface BranchSalesRow {
+  branchName: string;
+  orders: number;
+  revenue: number;
+  cost: number;
+  profit: number;
+}
+
 /** สาขา (Phase 2A) */
 export interface Branch {
   id: string;
@@ -686,6 +695,7 @@ export interface OwnerLedgerResponse {
 
 export interface CheckoutRequest {
   customerId?: string;
+  branchId?: string;                 // ขายที่สาขาไหน (Phase 2C)
   items: CheckoutLine[];
   paymentMethod: PaymentMethod;
   discountAmount?: number;
@@ -737,6 +747,7 @@ export interface SalesOrderResponse {
   customerId: string | null;
   customerName: string | null;
   customerPhone: string | null;
+  branchName?: string | null;        // ขายที่สาขาไหน (Phase 2C)
   subtotal: number;
   discountAmount: number;
   vatAmount: number;
