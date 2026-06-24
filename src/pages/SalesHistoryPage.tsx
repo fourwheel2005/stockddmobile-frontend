@@ -7,6 +7,7 @@ import { posApi } from '@/api/pos';
 import { SalesCalendar } from '@/components/SalesCalendar';
 import { extractErrorMessage } from '@/api/client';
 import { useAuthStore } from '@/stores/authStore';
+import { useBranchStore } from '@/stores/branchStore';
 import { ReceiptPrintView } from '@/components/ReceiptPrintView';
 import { RefundMethodModal } from '@/components/RefundMethodModal';
 import { ReturnDeviceModal } from '@/components/ReturnDeviceModal';
@@ -68,11 +69,13 @@ export function SalesHistoryPage() {
     return () => clearTimeout(t);
   }, [search]);
 
+  const activeBranchId = useBranchStore((s) => s.activeBranchId);
   const { data, isLoading } = useQuery({
-    queryKey: ['sales-orders', { page, status, day, q }],
+    queryKey: ['sales-orders', { page, status, day, q, activeBranchId }],
     queryFn: () => posApi.listOrders({
       page, size: 50,
       status: status || undefined,
+      branchId: activeBranchId || undefined,   // กรองตามสาขาที่เลือก (Phase 2C)
       from: day || undefined,
       to: day || undefined,
       q: q || undefined,

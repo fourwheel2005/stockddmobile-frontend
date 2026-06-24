@@ -9,6 +9,7 @@ import { cashRegisterApi } from '@/api/cashRegister';
 import { formatNumber } from '@/lib/format';
 import { useAuthStore } from '@/stores/authStore';
 import { useWsStore } from '@/stores/wsStore';
+import { useBranchStore } from '@/stores/branchStore';
 import { OpenSessionModal } from '@/components/OpenSessionModal';
 import { ShippingPartnerWidget } from '@/components/dashboard/ShippingPartnerWidget';
 
@@ -35,9 +36,10 @@ export function DashboardPage() {
   const lowStockCount = inventory.data?.content.filter((i) => i.lowStock).length ?? 0;
 
   // Cash session check — auto prompt เปิดเก๊ะถ้ายังไม่มี
+  const activeBranchId = useBranchStore((s) => s.activeBranchId);
   const session = useQuery({
-    queryKey: ['cash-session', 'current'],
-    queryFn: cashRegisterApi.current,
+    queryKey: ['cash-session', 'current', activeBranchId],
+    queryFn: () => cashRegisterApi.current(activeBranchId ?? undefined),
     refetchInterval: 60_000,
   });
   const [showOpenSession, setShowOpenSession] = useState(false);

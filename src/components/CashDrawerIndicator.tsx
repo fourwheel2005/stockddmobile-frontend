@@ -3,15 +3,17 @@ import { Link } from 'react-router-dom';
 import { Wallet } from 'lucide-react';
 import { cashRegisterApi } from '@/api/cashRegister';
 import { formatTHB } from '@/lib/format';
+import { useBranchStore } from '@/stores/branchStore';
 
 /**
  * Indicator สถานะเก๊ะเงินสด — แสดงทุกหน้า (ใน Sidebar) ให้พนักงานรู้ตลอดว่า
  * เก๊ะเปิดอยู่ไหม. 🟢 เปิด = ขายได้ · 🔴 ปิด = ต้องเปิดก่อนขาย. กดเพื่อไปหน้าเก๊ะ.
  */
 export function CashDrawerIndicator() {
+  const activeBranchId = useBranchStore((s) => s.activeBranchId);
   const { data: session } = useQuery({
-    queryKey: ['cash-session', 'current'],
-    queryFn: cashRegisterApi.current,
+    queryKey: ['cash-session', 'current', activeBranchId],
+    queryFn: () => cashRegisterApi.current(activeBranchId ?? undefined),
     refetchInterval: 30_000,
   });
 

@@ -120,10 +120,11 @@ export function PosTerminalPage() {
   const [showQuickReprint, setShowQuickReprint] = useState(false);
   const printer = usePrinter();
 
-  // ─── Cash session check (block checkout if no session) ──────────────
+  // ─── Cash session check (block checkout if no session) — ของสาขาที่ขาย ──
+  const activeBranchId = useBranchStore((s) => s.activeBranchId);
   const sessionQuery = useQuery({
-    queryKey: ['cash-session', 'current'],
-    queryFn: cashRegisterApi.current,
+    queryKey: ['cash-session', 'current', activeBranchId],
+    queryFn: () => cashRegisterApi.current(activeBranchId ?? undefined),
     refetchInterval: 60_000,
   });
   const hasOpenSession = !!sessionQuery.data;

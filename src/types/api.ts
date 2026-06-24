@@ -655,6 +655,7 @@ export interface CashSessionResponse {
 
 export interface OpenSessionRequest {
   registerId?: string;
+  branchId?: string;       // เปิดกะของสาขาไหน (Phase 2C)
   openingFloat: number;
   note?: string;
 }

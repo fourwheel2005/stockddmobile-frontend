@@ -8,9 +8,9 @@ import type {
 } from '@/types/api';
 
 export const cashRegisterApi = {
-  /** Get current OPEN session (HTTP 204 if none) */
-  current: () =>
-    api.get<CashSessionResponse | ''>('/cash-register/current')
+  /** Get current OPEN session ของสาขา (HTTP 204 if none) */
+  current: (branchId?: string) =>
+    api.get<CashSessionResponse | ''>('/cash-register/current', { params: branchId ? { branchId } : {} })
        .then((r) => (r.status === 204 ? null : (r.data as CashSessionResponse))),
 
   get: (id: string) =>

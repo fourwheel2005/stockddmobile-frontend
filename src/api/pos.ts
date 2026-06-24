@@ -16,7 +16,7 @@ export const posApi = {
   checkout: (req: CheckoutRequest) =>
     api.post<SalesOrderResponse>('/pos/checkout', req).then((r) => r.data),
 
-  listOrders: (params: { status?: SalesOrderStatus; from?: string; to?: string; q?: string; page?: number; size?: number } = {}) =>
+  listOrders: (params: { status?: SalesOrderStatus; branchId?: string; from?: string; to?: string; q?: string; page?: number; size?: number } = {}) =>
     api.get<PageResponse<SalesOrderResponse>>('/pos/orders', { params }).then((r) => r.data),
 
   /** ปฏิทินยอดขาย — จำนวนบิล/ยอดต่อวัน (มาร์กวันที่มีการขาย) */

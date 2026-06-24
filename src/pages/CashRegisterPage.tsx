@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { cashRegisterApi } from '@/api/cashRegister';
 import { formatTHB, formatDateTime } from '@/lib/format';
+import { useBranchStore } from '@/stores/branchStore';
 import { OpenSessionModal } from '@/components/OpenSessionModal';
 import { CloseSessionModal } from '@/components/CloseSessionModal';
 import { CashMovementModal } from '@/components/CashMovementModal';
@@ -43,9 +44,10 @@ export function CashRegisterPage() {
   const [showClose, setShowClose] = useState(false);
   const [showMovement, setShowMovement] = useState(false);
 
+  const activeBranchId = useBranchStore((s) => s.activeBranchId);
   const sessionQuery = useQuery({
-    queryKey: ['cash-session', 'current'],
-    queryFn: cashRegisterApi.current,
+    queryKey: ['cash-session', 'current', activeBranchId],
+    queryFn: () => cashRegisterApi.current(activeBranchId ?? undefined),
     refetchInterval: 30_000,
   });
 

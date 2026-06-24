@@ -6,6 +6,7 @@ import { cashRegisterApi } from '@/api/cashRegister';
 import { extractErrorMessage } from '@/api/client';
 import { formatTHB } from '@/lib/format';
 import { useModalChrome, backdropCloseHandler } from '@/hooks/useModalChrome';
+import { useBranchStore } from '@/stores/branchStore';
 
 interface Props {
   onOpened?: () => void;
@@ -26,7 +27,10 @@ export function OpenSessionModal({ onOpened, onClose }: Props) {
   useModalChrome(onClose);
 
   const open = useMutation({
-    mutationFn: () => cashRegisterApi.open({ openingFloat, note: note || undefined }),
+    mutationFn: () => cashRegisterApi.open({
+      openingFloat, note: note || undefined,
+      branchId: useBranchStore.getState().activeBranchId ?? undefined,  // เปิดกะของสาขาที่เลือก (Phase 2C)
+    }),
     onSuccess: (s) => {
       // P4 — backend idempotent: ถ้า session มีอยู่แล้ว backend คืนของเดิม
       // → message ปรับตาม openedAt (ถ้า > 1 นาทีก่อน = ของเดิม)
