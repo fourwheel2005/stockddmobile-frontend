@@ -61,13 +61,14 @@ export class CloudQueueStrategy implements PrinterStrategy {
   async print(bytes: Uint8Array, meta: PrintJobMeta): Promise<void> {
     const printerId = getAgentPrinterId();
     if (!printerId) throw new Error('ยังไม่ได้ตั้งรหัสปริ้นเตอร์สาขา (Printer ID)');
-    if (!meta.jobId) throw new Error('ไม่มี jobId — โหมดคิวต้องสร้าง PrintJob ก่อน');
+    const payloadBase64 = toBase64(bytes);
 
-    await printApi.queueJob(meta.jobId, {
-      payloadBase64: toBase64(bytes),
-      printerId,
-      openDrawer: !!meta.openDrawer,
-      copies: 1,
-    });
+    if (meta.jobId) {
+      // มี PrintJob อยู่แล้ว (ใบเสร็จขาย) → ฝาก payload เข้างานเดิม
+      await printApi.queueJob(meta.jobId, { payloadBase64, printerId, openDrawer: !!meta.openDrawer, copies: 1 });
+    } else {
+      // งานอิสระ (ใบโอน/test) → สร้างงานใหม่ในคิว
+      await printApi.standalone({ payloadBase64, printerId, refNo: meta.billNo, openDrawer: !!meta.openDrawer });
+    }
   }
 }

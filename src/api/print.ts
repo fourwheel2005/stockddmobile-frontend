@@ -54,6 +54,10 @@ export const printApi = {
   queueJob: (jobId: string, req: { payloadBase64: string; printerId: string; openDrawer: boolean; copies?: number }) =>
     api.post<PrintJobResponse>(`/print/jobs/${jobId}/queue`, req).then((r) => r.data),
 
+  /** ฝากงานพิมพ์อิสระ (ไม่ผูกบิล) เข้าคิว agent — เช่น ใบโอนสาขา */
+  standalone: (req: { payloadBase64: string; printerId: string; refNo: string; jobType?: string; openDrawer?: boolean; copies?: number }) =>
+    api.post<PrintJobResponse>('/print/standalone', req).then((r) => r.data),
+
   /** เช็คว่า agent ของปริ้นเตอร์สาขานั้นออนไลน์ไหม (badge สถานะ) */
   agentOnline: (printerId: string) =>
     api.get<{ printerId: string; online: boolean; lastSeenSecondsAgo: number | null }>(

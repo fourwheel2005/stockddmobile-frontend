@@ -1,15 +1,47 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { ArrowLeftRight, Plus, X, Check, Search } from 'lucide-react';
+import { ArrowLeftRight, Plus, X, Check, Search, Printer } from 'lucide-react';
 import { transfersApi } from '@/api/transfers';
+import { printOrchestrator } from '@/lib/printer/PrintOrchestrator';
+import { EscPosBuilder } from '@/lib/escpos/EscPosBuilder';
 import { branchesApi } from '@/api/branches';
 import { inventoryApi } from '@/api/inventory';
 import { extractErrorMessage } from '@/api/client';
 import { useBranchStore } from '@/stores/branchStore';
 import { useAuthStore } from '@/stores/authStore';
 import { formatDateTime } from '@/lib/format';
-import type { TransferStatus, SerializedItemResponse } from '@/types/api';
+import type { TransferStatus, SerializedItemResponse, Transfer } from '@/types/api';
+
+/** สร้าง ESC/POS ใบโอนสาขา (Thai CP874 = codepage 26 เหมือนใบเสร็จ) */
+function buildTransferSlip(t: Transfer): Uint8Array {
+  const b = new EscPosBuilder().init().codepage(26)
+    .align('C').size(2, 2).bold(true).textln('DDMobile').bold(false).size(1, 1)
+    .textln('ใบโอนสาขา').textln(t.transferNo)
+    .separator('=', 48).align('L')
+    .textln(`จาก : ${t.fromBranchName}`)
+    .textln(`ไป  : ${t.toBranchName}`)
+    .textln(`วันที่: ${formatDateTime(t.createdAt)}`)
+    .textln(`โดย : ${t.createdBy}`)
+    .separator('-', 48);
+  t.items.forEach((it, i) => {
+    b.textln(`${i + 1}. ${it.stockCode ?? it.imei ?? it.serialNumber}`);
+    const spec = [it.productName, it.deviceColor, it.deviceStorage].filter(Boolean).join(' ');
+    if (spec) b.textln(`   ${spec}`);
+  });
+  return b.separator('-', 48).textln(`รวม ${t.itemCount} เครื่อง`)
+    .align('C').textln('ผู้รับ ___________________')
+    .feedAndCut(4).build();
+}
+
+async function printTransferSlip(t: Transfer) {
+  try {
+    const { strategy } = await printOrchestrator.print(buildTransferSlip(t), { billNo: t.transferNo });
+    toast.success(strategy === 'PULL_AGENT' ? 'ส่งใบโอนเข้าคิวปริ้นแล้ว ☁️' : `พิมพ์ใบโอนแล้ว (${strategy})`);
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : 'พิมพ์ใบโอนไม่สำเร็จ');
+  }
+}
 
 const STATUS_LABEL: Record<TransferStatus, { text: string; cls: string }> = {
   PENDING: { text: 'กำลังโอน (รอรับ)', cls: 'bg-amber-100 text-amber-700' },
@@ -87,20 +119,26 @@ export function TransfersPage() {
                     {t.receivedAt && ` · รับโดย ${t.receivedBy} · ${formatDateTime(t.receivedAt)}`}
                   </div>
                 </div>
-                {t.status === 'PENDING' && (
-                  <div className="flex gap-2">
-                    <button className="btn-primary text-xs" disabled={act.isPending}
-                            onClick={() => act.mutate({ id: t.id, action: 'receive' })}>
-                      <Check className="h-3.5 w-3.5" /> รับเข้า
-                    </button>
-                    {isManager && (
-                      <button className="btn-secondary text-xs" disabled={act.isPending}
-                              onClick={() => { if (confirm('ยกเลิกใบโอนนี้? เครื่องจะกลับเข้าต้นทาง')) act.mutate({ id: t.id, action: 'cancel' }); }}>
-                        ยกเลิก
+                <div className="flex gap-2">
+                  <button className="btn-secondary text-xs" title="พิมพ์ใบโอน"
+                          onClick={() => printTransferSlip(t)}>
+                    <Printer className="h-3.5 w-3.5" />
+                  </button>
+                  {t.status === 'PENDING' && (
+                    <>
+                      <button className="btn-primary text-xs" disabled={act.isPending}
+                              onClick={() => act.mutate({ id: t.id, action: 'receive' })}>
+                        <Check className="h-3.5 w-3.5" /> รับเข้า
                       </button>
-                    )}
-                  </div>
-                )}
+                      {isManager && (
+                        <button className="btn-secondary text-xs" disabled={act.isPending}
+                                onClick={() => { if (confirm('ยกเลิกใบโอนนี้? เครื่องจะกลับเข้าต้นทาง')) act.mutate({ id: t.id, action: 'cancel' }); }}>
+                          ยกเลิก
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
               <div className="mt-2 flex flex-wrap gap-1">
                 {t.items.map((it) => (
