@@ -3,6 +3,9 @@ import toast from 'react-hot-toast';
 import { printOrchestrator } from '@/lib/printer/PrintOrchestrator';
 import { buildDDMobileReceipt } from '@/lib/escpos/ddmobileReceipt';
 import { printApi } from '@/api/print';
+import {
+  isAgentMode, getAgentPrinterId, setAgentConfig,
+} from '@/lib/printer/strategies/CloudQueueStrategy';
 import type { PrinterStrategyName } from '@/lib/printer/types';
 
 const TOKEN_KEY = 'ddmobile.bridge.token';
@@ -10,6 +13,7 @@ const URL_KEY = 'ddmobile.bridge.url';
 
 export interface PrinterStatus {
   bridge: boolean;
+  agent: boolean;
   webUsb: boolean;
   browser: boolean;
   primary: PrinterStrategyName | null;
@@ -25,7 +29,7 @@ export interface PrinterStatus {
  */
 export function usePrinter() {
   const [status, setStatus] = useState<PrinterStatus>({
-    bridge: false, webUsb: false, browser: true, primary: null,
+    bridge: false, agent: false, webUsb: false, browser: true, primary: null,
   });
   const [printing, setPrinting] = useState(false);
 
@@ -39,11 +43,12 @@ export function usePrinter() {
   const refresh = useCallback(async () => {
     const results = await printOrchestrator.discover();
     const bridge = results.find((r) => r.name === 'LOCAL_BRIDGE')?.ready ?? false;
+    const agent = results.find((r) => r.name === 'PULL_AGENT')?.ready ?? false;
     const webUsb = results.find((r) => r.name === 'WEB_USB')?.ready ?? false;
     const browser = results.find((r) => r.name === 'BROWSER')?.ready ?? false;
     const primary: PrinterStrategyName | null =
-      bridge ? 'LOCAL_BRIDGE' : webUsb ? 'WEB_USB' : browser ? 'BROWSER' : null;
-    setStatus({ bridge, webUsb, browser, primary });
+      bridge ? 'LOCAL_BRIDGE' : agent ? 'PULL_AGENT' : webUsb ? 'WEB_USB' : browser ? 'BROWSER' : null;
+    setStatus({ bridge, agent, webUsb, browser, primary });
   }, []);
 
   useEffect(() => {
@@ -71,6 +76,16 @@ export function usePrinter() {
   const getBridgeUrl = useCallback(() => {
     return localStorage.getItem(URL_KEY) ?? 'http://localhost:8765';
   }, []);
+
+  /** โหมด pull-agent (คิวปริ้นสาขา) — เปิด/ปิด + รหัสปริ้นเตอร์ */
+  const setAgentMode = useCallback((enabled: boolean, printerId: string) => {
+    setAgentConfig(enabled, printerId);
+    refresh();
+  }, [refresh]);
+
+  const getAgentConfig = useCallback(() => ({
+    enabled: isAgentMode(), printerId: getAgentPrinterId(),
+  }), []);
 
   const requestWebUsb = useCallback(async () => {
     const ok = await printOrchestrator.getWebUsb().requestPermission();
@@ -114,23 +129,29 @@ export function usePrinter() {
         openDrawer,
       });
 
-      // 4. Print via orchestrator
+      // 4. Print via orchestrator (PULL_AGENT = ฝากเข้าคิว, agent พิมพ์จริงทีหลัง)
       const result = await printOrchestrator.print(bytes, {
         billNo: data.billNo,
         duplicate: opts.duplicate,
         openDrawer,
+        jobId,
       });
 
-      // 5. Log success
-      await printApi.logResult(jobId, {
-        jobType,
-        strategy: result.strategy,
-        printerId: result.printerId,
-        success: true,
-      });
+      const queued = result.strategy === 'PULL_AGENT';
 
-      // 6. Drawer log (if opened)
-      if (openDrawer && (result.strategy === 'LOCAL_BRIDGE' || result.strategy === 'WEB_USB')) {
+      // 5. Log success — เฉพาะโหมดพิมพ์ทันที (PULL_AGENT ให้ agent เป็นคน ack สถานะ PRINTED)
+      if (!queued) {
+        await printApi.logResult(jobId, {
+          jobType,
+          strategy: result.strategy,
+          printerId: result.printerId,
+          success: true,
+        });
+      }
+
+      // 6. Drawer log (เปิดลิ้นชัก — bridge/webusb พิมพ์ทันที, pull-agent บันทึกเจตนา)
+      const drawerStrategies = ['LOCAL_BRIDGE', 'WEB_USB', 'PULL_AGENT'];
+      if (openDrawer && drawerStrategies.includes(result.strategy)) {
         try {
           await printApi.logDrawerOpen({
             reason: 'CASH_SALE',
@@ -142,7 +163,7 @@ export function usePrinter() {
         }
       }
 
-      toast.success(`พิมพ์ใบเสร็จแล้ว (${result.strategy})`);
+      toast.success(queued ? 'ส่งเข้าคิวปริ้นสาขาแล้ว ☁️' : `พิมพ์ใบเสร็จแล้ว (${result.strategy})`);
       return result;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -190,5 +211,7 @@ export function usePrinter() {
     setBridgeToken,
     setBridgeUrl,
     getBridgeUrl,
+    setAgentMode,
+    getAgentConfig,
   };
 }

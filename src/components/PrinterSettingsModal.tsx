@@ -30,16 +30,21 @@ interface Props {
   onSetBridgeUrl?: (url: string) => void;
   getBridgeUrl?: () => string;
   onOpenDrawer: () => Promise<void>;
+  onSetAgentMode?: (enabled: boolean, printerId: string) => void;
+  getAgentConfig?: () => { enabled: boolean; printerId: string };
 }
 
 export function PrinterSettingsModal({
   status, onClose, onRefresh, onRequestWebUsb, onSetBridgeToken,
-  onSetBridgeUrl, getBridgeUrl, onOpenDrawer,
+  onSetBridgeUrl, getBridgeUrl, onOpenDrawer, onSetAgentMode, getAgentConfig,
 }: Props) {
   const [token, setToken] = useState(localStorage.getItem('ddmobile.bridge.token') ?? '');
   const [bridgeUrl, setBridgeUrl] = useState(
     getBridgeUrl?.() ?? localStorage.getItem('ddmobile.bridge.url') ?? 'http://localhost:8765',
   );
+  const initAgent = getAgentConfig?.() ?? { enabled: false, printerId: '' };
+  const [agentEnabled, setAgentEnabled] = useState(initAgent.enabled);
+  const [agentPrinterId, setAgentPrinterId] = useState(initAgent.printerId);
   useModalChrome(onClose);
 
   const [testCodepage, setTestCodepage] = useState<number>(26);
@@ -123,7 +128,8 @@ export function PrinterSettingsModal({
                 <RefreshCw className="h-3.5 w-3.5" /> รีเฟรช
               </button>
             </div>
-            <StatusRow label="🔌 Local Bridge (PC daemon)" ok={status.bridge} hint="แนะนำ — silent + cash drawer + แก้ปัญหา CUPS claim" />
+            <StatusRow label="🔌 Local Bridge (PC daemon)" ok={status.bridge} hint="เครื่องเดียวกับปริ้นเตอร์ — silent + cash drawer" />
+            <StatusRow label="☁️ คิวปริ้นสาขา (Pull-Agent)" ok={status.agent} hint="iPad/มือถือทุกสาขา · ไม่ต้อง tunnel — ตั้ง Printer ID ด้านล่าง" />
             <StatusRow label="🔗 WebUSB (Chrome direct)" ok={status.webUsb} hint="Chrome · ❌ ไม่ทำงานบน Mac ถ้าเครื่องอยู่ใน System Printers" />
             <StatusRow label="🖨 Browser Print (fallback)" ok={status.browser} hint="ใช้ได้ทุก browser · ช้า" />
           </div>
@@ -154,6 +160,43 @@ export function PrinterSettingsModal({
                 </div>
               </div>
             </div>
+          )}
+
+          {/* Pull-Agent (คิวปริ้นสาขา) — แนะนำสำหรับ iPad/มือถือ ทุกสาขา */}
+          {onSetAgentMode && (
+          <div className="rounded-md border-2 border-brand-200 bg-brand-50/40 p-3">
+            <h3 className="mb-1 flex items-center gap-2 text-sm font-semibold">
+              ☁️ คิวปริ้นสาขา (Pull-Agent) <span className="rounded bg-brand-100 px-1.5 text-[10px] text-brand-700">แนะนำ iPad/มือถือ</span>
+            </h3>
+            <p className="mb-2 text-xs text-slate-500">
+              ส่งงานพิมพ์ผ่านเซิร์ฟเวอร์ → กล่อง agent ที่สาขาดึงไปพิมพ์เอง · <strong>ไม่ต้อง tunnel/ngrok</strong> ·
+              ตั้ง <strong>Printer ID</strong> ให้ตรงกับที่ตั้งใน agent ของสาขานี้
+            </p>
+            <label className="mb-2 flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={agentEnabled} onChange={(e) => setAgentEnabled(e.target.checked)} />
+              เปิดใช้โหมดคิวปริ้นสาขา
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                className="input flex-1 font-mono text-xs"
+                placeholder="Printer ID เช่น BRANCH1 หรือ MAIN"
+                value={agentPrinterId}
+                onChange={(e) => setAgentPrinterId(e.target.value.replace(/[^A-Za-z0-9_-]/g, ''))}
+              />
+              <button
+                onClick={() => {
+                  if (agentEnabled && !agentPrinterId.trim()) {
+                    toast.error('กรอก Printer ID ก่อน'); return;
+                  }
+                  onSetAgentMode(agentEnabled, agentPrinterId.trim());
+                  toast.success('บันทึกคิวปริ้นสาขาแล้ว — กดรีเฟรชเพื่อเช็คสถานะ');
+                }}
+                className="btn-primary">
+                บันทึก
+              </button>
+            </div>
+          </div>
           )}
 
           {/* Bridge URL */}

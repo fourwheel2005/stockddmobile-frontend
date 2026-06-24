@@ -1,4 +1,4 @@
-export type PrinterStrategyName = 'LOCAL_BRIDGE' | 'WEB_USB' | 'BROWSER';
+export type PrinterStrategyName = 'LOCAL_BRIDGE' | 'PULL_AGENT' | 'WEB_USB' | 'BROWSER';
 
 export interface PrinterStatus {
   ready: boolean;
@@ -11,6 +11,8 @@ export interface PrintJobMeta {
   billNo: string;
   openDrawer?: boolean;
   duplicate?: boolean;
+  /** PrintJob id (backend) — ใช้โดย PULL_AGENT เพื่อฝาก ESC/POS เข้างานเดิม */
+  jobId?: string;
 }
 
 export interface PrinterStrategy {

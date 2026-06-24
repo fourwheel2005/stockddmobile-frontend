@@ -49,4 +49,14 @@ export const printApi = {
 
   logDrawerOpen: (req: DrawerOpenRequest) =>
     api.post(`/print/drawer/open-log`, req),
+
+  /** ฝาก ESC/POS (base64) เข้างานเดิม → agent สาขาดึงไปพิมพ์ (pull model) */
+  queueJob: (jobId: string, req: { payloadBase64: string; printerId: string; openDrawer: boolean; copies?: number }) =>
+    api.post<PrintJobResponse>(`/print/jobs/${jobId}/queue`, req).then((r) => r.data),
+
+  /** เช็คว่า agent ของปริ้นเตอร์สาขานั้นออนไลน์ไหม (badge สถานะ) */
+  agentOnline: (printerId: string) =>
+    api.get<{ printerId: string; online: boolean; lastSeenSecondsAgo: number | null }>(
+      `/print/agent-online`, { params: { printerId } },
+    ).then((r) => r.data),
 };

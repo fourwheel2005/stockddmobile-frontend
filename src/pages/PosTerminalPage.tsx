@@ -976,6 +976,8 @@ export function PosTerminalPage() {
           onSetBridgeUrl={printer.setBridgeUrl}
           getBridgeUrl={printer.getBridgeUrl}
           onOpenDrawer={() => printer.openDrawer('MANUAL')}
+          onSetAgentMode={printer.setAgentMode}
+          getAgentConfig={printer.getAgentConfig}
         />
       )}
 

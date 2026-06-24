@@ -1,4 +1,5 @@
 import { LocalBridgeStrategy } from './strategies/LocalBridgeStrategy';
+import { CloudQueueStrategy } from './strategies/CloudQueueStrategy';
 import { WebUsbStrategy } from './strategies/WebUsbStrategy';
 import { BrowserPrintStrategy } from './strategies/BrowserPrintStrategy';
 import type { PrinterStrategy, PrinterStrategyName, PrintJobMeta } from './types';
@@ -7,28 +8,30 @@ import type { PrinterStrategy, PrinterStrategyName, PrintJobMeta } from './types
  * Multi-tier fallback orchestrator.
  *
  * <h3>Priority order (best → worst)</h3>
- *  1. Local Bridge — silent, fast, supports cash drawer
- *  2. WebUSB — silent, fast, no cash drawer
- *  3. Browser Print — slow, manual dialog
+ *  1. Local Bridge — silent, fast, cash drawer (เครื่องเดียวกับปริ้นเตอร์)
+ *  2. Pull-Agent (cloud queue) — iPad/มือถือทุกสาขา, ไม่ต้อง tunnel
+ *  3. WebUSB — silent, no cash drawer
+ *  4. Browser Print — slow, manual dialog
  *
  * <h3>Algorithm</h3>
  *  - ลองตามลำดับ — ตัวแรกที่ ready + print success = หยุด
  *  - ถ้าทุกตัว fail → throw "no working strategy"
- *  - retry per strategy: 1 ครั้ง (exponential backoff handled by orchestrator)
  */
 export class PrintOrchestrator {
   private strategies: PrinterStrategy[];
 
   constructor(
     private localBridge = new LocalBridgeStrategy(),
+    private cloudQueue = new CloudQueueStrategy(),
     private webUsb = new WebUsbStrategy(),
     private browserPrint = new BrowserPrintStrategy(),
   ) {
-    // Priority: bridge → webusb → browser
-    this.strategies = [localBridge, webUsb, browserPrint];
+    // Priority: bridge (direct) → pull-agent (cloud) → webusb → browser
+    this.strategies = [localBridge, cloudQueue, webUsb, browserPrint];
   }
 
   getLocalBridge(): LocalBridgeStrategy { return this.localBridge; }
+  getCloudQueue(): CloudQueueStrategy { return this.cloudQueue; }
   getWebUsb(): WebUsbStrategy { return this.webUsb; }
   getBrowserPrint(): BrowserPrintStrategy { return this.browserPrint; }
 
