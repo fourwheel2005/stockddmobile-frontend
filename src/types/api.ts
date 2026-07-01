@@ -908,6 +908,24 @@ export interface UpdateRepairStatusRequest {
   paymentMethod?: PaymentMethod;
 }
 
+/** แก้ไข/เพิ่มข้อมูลใบซ่อมระหว่างทาง (partial) */
+export interface UpdateRepairRequest {
+  customerName?: string;
+  customerPhone?: string;
+  deviceBrand?: string;
+  deviceModel?: string;
+  deviceColor?: string;
+  imei?: string;
+  serialNumber?: string;
+  screenCode?: string;
+  reportedSymptom?: string;
+  workDescription?: string;
+  estimatedCost?: number;
+  repairCost?: number;
+  depositAmount?: number;
+  note?: string;
+}
+
 export interface WarrantyLookup {
   id: string;
   imei: string | null;

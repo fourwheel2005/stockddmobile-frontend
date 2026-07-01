@@ -1,12 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { Wrench, Printer, Play, CheckCircle2, HandCoins, Ban, X } from 'lucide-react';
+import { Wrench, Printer, Play, CheckCircle2, HandCoins, Ban, X, Pencil, ReceiptText } from 'lucide-react';
 import { repairApi } from '@/api/repair';
 import { extractErrorMessage } from '@/api/client';
 import { formatTHB, formatDateTime } from '@/lib/format';
 import { RepairBillPrintView } from '@/components/RepairBillPrintView';
-import type { PaymentMethod, RepairStatus, RepairTicket } from '@/types/api';
+import { printOrchestrator } from '@/lib/printer/PrintOrchestrator';
+import { buildRepairSlip, type RepairSlipMode } from '@/lib/escpos/repairEscpos';
+import type { PaymentMethod, RepairStatus, RepairTicket, UpdateRepairRequest } from '@/types/api';
 
 const STATUS_TH: Record<RepairStatus, string> = {
   RECEIVED: 'รับเครื่อง',
@@ -44,7 +46,8 @@ export function RepairListPage() {
   const [statusFilter, setStatusFilter] = useState<RepairStatus | ''>('');
   const [doneTarget, setDoneTarget] = useState<RepairTicket | null>(null);
   const [pickupTarget, setPickupTarget] = useState<RepairTicket | null>(null);
-  const [ticketToPrint, setTicketToPrint] = useState<RepairTicket | null>(null);
+  const [editTarget, setEditTarget] = useState<RepairTicket | null>(null);
+  const [printView, setPrintView] = useState<{ ticket: RepairTicket; mode: RepairSlipMode } | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['repair-tickets', statusFilter],
@@ -63,12 +66,31 @@ export function RepairListPage() {
     onError: (e) => toast.error(extractErrorMessage(e)),
   });
 
-  // พิมพ์ใบรับซ่อมเมื่อเลือก
-  useEffect(() => {
-    if (!ticketToPrint) return;
-    const t = setTimeout(() => window.print(), 200);
-    return () => clearTimeout(t);
-  }, [ticketToPrint]);
+  const updateDetails = useMutation({
+    mutationFn: ({ id, body }: { id: string; body: UpdateRepairRequest }) => repairApi.update(id, body),
+    onSuccess: () => {
+      toast.success('แก้ไขใบซ่อมแล้ว');
+      qc.invalidateQueries({ queryKey: ['repair-tickets'] });
+      setEditTarget(null);
+    },
+    onError: (e) => toast.error(extractErrorMessage(e)),
+  });
+
+  // พิมพ์ใบซ่อม/ใบเสร็จ ผ่านเครื่องปริ้นความร้อน (bridge → pull-agent → browser fallback = HTML)
+  const printRepair = async (t: RepairTicket, mode: RepairSlipMode) => {
+    try {
+      printOrchestrator.setBridgeToken(localStorage.getItem('ddmobile.bridge.token'));
+      printOrchestrator.getBrowserPrint().setPrintCallback(async () => {
+        setPrintView({ ticket: t, mode });
+        await new Promise((r) => setTimeout(r, 250));
+        window.print();
+      });
+      const { strategy } = await printOrchestrator.print(buildRepairSlip(t, mode), { billNo: t.ticketNo });
+      toast.success(strategy === 'PULL_AGENT' ? 'ส่งเข้าคิวปริ้นแล้ว ☁️' : `พิมพ์แล้ว (${strategy})`);
+    } catch (e) {
+      toast.error(extractErrorMessage(e));
+    }
+  };
 
   const start = (t: RepairTicket) => update.mutate({ id: t.id, body: { status: 'IN_PROGRESS' } });
   const cancel = (t: RepairTicket) => {
@@ -155,8 +177,16 @@ export function RepairListPage() {
                         <button className="rounded p-1.5 text-emerald-700 hover:bg-emerald-50" title="รับเครื่องคืน / จ่ายเงิน"
                                 onClick={() => setPickupTarget(t)}><HandCoins className="h-4 w-4" /></button>
                       )}
+                      {t.status !== 'PICKED_UP' && t.status !== 'CANCELLED' && (
+                        <button className="rounded p-1.5 text-blue-600 hover:bg-blue-50" title="แก้ไข/เพิ่มอาการ"
+                                onClick={() => setEditTarget(t)}><Pencil className="h-4 w-4" /></button>
+                      )}
                       <button className="rounded p-1.5 text-slate-600 hover:bg-slate-100" title="พิมพ์ใบรับซ่อม"
-                              onClick={() => setTicketToPrint(t)}><Printer className="h-4 w-4" /></button>
+                              onClick={() => printRepair(t, 'INTAKE')}><Printer className="h-4 w-4" /></button>
+                      {(t.status === 'DONE' || t.status === 'PICKED_UP') && (
+                        <button className="rounded p-1.5 text-emerald-700 hover:bg-emerald-50" title="พิมพ์ใบเสร็จค่าซ่อม"
+                                onClick={() => printRepair(t, 'RECEIPT')}><ReceiptText className="h-4 w-4" /></button>
+                      )}
                       {t.status !== 'PICKED_UP' && t.status !== 'CANCELLED' && (
                         <button className="rounded p-1.5 text-red-600 hover:bg-red-50" title="ยกเลิก"
                                 onClick={() => cancel(t)}><Ban className="h-4 w-4" /></button>
@@ -195,8 +225,18 @@ export function RepairListPage() {
         />
       )}
 
-      {/* Hidden printout */}
-      {ticketToPrint && <RepairBillPrintView ticket={ticketToPrint} />}
+      {/* แก้ไข/เพิ่มอาการ ระหว่างทาง */}
+      {editTarget && (
+        <EditRepairDialog
+          ticket={editTarget}
+          pending={updateDetails.isPending}
+          onClose={() => setEditTarget(null)}
+          onSave={(body) => updateDetails.mutate({ id: editTarget.id, body })}
+        />
+      )}
+
+      {/* Hidden printout — browser fallback (bridge/pull-agent ใช้ ESC/POS) */}
+      {printView && <RepairBillPrintView ticket={printView.ticket} mode={printView.mode} />}
     </div>
   );
 }
@@ -266,6 +306,89 @@ function PickupDialog({ ticket, pending, onClose, onConfirm }: {
         </button>
       </div>
     </Dialog>
+  );
+}
+
+// ─── แก้ไข/เพิ่มอาการ ระหว่างทาง ──────────────────────────────────────────────
+function EditRepairDialog({ ticket, pending, onClose, onSave }: {
+  ticket: RepairTicket; pending: boolean;
+  onClose: () => void; onSave: (body: UpdateRepairRequest) => void;
+}) {
+  const [f, setF] = useState({
+    customerName: ticket.customerName, customerPhone: ticket.customerPhone ?? '',
+    deviceBrand: ticket.deviceBrand ?? '', deviceModel: ticket.deviceModel, deviceColor: ticket.deviceColor ?? '',
+    imei: ticket.imei ?? '', serialNumber: ticket.serialNumber ?? '', screenCode: ticket.screenCode ?? '',
+    reportedSymptom: ticket.reportedSymptom, workDescription: ticket.workDescription ?? '',
+    estimatedCost: ticket.estimatedCost ?? 0, repairCost: ticket.repairCost, depositAmount: ticket.depositAmount,
+    note: ticket.note ?? '',
+  });
+  const set = (p: Partial<typeof f>) => setF((s) => ({ ...s, ...p }));
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4">
+      <div className="w-full max-w-lg rounded-lg bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b px-5 py-3">
+          <h3 className="font-semibold">แก้ไข/เพิ่มอาการ — {ticket.ticketNo}</h3>
+          <button onClick={onClose} className="rounded p-1 hover:bg-slate-100"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="space-y-3 p-5">
+          <div>
+            <label className="mb-1 block text-sm font-medium">อาการที่ลูกค้าแจ้ง</label>
+            <textarea className="input" rows={2} value={f.reportedSymptom}
+                      onChange={(e) => set({ reportedSymptom: e.target.value })} />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-amber-700">🔧 อาการที่ช่างเจอเพิ่ม / งานที่ซ่อม</label>
+            <textarea className="input" rows={3} placeholder="เช่น เจอบอร์ดช็อตเพิ่ม, เปลี่ยนจอ+แบต"
+                      value={f.workDescription} onChange={(e) => set({ workDescription: e.target.value })} />
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <label className="mb-1 block text-xs font-medium">ประเมินค่าซ่อม</label>
+              <input type="number" min={0} className="input text-sm" value={f.estimatedCost}
+                     onChange={(e) => set({ estimatedCost: Number(e.target.value) || 0 })} />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium">ค่าซ่อมจริง</label>
+              <input type="number" min={0} className="input text-sm" value={f.repairCost}
+                     onChange={(e) => set({ repairCost: Number(e.target.value) || 0 })} />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium">มัดจำ</label>
+              <input type="number" min={0} className="input text-sm" value={f.depositAmount}
+                     onChange={(e) => set({ depositAmount: Number(e.target.value) || 0 })} />
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <input className="input text-sm" placeholder="ยี่ห้อ" value={f.deviceBrand} onChange={(e) => set({ deviceBrand: e.target.value })} />
+            <input className="input text-sm" placeholder="รุ่น" value={f.deviceModel} onChange={(e) => set({ deviceModel: e.target.value })} />
+            <input className="input text-sm" placeholder="สี" value={f.deviceColor} onChange={(e) => set({ deviceColor: e.target.value })} />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <input className="input text-sm font-mono" placeholder="IMEI" value={f.imei} onChange={(e) => set({ imei: e.target.value })} />
+            <input className="input text-sm" placeholder="รหัสหน้าจอ" value={f.screenCode} onChange={(e) => set({ screenCode: e.target.value })} />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <input className="input text-sm" placeholder="ชื่อลูกค้า" value={f.customerName} onChange={(e) => set({ customerName: e.target.value })} />
+            <input className="input text-sm" placeholder="เบอร์โทร" value={f.customerPhone} onChange={(e) => set({ customerPhone: e.target.value })} />
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 border-t px-5 py-3">
+          <button className="btn-secondary" onClick={onClose}>ยกเลิก</button>
+          <button className="btn-primary" disabled={pending || !f.customerName.trim() || !f.deviceModel.trim() || !f.reportedSymptom.trim()}
+                  onClick={() => onSave({
+                    customerName: f.customerName, customerPhone: f.customerPhone,
+                    deviceBrand: f.deviceBrand, deviceModel: f.deviceModel, deviceColor: f.deviceColor,
+                    imei: f.imei, serialNumber: f.serialNumber, screenCode: f.screenCode,
+                    reportedSymptom: f.reportedSymptom, workDescription: f.workDescription,
+                    estimatedCost: f.estimatedCost, repairCost: f.repairCost, depositAmount: f.depositAmount,
+                    note: f.note,
+                  })}>
+            {pending ? 'กำลังบันทึก…' : 'บันทึก'}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

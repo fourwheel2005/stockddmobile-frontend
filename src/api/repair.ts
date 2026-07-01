@@ -4,6 +4,7 @@ import type {
   PageResponse,
   RepairStatus,
   RepairTicket,
+  UpdateRepairRequest,
   UpdateRepairStatusRequest,
 } from '@/types/api';
 
@@ -19,4 +20,8 @@ export const repairApi = {
 
   updateStatus: (id: string, req: UpdateRepairStatusRequest) =>
     api.patch<RepairTicket>(`/repair-tickets/${id}/status`, req).then((r) => r.data),
+
+  /** แก้ไข/เพิ่มข้อมูลใบซ่อมระหว่างทาง (ก่อนรับเครื่องคืน) */
+  update: (id: string, req: UpdateRepairRequest) =>
+    api.put<RepairTicket>(`/repair-tickets/${id}`, req).then((r) => r.data),
 };

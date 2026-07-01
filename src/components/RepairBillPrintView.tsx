@@ -1,18 +1,21 @@
 import { formatTHB, formatDateTime } from '@/lib/format';
 import type { RepairTicket } from '@/types/api';
 
-interface Props { ticket: RepairTicket; shopName?: string; }
+interface Props { ticket: RepairTicket; shopName?: string; mode?: 'INTAKE' | 'RECEIPT'; }
 
 /**
- * ใบรับซ่อม (Repair intake bill) — print-friendly.
- * Triggers via window.print(); ใช้ class `receipt-print` ที่ซ่อนในจอปกติและโชว์เฉพาะตอนพิมพ์.
+ * ใบซ่อม (print-friendly, browser fallback).
+ *  - INTAKE  = ใบรับซ่อม (ตอนรับเครื่อง)
+ *  - RECEIPT = ใบเสร็จค่าซ่อม (ตอนรับคืน)
+ * Triggers via window.print(); ใช้ class `receipt-print` โชว์เฉพาะตอนพิมพ์.
  */
-export function RepairBillPrintView({ ticket, shopName = 'Stockdd Mobile' }: Props) {
+export function RepairBillPrintView({ ticket, shopName = 'Stockdd Mobile', mode = 'INTAKE' }: Props) {
+  const isReceipt = mode === 'RECEIPT';
   return (
     <div className="receipt-print">
       <div className="text-center">
         <h1 className="text-xl font-bold">{shopName}</h1>
-        <p className="text-xs text-slate-600">ใบรับซ่อม / Repair Ticket</p>
+        <p className="text-xs text-slate-600">{isReceipt ? 'ใบเสร็จรับเงิน (ค่าซ่อม)' : 'ใบรับซ่อม / Repair Ticket'}</p>
       </div>
 
       <hr className="my-3 border-dashed border-slate-400" />
@@ -61,19 +64,26 @@ export function RepairBillPrintView({ ticket, shopName = 'Stockdd Mobile' }: Pro
           <>
             <div className="flex justify-between"><span>ค่าซ่อมจริง:</span><span>{formatTHB(ticket.repairCost)}</span></div>
             <div className="flex justify-between border-t border-slate-400 pt-1 text-base">
-              <strong>ยอดค้างชำระ:</strong>
+              <strong>{isReceipt ? 'ชำระเพิ่ม:' : 'ยอดค้างชำระ:'}</strong>
               <strong>{formatTHB(ticket.balanceDue)}</strong>
             </div>
           </>
+        )}
+        {isReceipt && ticket.paymentMethod && (
+          <div className="flex justify-between"><span>วิธีชำระ:</span><span>{ticket.paymentMethod}</span></div>
         )}
       </div>
 
       <hr className="my-3 border-dashed border-slate-400" />
 
-      <p className="text-center text-xs text-slate-600">
-        กรุณาเก็บใบรับซ่อมนี้ไว้เป็นหลักฐาน<br />
-        และนำมาแสดงเมื่อมารับเครื่องคืน
-      </p>
+      {isReceipt ? (
+        <p className="text-center text-sm font-semibold">*** ชำระเงินแล้ว ***</p>
+      ) : (
+        <p className="text-center text-xs text-slate-600">
+          กรุณาเก็บใบรับซ่อมนี้ไว้เป็นหลักฐาน<br />
+          และนำมาแสดงเมื่อมารับเครื่องคืน
+        </p>
+      )}
     </div>
   );
 }
