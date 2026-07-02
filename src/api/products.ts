@@ -39,6 +39,10 @@ export const productsApi = {
   updateVariant: (productId: string, variantId: string, req: UpdateVariantRequest) =>
     api.put<VariantResponse>(`/products/${productId}/variants/${variantId}`, req).then((r) => r.data),
 
+  /** ปิดใช้งานรุ่นย่อย (soft-delete) — ลบตัวที่กรอกผิด · backend บล็อกถ้ายังมีเครื่องในสต๊อก */
+  deactivateVariant: (productId: string, variantId: string) =>
+    api.delete(`/products/${productId}/variants/${variantId}`).then((r) => r.data),
+
   /** เพิ่ม SKU ใหม่ใน Product เดิม + รับสต็อกล็อตแรก (Clone Flow — atomic). */
   addVariantWithStock: (productId: string, req: AddVariantWithStockRequest) =>
     api.post<VariantResponse>(`/products/${productId}/variants-with-stock`, req).then((r) => r.data),

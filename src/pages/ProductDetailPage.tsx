@@ -507,6 +507,17 @@ function AddVariantModal({ productId, serialized, productModelNumber, editVarian
     onError: (e) => toast.error(extractErrorMessage(e)),
   });
 
+  // ลบ/ปิดรุ่นย่อยที่กรอกผิด (soft-delete) — backend บล็อกถ้ายังมีเครื่องในสต๊อก
+  const remove = useMutation({
+    mutationFn: () => productsApi.deactivateVariant(productId, editVariant!.id),
+    onSuccess: () => {
+      toast.success('ลบรุ่นย่อยแล้ว');
+      qc.invalidateQueries({ queryKey: ['product', productId] });
+      onClose();
+    },
+    onError: (e) => toast.error(extractErrorMessage(e)),
+  });
+
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4">
       <div className="w-full max-w-lg rounded-lg bg-white shadow-xl">
@@ -675,11 +686,25 @@ function AddVariantModal({ productId, serialized, productModelNumber, editVarian
           )}
 
           </div>
-          <div className="flex justify-end gap-2 border-t px-5 py-3">
-            <button type="button" className="btn-secondary" onClick={onClose}>ยกเลิก</button>
-            <button type="submit" className="btn-primary" disabled={create.isPending}>
-              {create.isPending ? 'กำลังบันทึก...' : 'บันทึก'}
-            </button>
+          <div className="flex items-center justify-between gap-2 border-t px-5 py-3">
+            {isEdit ? (
+              <button type="button"
+                      className="rounded-md px-3 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
+                      disabled={remove.isPending}
+                      onClick={() => {
+                        if (confirm(`ลบรุ่นย่อย ${editVariant!.sku} (${[editVariant!.color, editVariant!.storage].filter(Boolean).join(' ')}) ?\nถ้ายังมีเครื่องในสต๊อกจะลบไม่ได้`)) {
+                          remove.mutate();
+                        }
+                      }}>
+                {remove.isPending ? 'กำลังลบ...' : '🗑 ลบรุ่นย่อยนี้'}
+              </button>
+            ) : <span />}
+            <div className="flex gap-2">
+              <button type="button" className="btn-secondary" onClick={onClose}>ยกเลิก</button>
+              <button type="submit" className="btn-primary" disabled={create.isPending}>
+                {create.isPending ? 'กำลังบันทึก...' : 'บันทึก'}
+              </button>
+            </div>
           </div>
         </form>
       </div>
