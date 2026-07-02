@@ -8,6 +8,7 @@ import { extractErrorMessage } from '@/api/client';
 import { formatTHB } from '@/lib/format';
 import { CustomerPickerModal } from '@/components/CustomerPickerModal';
 import { ImeiPickerModal } from '@/components/ImeiPickerModal';
+import { DeviceLookupModal } from '@/components/DeviceLookupModal';
 import { RepairIntakeModal } from '@/components/RepairIntakeModal';
 import { ReceiptPrintView } from '@/components/ReceiptPrintView';
 import { RepairBillPrintView } from '@/components/RepairBillPrintView';
@@ -81,6 +82,7 @@ export function PosTerminalPage() {
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [showCustomerPicker, setShowCustomerPicker] = useState(false);
   const [showImeiPicker, setShowImeiPicker] = useState(false);
+  const [showLookup, setShowLookup] = useState(false);
   const [showRepair, setShowRepair] = useState(false);
   const [repairToPrint, setRepairToPrint] = useState<RepairTicket | null>(null);
 
@@ -419,6 +421,9 @@ export function PosTerminalPage() {
         <div className="flex items-center gap-2">
           <button className="btn-secondary" onClick={() => setShowImeiPicker(true)}>
             <ListChecks className="h-4 w-4" /> เลือก IMEI จากรายการ
+          </button>
+          <button className="btn-secondary" onClick={() => setShowLookup(true)}>
+            <Search className="h-4 w-4" /> เช็ครายละเอียด
           </button>
           <button className="btn-secondary text-amber-700" onClick={() => setShowRepair(true)}>
             <Wrench className="h-4 w-4" /> ส่งซ่อม / เคลม
@@ -953,6 +958,7 @@ export function PosTerminalPage() {
           onClose={() => setShowImeiPicker(false)}
         />
       )}
+      {showLookup && <DeviceLookupModal onClose={() => setShowLookup(false)} />}
       {showRepair && (
         <RepairIntakeModal
           onClose={() => setShowRepair(false)}
