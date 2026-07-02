@@ -575,7 +575,13 @@ export function ProductWizardPage() {
         </div>
       </header>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      <form
+        onSubmit={handleSubmit(onSubmit)}
+        onKeyDown={(e) => {
+          const el = e.target as HTMLElement;
+          if (e.key === 'Enter' && el.tagName === 'INPUT') e.preventDefault();
+        }}
+        className="space-y-6">
         {/* ─── 1. ข้อมูลรุ่น ─────────────────────────────────────────── */}
         {mode === 'ADD_VARIANT' && sourceProduct ? (
           <section className="card border-brand-200 bg-brand-50/40">

@@ -636,7 +636,15 @@ export function ProductRegisterPage() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <form
+        onSubmit={handleSubmit(onSubmit)}
+        onKeyDown={(e) => {
+          // กันเผลอ: กด Enter ในช่อง input แล้ว submit ทั้งฟอร์ม (บันทึก+รับของ) โดยไม่ตั้งใจ
+          // → บล็อก Enter เฉพาะ <input> (textarea ขึ้นบรรทัดใหม่ได้ · ปุ่ม "บันทึก" กด Enter ได้ปกติ)
+          const el = e.target as HTMLElement;
+          if (e.key === 'Enter' && el.tagName === 'INPUT') e.preventDefault();
+        }}
+        className="space-y-4">
 
         {/* datalist ใช้ร่วม — รายการแนะนำสำหรับช่องรายเครื่อง (สี/ความจุ/เครือข่าย/เลขรุ่น/ประกัน)
             ประกาศที่เดียว ใช้ได้ทุก ItemCard ผ่าน list="..." */}

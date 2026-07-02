@@ -516,7 +516,13 @@ function AddVariantModal({ productId, serialized, productModelNumber, editVarian
             <X className="h-4 w-4" />
           </button>
         </div>
-        <form onSubmit={handleSubmit((d) => {
+        <form
+          onKeyDown={(e) => {
+            // กัน Enter ในช่อง input เผลอกดบันทึก+รับของทั้งฟอร์ม (textarea/ปุ่มยังใช้ Enter ได้)
+            const el = e.target as HTMLElement;
+            if (e.key === 'Enter' && el.tagName === 'INPUT') e.preventDefault();
+          }}
+          onSubmit={handleSubmit((d) => {
           const blank = (s?: string) => (s && s.trim()) ? s.trim() : undefined;
           create.mutate({
             sku: (d.sku ?? '').trim(),   // มือถือเพิ่มสี: ระบบออก DD ให้ (ไม่ใช้ค่านี้)
