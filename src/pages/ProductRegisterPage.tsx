@@ -203,7 +203,9 @@ export function ProductRegisterPage() {
    *  - phone     → serialized=true เสมอ
    *  - accessory → toggle accessorySerialOn เพื่อสลับ serialized true/false */
   const [productKind, setProductKind] = useState<ProductKind>('phone');
-  const [accessorySerialOn, setAccessorySerialOn] = useState(false);
+  // ร้านส่วนใหญ่ track อุปกรณ์เสริมรายชิ้น (มี serial) → default เปิดโหมด serial = ได้รหัส DD ต่อชิ้นอัตโนมัติ
+  // (ของ fungible เช่น เคส/ฟิล์ม สลับเป็น "นับจำนวน" ได้ 1 คลิก)
+  const [accessorySerialOn, setAccessorySerialOn] = useState(true);
   /** ค่าเริ่มต้นที่มา — ใช้กับอุปกรณ์เสริม (มือถือใช้ "ที่มา" รายเครื่องในแถว). */
   const [defaultAcq, setDefaultAcq] = useState<AcquisitionType>('PURCHASE');
   const [scannerMode, setScannerMode] = useState(false);
