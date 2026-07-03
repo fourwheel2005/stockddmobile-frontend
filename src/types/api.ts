@@ -131,6 +131,10 @@ export interface UpdateSerialRequest {
   warrantyTerms?: string;
   batteryHealth?: number;
   condition?: SerializedCondition;
+  acquisitionType?: AcquisitionType;   // ที่มา (null = ไม่แตะค่าเดิม)
+  purchasePrice?: number;              // ราคาทุนรายเครื่อง
+  sellingPrice?: number;               // ราคาขายรายเครื่อง
+  warrantyExpire?: string;             // YYYY-MM-DD
   note?: string;
   imageUrls?: string[];   // แก้รูปรายเครื่อง (แทนที่ทั้งชุด · รูปแรก = ปก)
 }

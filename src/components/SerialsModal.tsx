@@ -5,10 +5,10 @@ import { X, Wrench, ShieldAlert, Undo2, BatteryMedium, Pencil, Save } from 'luci
 import { inventoryApi } from '@/api/inventory';
 import { extractErrorMessage } from '@/api/client';
 import { formatDate } from '@/lib/format';
-import { acqLabel } from '@/lib/acquisition';
+import { acqLabel, ACQ_ORDER, ACQ_INFO } from '@/lib/acquisition';
 import { RepairIntakeModal } from '@/components/RepairIntakeModal';
 import { ImageEditor } from '@/components/MultiImageUpload';
-import type { SerializedStatus, ServiceState, SerializedItemResponse, SerializedCondition } from '@/types/api';
+import type { SerializedStatus, ServiceState, SerializedItemResponse, SerializedCondition, AcquisitionType } from '@/types/api';
 
 interface Props {
   variantId: string;
@@ -262,28 +262,42 @@ function EditSerialModal({ item, onClose, onSaved }: {
   onSaved: () => void;
 }) {
   const [imei, setImei] = useState(item.imei ?? '');
+  const [imei2, setImei2] = useState(item.imei2 ?? '');
   const [serialNumber, setSerialNumber] = useState(item.serialNumber);
   const [deviceColor, setDeviceColor] = useState(item.deviceColor ?? '');
   const [modelNumber, setModelNumber] = useState(item.modelNumber ?? '');
   const [deviceStorage, setDeviceStorage] = useState(item.deviceStorage ?? '');
   const [deviceNetwork, setDeviceNetwork] = useState(item.deviceNetwork ?? '');
   const [warrantyTerms, setWarrantyTerms] = useState(item.warrantyTerms ?? '');
+  const [warrantyExpire, setWarrantyExpire] = useState(item.warrantyExpire ? item.warrantyExpire.slice(0, 10) : '');
   const [battery, setBattery] = useState(item.batteryHealth != null ? String(item.batteryHealth) : '');
   const [condition, setCondition] = useState<SerializedCondition>(
     (item.condition as SerializedCondition) ?? 'SECOND_HAND');
+  const [acquisitionType, setAcquisitionType] = useState<AcquisitionType>(
+    (item.acquisitionType as AcquisitionType) ?? 'PURCHASE');
+  const [purchasePrice, setPurchasePrice] = useState(item.purchasePrice != null ? String(item.purchasePrice) : '');
+  const [sellingPrice, setSellingPrice] = useState(item.sellingPrice != null ? String(item.sellingPrice) : '');
   const [imageUrls, setImageUrls] = useState<string[]>(item.imageUrls ?? []);
+
+  // STAFF ไม่มีสิทธิ์เห็นต้นทุน (purchasePrice = null แต่มี purchasePriceCode) → ซ่อนช่องราคาทุน กันบันทึกทับเป็น 0
+  const canSeeCost = item.purchasePrice != null || item.purchasePriceCode == null;
 
   const save = useMutation({
     mutationFn: () => inventoryApi.updateSerial(item.id, {
       imei: imei.trim() || undefined,
+      imei2: imei2.trim() || undefined,
       serialNumber: serialNumber.trim(),
       deviceColor: deviceColor.trim() || undefined,
       modelNumber: modelNumber.trim() || undefined,
       deviceStorage: deviceStorage.trim() || undefined,
       deviceNetwork: deviceNetwork.trim() || undefined,
       warrantyTerms: warrantyTerms.trim() || undefined,
+      warrantyExpire: warrantyExpire || undefined,
       batteryHealth: battery === '' ? undefined : Number(battery),
       condition,
+      acquisitionType,
+      purchasePrice: !canSeeCost || purchasePrice === '' ? undefined : Number(purchasePrice),
+      sellingPrice: sellingPrice === '' ? undefined : Number(sellingPrice),
       imageUrls,   // แทนที่รูปทั้งชุด (รูปแรก = ปก)
     }),
     onSuccess: () => { toast.success('แก้ไขเครื่องแล้ว'); onSaved(); onClose(); },
@@ -306,10 +320,17 @@ function EditSerialModal({ item, onClose, onSaved }: {
           </button>
         </div>
         <div className="space-y-3 px-5 py-4">
-          <div>
-            <label className="mb-0.5 block text-xs font-semibold text-slate-600">IMEI</label>
-            <input className="input font-mono" value={imei} onChange={(e) => setImei(e.target.value)}
-                   placeholder="35xxxxxxxxxxxxx" />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-0.5 block text-xs font-semibold text-slate-600">IMEI</label>
+              <input className="input font-mono" value={imei} onChange={(e) => setImei(e.target.value)}
+                     placeholder="35xxxxxxxxxxxxx" />
+            </div>
+            <div>
+              <label className="mb-0.5 block text-xs font-semibold text-slate-600">IMEI 2 <span className="font-normal text-slate-400">(dual-sim)</span></label>
+              <input className="input font-mono" value={imei2} onChange={(e) => setImei2(e.target.value)}
+                     placeholder="ถ้ามี" />
+            </div>
           </div>
           <div>
             <label className="mb-0.5 block text-xs font-semibold text-slate-600">Serial *</label>
@@ -345,19 +366,51 @@ function EditSerialModal({ item, onClose, onSaved }: {
             <input className="input font-mono" value={modelNumber}
                    onChange={(e) => setModelNumber(e.target.value)} placeholder="เช่น MQ9Q3ZP/A" />
           </div>
-          <div>
-            <label className="mb-0.5 block text-xs font-semibold text-slate-600">ประกัน</label>
-            <input className="input" value={warrantyTerms}
-                   onChange={(e) => setWarrantyTerms(e.target.value)} placeholder="เช่น ประกันศูนย์ 1 ปี (Apple)" />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-0.5 block text-xs font-semibold text-slate-600">ประกัน</label>
+              <input className="input" value={warrantyTerms}
+                     onChange={(e) => setWarrantyTerms(e.target.value)} placeholder="เช่น ประกันศูนย์ 1 ปี" />
+            </div>
+            <div>
+              <label className="mb-0.5 block text-xs font-semibold text-slate-600">วันหมดประกัน</label>
+              <input type="date" className="input" value={warrantyExpire}
+                     onChange={(e) => setWarrantyExpire(e.target.value)} />
+            </div>
           </div>
-          <div>
-            <label className="mb-0.5 block text-xs font-semibold text-slate-600">สภาพ</label>
-            <select className="input" value={condition}
-                    onChange={(e) => setCondition(e.target.value as SerializedCondition)}>
-              {EDIT_CONDITIONS.map((c) => (
-                <option key={c} value={c}>{CONDITION_TH[c] ?? c}</option>
-              ))}
-            </select>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-0.5 block text-xs font-semibold text-slate-600">สภาพ</label>
+              <select className="input" value={condition}
+                      onChange={(e) => setCondition(e.target.value as SerializedCondition)}>
+                {EDIT_CONDITIONS.map((c) => (
+                  <option key={c} value={c}>{CONDITION_TH[c] ?? c}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-0.5 block text-xs font-semibold text-slate-600">แหล่งที่มา</label>
+              <select className="input" value={acquisitionType}
+                      onChange={(e) => setAcquisitionType(e.target.value as AcquisitionType)}>
+                {ACQ_ORDER.map((a) => (
+                  <option key={a} value={a}>{ACQ_INFO[a]?.th ?? a}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {canSeeCost && (
+              <div>
+                <label className="mb-0.5 block text-xs font-semibold text-slate-600">ราคาทุน (บาท)</label>
+                <input type="number" min={0} className="input" value={purchasePrice}
+                       onChange={(e) => setPurchasePrice(e.target.value)} placeholder="0" />
+              </div>
+            )}
+            <div className={canSeeCost ? '' : 'col-span-2'}>
+              <label className="mb-0.5 block text-xs font-semibold text-slate-600">ราคาขาย (บาท)</label>
+              <input type="number" min={0} className="input" value={sellingPrice}
+                     onChange={(e) => setSellingPrice(e.target.value)} placeholder="0" />
+            </div>
           </div>
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-600">

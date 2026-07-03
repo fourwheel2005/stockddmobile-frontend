@@ -11,6 +11,7 @@ import { useBranchStore } from '@/stores/branchStore';
 import { useAuthStore } from '@/stores/authStore';
 import { BarcodeDisplay } from '@/components/BarcodeDisplay';
 import { ImageEditor } from '@/components/MultiImageUpload';
+import { SerialsModal } from '@/components/SerialsModal';
 import { formatTHB } from '@/lib/format';
 import { ACQ_INFO, ACQ_ORDER } from '@/lib/acquisition';
 import {
@@ -24,6 +25,7 @@ export function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [showAddVariant, setShowAddVariant] = useState(false);
   const [editingVariant, setEditingVariant] = useState<VariantResponse | null>(null);
+  const [serialsVariant, setSerialsVariant] = useState<VariantResponse | null>(null);
   const [editingProduct, setEditingProduct] = useState(false);
   const canEdit = useAuthStore((s) => s.hasRole('ADMIN', 'MANAGER'));
 
@@ -158,7 +160,9 @@ export function ProductDetailPage() {
                       const qty = qtyByVariant.get(v.id);
                       if (qty === undefined) return <span className="text-slate-400">{stockResolved ? '–' : '…'}</span>;
                       return qty > 0
-                        ? <span className="font-semibold text-slate-800">{qty}</span>
+                        ? <button type="button" onClick={() => setSerialsVariant(v)}
+                                  className="font-semibold text-brand-700 underline decoration-dotted underline-offset-2 hover:text-brand-800"
+                                  title="ดู/แก้ไขรายเครื่อง (IMEI/Serial/ที่มา/ราคา)">{qty}</button>
                         : <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-700">0 · ยังไม่รับเข้า</span>;
                     })()}
                   </td>
@@ -177,6 +181,11 @@ export function ProductDetailPage() {
                               className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
                               title="แก้ไข SKU นี้ (สี/ความจุ/ราคา/barcode)">
                           <Pencil className="h-3.5 w-3.5" /> แก้ไข
+                        </button>
+                        <button type="button" onClick={() => setSerialsVariant(v)}
+                              className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs text-indigo-700 hover:bg-indigo-50"
+                              title="ดู/แก้ไขรายเครื่อง — IMEI/Serial/เลขรุ่น/แหล่งที่มา/ราคา/แบต/สภาพ">
+                          <PackageOpen className="h-3.5 w-3.5" /> รายเครื่อง
                         </button>
                         <Link to={`/products/new?cloneProduct=${product.id}&cloneFrom=${v.id}`}
                               className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs text-brand-700 hover:bg-brand-50"
@@ -226,6 +235,10 @@ export function ProductDetailPage() {
       )}
       {editingProduct && (
         <EditProductModal product={product} onClose={() => setEditingProduct(false)} />
+      )}
+      {serialsVariant && (
+        <SerialsModal variantId={serialsVariant.id} productName={product.name} sku={serialsVariant.sku}
+                      onClose={() => setSerialsVariant(null)} />
       )}
     </div>
   );
