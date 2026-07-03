@@ -507,16 +507,34 @@ function AddVariantModal({ productId, serialized, productModelNumber, editVarian
     onError: (e) => toast.error(extractErrorMessage(e)),
   });
 
-  // ลบ/ปิดรุ่นย่อยที่กรอกผิด (soft-delete) — backend บล็อกถ้ายังมีเครื่องในสต๊อก
+  // ลบ/ปิดรุ่นย่อยที่กรอกผิด (soft-delete) · force=true ลบเครื่องที่รับผิด (ยังไม่เคยขาย) ออกด้วย
   const remove = useMutation({
-    mutationFn: () => productsApi.deactivateVariant(productId, editVariant!.id),
+    mutationFn: (force: boolean) => productsApi.deactivateVariant(productId, editVariant!.id, force),
     onSuccess: () => {
       toast.success('ลบรุ่นย่อยแล้ว');
       qc.invalidateQueries({ queryKey: ['product', productId] });
+      qc.invalidateQueries({ queryKey: ['inventory-serials'] });
       onClose();
     },
-    onError: (e) => toast.error(extractErrorMessage(e)),
   });
+
+  const handleDelete = async () => {
+    const label = `${editVariant!.sku} (${[editVariant!.color, editVariant!.storage].filter(Boolean).join(' ')})`;
+    if (!confirm(`ลบรุ่นย่อย ${label} ?`)) return;
+    try {
+      await remove.mutateAsync(false);
+    } catch (e) {
+      const msg = extractErrorMessage(e);
+      if (/เครื่องพร้อมขาย|ลบพร้อมเครื่อง/i.test(msg)) {
+        // มีเครื่องในสต๊อก → ถามลบพร้อมเครื่องที่ยังไม่เคยขาย
+        if (confirm(`${msg}\n\nลบรุ่นย่อยนี้ + เครื่องที่ใส่ผิด (เฉพาะที่ยังไม่เคยขาย) เลยไหม?`)) {
+          try { await remove.mutateAsync(true); } catch (e2) { toast.error(extractErrorMessage(e2)); }
+        }
+      } else {
+        toast.error(msg);
+      }
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4">
@@ -691,11 +709,7 @@ function AddVariantModal({ productId, serialized, productModelNumber, editVarian
               <button type="button"
                       className="rounded-md px-3 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
                       disabled={remove.isPending}
-                      onClick={() => {
-                        if (confirm(`ลบรุ่นย่อย ${editVariant!.sku} (${[editVariant!.color, editVariant!.storage].filter(Boolean).join(' ')}) ?\nถ้ายังมีเครื่องในสต๊อกจะลบไม่ได้`)) {
-                          remove.mutate();
-                        }
-                      }}>
+                      onClick={handleDelete}>
                 {remove.isPending ? 'กำลังลบ...' : '🗑 ลบรุ่นย่อยนี้'}
               </button>
             ) : <span />}
