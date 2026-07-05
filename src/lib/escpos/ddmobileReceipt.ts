@@ -22,6 +22,9 @@ export interface ReceiptData {
     sku: string;
     productName: string;
     imei?: string | null;
+    color?: string | null;
+    storage?: string | null;
+    condition?: string | null;   // "มือ 1" / "มือ 2" ฯลฯ
     quantity: number;
     sellPrice: number;
     lineTotal: number;
@@ -128,8 +131,15 @@ export function buildDDMobileReceipt(
 
   b.separator('-', W);
 
+  // ผ่อนชำระ → ไม่โชว์ราคาเต็ม/ยอดรวมบนใบเสร็จ (ลูกค้าเห็นเฉพาะยอดดาวน์ที่จ่าย + ค่างวด) — FIX-070
+  const hidePrice = data.paymentMethod === 'INSTALLMENT';
+
   // ─── Items header ───────────────────────────────
-  b.text('รายการ').text(' '.repeat(28)).text('จำนวน').text('  ราคา').text('     รวม').newline();
+  if (hidePrice) {
+    b.text('รายการสินค้า').newline();
+  } else {
+    b.text('รายการ').text(' '.repeat(28)).text('จำนวน').text('  ราคา').text('     รวม').newline();
+  }
   b.separator('-', W);
 
   // ─── Items ──────────────────────────────────────
@@ -140,47 +150,55 @@ export function buildDDMobileReceipt(
       : it.productName;
     b.bold(true).textln(`${it.seq}. ${namePart}`).bold(false);
 
-    // Line 2: SKU + IMEI
+    // Line 2: สี / ความจุ / สภาพ (มือ 1-2)
+    const spec = [it.color, it.storage, it.condition].filter(Boolean).join(' · ');
+    if (spec) b.textln(`   ${spec}`);
+
+    // Line 3: IMEI (หรือ SKU สำหรับอุปกรณ์เสริม)
     if (it.imei) {
       b.textln(`   IMEI: ${it.imei}`);
     } else {
       b.textln(`   SKU: ${it.sku}`);
     }
 
-    // Line 3: qty x price = total (right-justify)
-    const qty = it.quantity.toString();
-    const price = fmtTHB(it.sellPrice);
-    const tot = fmtTHB(it.lineTotal);
-    const line = `${qty.padStart(8)} ${price.padStart(10)} ${tot.padStart(12)}`;
-    b.text(' '.repeat(W - line.length)).textln(line);
+    // Line 4: qty x price = total (ข้ามถ้าผ่อน — ไม่โชว์ราคา)
+    if (!hidePrice) {
+      const qty = it.quantity.toString();
+      const price = fmtTHB(it.sellPrice);
+      const tot = fmtTHB(it.lineTotal);
+      const line = `${qty.padStart(8)} ${price.padStart(10)} ${tot.padStart(12)}`;
+      b.text(' '.repeat(W - line.length)).textln(line);
+    }
   });
 
   b.separator('-', W);
 
-  // ─── Totals ─────────────────────────────────────
-  b.justify('ยอดสินค้า:', fmtTHB(data.subtotal), W);
+  // ─── Totals ───────────────────────────────────── (ข้ามทั้งบล็อกถ้าผ่อน — โชว์แค่ดาวน์/ค่างวดด้านล่าง)
+  if (!hidePrice) {
+    b.justify('ยอดสินค้า:', fmtTHB(data.subtotal), W);
 
-  if (data.discountAmount > 0) {
-    b.justify('ส่วนลด:', `-${fmtTHB(data.discountAmount)}`, W);
-  }
-  if (data.vatAmount > 0) {
-    b.justify('VAT:', `+${fmtTHB(data.vatAmount)}`, W);
-  }
-  if (data.shippingFee > 0) {
-    const partner = data.shippingPartner ? ` (${PARTNER_TH[data.shippingPartner] ?? data.shippingPartner})` : '';
-    b.justify(`ค่าจัดส่ง${partner}:`, `+${fmtTHB(data.shippingFee)}`, W);
-
-    if ((data.shippingFeeGrandpa ?? 0) > 0) {
-      b.justify('  ↳ ตาออก:', fmtTHB(data.shippingFeeGrandpa!), W);
+    if (data.discountAmount > 0) {
+      b.justify('ส่วนลด:', `-${fmtTHB(data.discountAmount)}`, W);
     }
-    if ((data.shippingFeeGrandma ?? 0) > 0) {
-      b.justify('  ↳ ยายออก:', fmtTHB(data.shippingFeeGrandma!), W);
+    if (data.vatAmount > 0) {
+      b.justify('VAT:', `+${fmtTHB(data.vatAmount)}`, W);
     }
-  }
+    if (data.shippingFee > 0) {
+      const partner = data.shippingPartner ? ` (${PARTNER_TH[data.shippingPartner] ?? data.shippingPartner})` : '';
+      b.justify(`ค่าจัดส่ง${partner}:`, `+${fmtTHB(data.shippingFee)}`, W);
 
-  b.separator('=', W);
-  b.size(2, 1).justify('ยอดสุทธิ:', fmtTHB(data.grandTotal), W / 2).size(1, 1);
-  b.separator('=', W);
+      if ((data.shippingFeeGrandpa ?? 0) > 0) {
+        b.justify('  ↳ ตาออก:', fmtTHB(data.shippingFeeGrandpa!), W);
+      }
+      if ((data.shippingFeeGrandma ?? 0) > 0) {
+        b.justify('  ↳ ยายออก:', fmtTHB(data.shippingFeeGrandma!), W);
+      }
+    }
+
+    b.separator('=', W);
+    b.size(2, 1).justify('ยอดสุทธิ:', fmtTHB(data.grandTotal), W / 2).size(1, 1);
+    b.separator('=', W);
+  }
 
   // ─── Payment ────────────────────────────────────
   if (data.paymentMethod) {

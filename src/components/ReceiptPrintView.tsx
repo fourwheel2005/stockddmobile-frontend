@@ -54,51 +54,62 @@ export function ReceiptPrintView({ order, shopName = 'Stockdd Mobile' }: Props) 
 
       <hr className="my-3 border-dashed border-slate-400" />
 
+      {/* ผ่อน → ไม่โชว์ราคาเต็ม/ยอดรวม (ลูกค้าเห็นเฉพาะยอดดาวน์ที่จ่าย + ค่างวด) — FIX-070 */}
+      {(() => { const hidePrice = order.paymentMethod === 'INSTALLMENT'; return (
+      <>
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-slate-300">
             <th className="py-1 text-left">รายการ</th>
-            <th className="py-1 text-right">จำนวน</th>
-            <th className="py-1 text-right">ราคา</th>
-            <th className="py-1 text-right">รวม</th>
+            {!hidePrice && <th className="py-1 text-right">จำนวน</th>}
+            {!hidePrice && <th className="py-1 text-right">ราคา</th>}
+            {!hidePrice && <th className="py-1 text-right">รวม</th>}
           </tr>
         </thead>
         <tbody>
-          {order.items.map((it) => (
+          {order.items.map((it) => {
+            const spec = [it.color, it.storage, it.condition].filter(Boolean).join(' · ');
+            return (
             <tr key={it.id} className="border-b border-slate-200">
               <td className="py-1.5">
                 <div>{it.productName}</div>
-                <div className="text-xs text-slate-600">{it.sku}</div>
-                {it.imei && <div className="text-xs text-slate-600">IMEI: {it.imei}</div>}
+                {spec && <div className="text-xs text-slate-600">{spec}</div>}
+                {it.imei
+                  ? <div className="text-xs text-slate-600">IMEI: {it.imei}</div>
+                  : <div className="text-xs text-slate-600">{it.sku}</div>}
               </td>
-              <td className="py-1.5 text-right">{it.quantity}</td>
-              <td className="py-1.5 text-right">{formatTHB(it.sellPrice)}</td>
-              <td className="py-1.5 text-right">{formatTHB(it.lineTotal)}</td>
+              {!hidePrice && <td className="py-1.5 text-right">{it.quantity}</td>}
+              {!hidePrice && <td className="py-1.5 text-right">{formatTHB(it.sellPrice)}</td>}
+              {!hidePrice && <td className="py-1.5 text-right">{formatTHB(it.lineTotal)}</td>}
             </tr>
-          ))}
+          ); })}
         </tbody>
       </table>
 
       <hr className="my-3 border-dashed border-slate-400" />
 
       <div className="space-y-1 text-sm">
-        <div className="flex justify-between"><span>ยอดรวม:</span><span>{formatTHB(order.subtotal)}</span></div>
-        {order.discountAmount > 0 && (
-          <div className="flex justify-between"><span>ส่วนลด:</span><span>- {formatTHB(order.discountAmount)}</span></div>
+        {!hidePrice && (
+          <>
+            <div className="flex justify-between"><span>ยอดรวม:</span><span>{formatTHB(order.subtotal)}</span></div>
+            {order.discountAmount > 0 && (
+              <div className="flex justify-between"><span>ส่วนลด:</span><span>- {formatTHB(order.discountAmount)}</span></div>
+            )}
+            {order.vatAmount > 0 && (
+              <div className="flex justify-between"><span>ภาษีมูลค่าเพิ่ม:</span><span>{formatTHB(order.vatAmount)}</span></div>
+            )}
+            {order.shippingFee > 0 && (
+              <div className="flex justify-between">
+                <span>ค่าจัดส่ง{order.shippingPartner ? ` (${PARTNER_TH[order.shippingPartner]})` : ''}:</span>
+                <span>{formatTHB(order.shippingFee)}</span>
+              </div>
+            )}
+            <div className="flex justify-between border-t border-slate-400 pt-1 text-base">
+              <strong>ยอดสุทธิ:</strong>
+              <strong>{formatTHB(order.grandTotal)}</strong>
+            </div>
+          </>
         )}
-        {order.vatAmount > 0 && (
-          <div className="flex justify-between"><span>ภาษีมูลค่าเพิ่ม:</span><span>{formatTHB(order.vatAmount)}</span></div>
-        )}
-        {order.shippingFee > 0 && (
-          <div className="flex justify-between">
-            <span>ค่าจัดส่ง{order.shippingPartner ? ` (${PARTNER_TH[order.shippingPartner]})` : ''}:</span>
-            <span>{formatTHB(order.shippingFee)}</span>
-          </div>
-        )}
-        <div className="flex justify-between border-t border-slate-400 pt-1 text-base">
-          <strong>ยอดสุทธิ:</strong>
-          <strong>{formatTHB(order.grandTotal)}</strong>
-        </div>
         <div className="flex justify-between">
           <span>วิธีชำระ:</span>
           <span>{order.paymentMethod ? PAYMENT_TH[order.paymentMethod] : '-'}</span>
@@ -147,6 +158,8 @@ export function ReceiptPrintView({ order, shopName = 'Stockdd Mobile' }: Props) 
           </div>
         )}
       </div>
+      </>
+      ); })()}
 
       <hr className="my-3 border-dashed border-slate-400" />
 
