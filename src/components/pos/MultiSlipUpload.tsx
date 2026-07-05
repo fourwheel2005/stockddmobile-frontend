@@ -3,6 +3,9 @@ import { Upload, X, Image as ImageIcon, Plus } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { filesApi } from '@/api/files';
 import { extractErrorMessage } from '@/api/client';
+import { compressImage } from '@/lib/imageCompress';
+
+const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;   // ตรงกับเพดาน backend (/files)
 
 export interface SlipEntry {
   fileId: string;
@@ -41,22 +44,39 @@ export function MultiSlipUpload({ slips, onChange, required, maxFiles = DEFAULT_
       toast.error(`อัปโหลดได้สูงสุด ${maxFiles} ใบเท่านั้น`);
       return;
     }
-    const toUpload = files.slice(0, slots);
-    if (toUpload.length < files.length) {
-      toast(`อัปโหลดเเค่ ${toUpload.length}/${files.length} ใบ (เต็มแล้ว)`);
+    // รับเฉพาะรูป/PDF (กันไฟล์แปลก) — ไฟล์ที่ไม่ผ่านแจ้งชื่อชัด แทนจะเงียบ/Network Error
+    const valid = files.filter((f) => {
+      if (!f.type.startsWith('image/') && f.type !== 'application/pdf') {
+        toast.error(`"${f.name}" ไม่ใช่รูปหรือ PDF`);
+        return false;
+      }
+      return true;
+    });
+    const toUpload = valid.slice(0, slots);
+    if (toUpload.length < valid.length) {
+      toast(`อัปโหลดเเค่ ${toUpload.length}/${valid.length} ใบ (เต็มแล้ว)`);
     }
+    if (toUpload.length === 0) return;
 
     setUploading(true);
     try {
       const newEntries: SlipEntry[] = [];
       for (const f of toUpload) {
-        const uploaded = await filesApi.uploadSlip(f);
+        // บีบรูปก่อนอัป (เหมือนรูปสินค้า) — iPad ถ่าย HEIC/ไฟล์ใหญ่หลาย MB อัปดิบผ่านเน็ตช้า
+        // แล้ว connection reset → "Network Error"; บีบเหลือ ~0.3-2MB + แปลงเป็น JPEG · PDF ผ่านไม่แตะ
+        const prepared = await compressImage(f);
+        if (prepared.size > MAX_UPLOAD_BYTES) {
+          toast.error(`"${f.name}" ใหญ่เกิน 25MB — ถ่าย/ย่อใหม่แล้วลองอีกครั้ง`);
+          continue;
+        }
+        const uploaded = await filesApi.uploadSlip(prepared);
         newEntries.push({
           fileId: uploaded.id,
-          previewUrl: URL.createObjectURL(f),
+          previewUrl: URL.createObjectURL(prepared),
           fileName: f.name,
         });
       }
+      if (newEntries.length === 0) return;
       onChange([...slips, ...newEntries]);
       toast.success(`แนบสลิป ${newEntries.length} ใบสำเร็จ`);
     } catch (e) {
