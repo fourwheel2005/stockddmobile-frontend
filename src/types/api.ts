@@ -139,6 +139,31 @@ export interface UpdateSerialRequest {
   imageUrls?: string[];   // แก้รูปรายเครื่อง (แทนที่ทั้งชุด · รูปแรก = ปก)
 }
 
+// ─── Device Service Log (ประวัติซ่อม/อะไหล่รายเครื่อง — เครื่องมือสอง) ────
+export type DeviceServiceType = 'SELF' | 'OUTSOURCED';
+
+export interface DeviceServiceLogRequest {
+  type: DeviceServiceType;
+  detail: string;          // อะไหล่ (SELF) / อาการ (OUTSOURCED)
+  vendorName?: string;     // ชื่อช่าง (เฉพาะ OUTSOURCED)
+  cost: number;
+  servicedAt?: string;     // YYYY-MM-DD (null = วันนี้)
+  note?: string;
+}
+
+export interface DeviceServiceLogResponse {
+  id: string;
+  type: DeviceServiceType;
+  detail: string;
+  vendorName: string | null;
+  cost: number | null;         // null สำหรับ STAFF
+  costCode: string | null;     // รหัสตัวอักษร (แสดงให้ STAFF)
+  servicedAt: string;
+  note: string | null;
+  createdByName: string | null;
+  createdAt: string;
+}
+
 // ─── Product Wizard (สร้างหน้าเดียว — atomic, รองรับหลาย variants) ────
 export interface WizardVariantSpec {
   sku: string;
@@ -274,6 +299,8 @@ export interface SerializedItemResponse {
   warrantyTerms: string | null;
   purchasePrice: number | null;
   purchasePriceCode: string | null;   // รหัสต้นทุน (แสดงให้ STAFF)
+  refurbCost: number | null;          // ค่าซ่อม/อะไหล่สะสม (null สำหรับ STAFF)
+  totalCost: number | null;           // ต้นทุนรวม = ทุน + ค่าซ่อม (null สำหรับ STAFF)
   sellingPrice: number | null;        // ราคาขายรายเครื่อง
   batteryHealth: number | null;
   deviceColor: string | null;

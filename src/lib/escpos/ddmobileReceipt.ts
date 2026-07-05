@@ -37,6 +37,8 @@ export interface ReceiptData {
   paymentReference?: string | null;
   installmentMonths?: number | null;
   downPaymentAmount?: number | null;
+  downCash?: number | null;        // เงินดาวน์ส่วนที่จ่ายสด
+  downTransfer?: number | null;    // เงินดาวน์ส่วนที่โอน
   monthlyAmount?: number | null;
   shippingPartner?: string | null;
   shippingTrackingNo?: string | null;
@@ -198,7 +200,10 @@ export function buildDDMobileReceipt(
   if (data.paymentMethod === 'INSTALLMENT' && data.installmentMonths) {
     b.newline();
     b.justify('เงินดาวน์:', fmtTHB(data.downPaymentAmount ?? 0), W);
-    b.justify(`ผ่อน ${data.installmentMonths} เดือน × :`, `${fmtTHB(data.monthlyAmount ?? 0)} / เดือน`, W);
+    // แตกเงินดาวน์เป็น สด/โอน (แสดงเฉพาะที่มียอด — กรณีจ่ายแยก)
+    if ((data.downCash ?? 0) > 0) b.justify('  - เงินสด:', fmtTHB(data.downCash!), W);
+    if ((data.downTransfer ?? 0) > 0) b.justify('  - เงินโอน:', fmtTHB(data.downTransfer!), W);
+    b.justify(`ผ่อน ${data.installmentMonths} เดือน:`, `${fmtTHB(data.monthlyAmount ?? 0)} / เดือน`, W);
   }
 
   // ─── Shipping detail ────────────────────────────

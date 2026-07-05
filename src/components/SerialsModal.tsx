@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { X, Wrench, ShieldAlert, Undo2, BatteryMedium, Pencil, Save } from 'lucide-react';
+import { X, Wrench, ShieldAlert, Undo2, BatteryMedium, Pencil, Save, Plus, Trash2 } from 'lucide-react';
 import { inventoryApi } from '@/api/inventory';
 import { extractErrorMessage } from '@/api/client';
-import { formatDate } from '@/lib/format';
+import { formatDate, formatTHB } from '@/lib/format';
 import { acqLabel, ACQ_ORDER, ACQ_INFO } from '@/lib/acquisition';
 import { RepairIntakeModal } from '@/components/RepairIntakeModal';
 import { ImageEditor } from '@/components/MultiImageUpload';
-import type { SerializedStatus, ServiceState, SerializedItemResponse, SerializedCondition, AcquisitionType } from '@/types/api';
+import type { SerializedStatus, ServiceState, SerializedItemResponse, SerializedCondition, AcquisitionType, DeviceServiceType } from '@/types/api';
 
 interface Props {
   variantId: string;
@@ -418,6 +418,9 @@ function EditSerialModal({ item, onClose, onSaved }: {
             </label>
             <ImageEditor value={imageUrls} onChange={setImageUrls} />
           </div>
+
+          {/* ประวัติซ่อม/อะไหล่ (เครื่องมือสอง) — ค่าซ่อมรวมเข้าต้นทุน */}
+          <DeviceServiceLogSection serialItemId={item.id} canSeeCost={canSeeCost} />
         </div>
         <div className="flex shrink-0 justify-end gap-2 border-t px-5 py-3">
           <button type="button" onClick={onClose} className="btn-secondary">ยกเลิก</button>
@@ -426,6 +429,148 @@ function EditSerialModal({ item, onClose, onSaved }: {
           </button>
         </div>
       </form>
+    </div>
+  );
+}
+
+/* ─── ประวัติซ่อม/อะไหล่รายเครื่อง (เครื่องมือสอง) ──────────────────────
+   ทุกครั้งที่เพิ่ม/ลบ → backend sync refurbCost = ผลรวมค่าซ่อม → ต้นทุนรวมอัปเดตเอง */
+function DeviceServiceLogSection({ serialItemId, canSeeCost }: { serialItemId: string; canSeeCost: boolean }) {
+  const qc = useQueryClient();
+  const { data: logs = [], isLoading } = useQuery({
+    queryKey: ['device-service-logs', serialItemId],
+    queryFn: () => inventoryApi.listServiceLogs(serialItemId),
+  });
+
+  const [open, setOpen] = useState(false);
+  const [type, setType] = useState<DeviceServiceType>('SELF');
+  const [detail, setDetail] = useState('');
+  const [vendorName, setVendorName] = useState('');
+  const [cost, setCost] = useState('');
+  const [servicedAt, setServicedAt] = useState('');
+  const [note, setNote] = useState('');
+
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: ['device-service-logs', serialItemId] });
+    qc.invalidateQueries({ queryKey: ['serials'] });          // อัปเดตต้นทุนรวมในตาราง
+    qc.invalidateQueries({ queryKey: ['inventory-serials'] });
+  };
+
+  const add = useMutation({
+    mutationFn: () => inventoryApi.addServiceLog(serialItemId, {
+      type,
+      detail: detail.trim(),
+      vendorName: type === 'OUTSOURCED' ? (vendorName.trim() || undefined) : undefined,
+      cost: Number(cost) || 0,
+      servicedAt: servicedAt || undefined,
+      note: note.trim() || undefined,
+    }),
+    onSuccess: () => {
+      toast.success('เพิ่มประวัติซ่อมแล้ว');
+      setDetail(''); setVendorName(''); setCost(''); setNote(''); setServicedAt(''); setOpen(false);
+      refresh();
+    },
+    onError: (e) => toast.error(extractErrorMessage(e)),
+  });
+
+  const del = useMutation({
+    mutationFn: (id: string) => inventoryApi.deleteServiceLog(id),
+    onSuccess: () => { toast.success('ลบรายการแล้ว'); refresh(); },
+    onError: (e) => toast.error(extractErrorMessage(e)),
+  });
+
+  const submit = () => {
+    if (!detail.trim()) { toast.error(type === 'SELF' ? 'กรอกชื่ออะไหล่' : 'กรอกอาการ'); return; }
+    if (cost === '' || Number(cost) < 0) { toast.error('กรอกราคาให้ถูกต้อง'); return; }
+    add.mutate();
+  };
+
+  const total = logs.reduce((s, l) => s + (l.cost ?? 0), 0);
+  const hasCost = logs.every((l) => l.cost != null);   // true = เห็นราคาจริง (ADMIN/MANAGER)
+
+  return (
+    <div className="rounded-md border border-indigo-200 bg-indigo-50/50 p-3">
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-xs font-semibold text-indigo-800">
+          🔧 ประวัติซ่อม/อะไหล่ (เครื่องมือสอง)
+          {canSeeCost && hasCost && total > 0 && (
+            <span className="ml-1 font-normal text-indigo-600">· ค่าซ่อมรวม {formatTHB(total)} (บวกเข้าต้นทุน)</span>
+          )}
+        </span>
+        <button type="button" onClick={() => setOpen((o) => !o)}
+                className="inline-flex items-center gap-1 rounded border border-indigo-300 bg-white px-2 py-0.5 text-xs text-indigo-700 hover:bg-indigo-50">
+          <Plus className="h-3 w-3" /> เพิ่มรายการ
+        </button>
+      </div>
+
+      {open && (
+        <div className="mb-2 space-y-2 rounded border border-indigo-200 bg-white p-2">
+          <div className="flex gap-1.5">
+            {(['SELF', 'OUTSOURCED'] as DeviceServiceType[]).map((t) => (
+              <button key={t} type="button" onClick={() => setType(t)}
+                      className={`flex-1 rounded border px-2 py-1 text-xs ${type === t
+                        ? 'border-indigo-500 bg-indigo-50 font-semibold text-indigo-700'
+                        : 'border-slate-200 text-slate-600'}`}>
+                {t === 'SELF' ? 'ซ่อมเอง (เปลี่ยนอะไหล่)' : 'ส่งช่างนอก'}
+              </button>
+            ))}
+          </div>
+          <input className="input text-sm" value={detail} onChange={(e) => setDetail(e.target.value)}
+                 placeholder={type === 'SELF' ? 'อะไหล่ที่เปลี่ยน เช่น จอ, แบต, ก้นชาร์จ' : 'อาการที่ส่งซ่อม เช่น เปิดไม่ติด'} />
+          {type === 'OUTSOURCED' && (
+            <input className="input text-sm" value={vendorName} onChange={(e) => setVendorName(e.target.value)}
+                   placeholder="ชื่อช่าง/ร้าน" />
+          )}
+          <div className="grid grid-cols-2 gap-2">
+            <input type="number" min={0} className="input text-sm" value={cost}
+                   onChange={(e) => setCost(e.target.value)} placeholder="ราคา (บาท)" />
+            <input type="date" className="input text-sm" value={servicedAt}
+                   onChange={(e) => setServicedAt(e.target.value)} title="วันที่ซ่อม (ว่าง = วันนี้)" />
+          </div>
+          <input className="input text-sm" value={note} onChange={(e) => setNote(e.target.value)}
+                 placeholder="โน้ตเพิ่มเติม (ถ้ามี)" />
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={() => setOpen(false)} className="btn-secondary px-3 py-1 text-xs">ยกเลิก</button>
+            <button type="button" onClick={submit} disabled={add.isPending}
+                    className="btn-primary px-3 py-1 text-xs">
+              {add.isPending ? 'กำลังบันทึก...' : 'บันทึกรายการ'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isLoading ? (
+        <p className="text-xs text-slate-400">กำลังโหลด...</p>
+      ) : logs.length === 0 ? (
+        <p className="text-xs text-slate-400">ยังไม่มีประวัติซ่อม/เปลี่ยนอะไหล่</p>
+      ) : (
+        <ul className="space-y-1">
+          {logs.map((l) => (
+            <li key={l.id} className="flex items-start justify-between gap-2 rounded border border-slate-200 bg-white px-2 py-1.5 text-xs">
+              <div className="min-w-0">
+                <span className={`mr-1 rounded px-1 py-0.5 text-[10px] font-semibold ${
+                  l.type === 'SELF' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                  {l.type === 'SELF' ? 'ซ่อมเอง' : 'ส่งช่าง'}
+                </span>
+                <span className="font-medium text-slate-700">{l.detail}</span>
+                {l.vendorName && <span className="text-slate-500"> · {l.vendorName}</span>}
+                <div className="text-[11px] text-slate-400">
+                  {formatDate(l.servicedAt)}{l.note ? ` · ${l.note}` : ''}
+                </div>
+              </div>
+              <div className="flex shrink-0 items-center gap-1.5">
+                <span className="font-semibold text-slate-700">
+                  {l.cost != null ? formatTHB(l.cost) : l.costCode ?? '-'}
+                </span>
+                <button type="button" onClick={() => del.mutate(l.id)}
+                        className="rounded p-1 text-red-600 hover:bg-red-50" title="ลบรายการนี้">
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

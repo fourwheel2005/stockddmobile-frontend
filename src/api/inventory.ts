@@ -12,6 +12,8 @@ import type {
   StockTransactionResponse,
   StockTxType,
   UpdateSerialRequest,
+  DeviceServiceLogRequest,
+  DeviceServiceLogResponse,
 } from '@/types/api';
 
 export const inventoryApi = {
@@ -66,4 +68,17 @@ export const inventoryApi = {
   /** แก้ไขข้อมูลเครื่อง (IMEI/Serial/สี/แบต/สภาพ) — แก้ที่พิมพ์ผิด */
   updateSerial: (serialItemId: string, req: UpdateSerialRequest) =>
     api.put<SerializedItemResponse>(`/inventory/serials/${serialItemId}`, req).then((r) => r.data),
+
+  // ─── ประวัติซ่อม/อะไหล่รายเครื่อง (เครื่องมือสอง) ──────────────────
+  listServiceLogs: (serialItemId: string) =>
+    api.get<DeviceServiceLogResponse[]>(`/inventory/serials/${serialItemId}/service-logs`).then((r) => r.data),
+
+  addServiceLog: (serialItemId: string, req: DeviceServiceLogRequest) =>
+    api.post<DeviceServiceLogResponse>(`/inventory/serials/${serialItemId}/service-logs`, req).then((r) => r.data),
+
+  updateServiceLog: (logId: string, req: DeviceServiceLogRequest) =>
+    api.put<DeviceServiceLogResponse>(`/inventory/service-logs/${logId}`, req).then((r) => r.data),
+
+  deleteServiceLog: (logId: string) =>
+    api.delete<void>(`/inventory/service-logs/${logId}`).then((r) => r.data),
 };

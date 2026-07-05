@@ -109,8 +109,20 @@ export function ReceiptPrintView({ order, shopName = 'Stockdd Mobile' }: Props) 
               <span>เงินดาวน์:</span>
               <span>{formatTHB(order.downPaymentAmount ?? 0)}</span>
             </div>
+            {(order.cashAmount ?? 0) > 0 && (
+              <div className="flex justify-between text-slate-500">
+                <span className="pl-3">- เงินสด:</span>
+                <span>{formatTHB(order.cashAmount ?? 0)}</span>
+              </div>
+            )}
+            {(order.transferAmount ?? 0) > 0 && (
+              <div className="flex justify-between text-slate-500">
+                <span className="pl-3">- เงินโอน:</span>
+                <span>{formatTHB(order.transferAmount ?? 0)}</span>
+              </div>
+            )}
             <div className="flex justify-between">
-              <span>ผ่อน {order.installmentMonths} เดือน × :</span>
+              <span>ผ่อน {order.installmentMonths} เดือน:</span>
               <span>
                 {formatTHB(
                   // ค่างวดที่พนักงานกำหนด (รวมดอกเบี้ย) ถ้ามี · ไม่งั้น fallback (ยอด−ดาวน์)/งวด
