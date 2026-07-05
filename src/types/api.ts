@@ -66,6 +66,9 @@ export interface VariantResponse {
   imageUrl: string | null;
   imageUrls?: string[] | null;
   active: boolean;
+  downPayment?: number | null;         // ผ่อนดาวน์ มือ 1 (เว็บหน้าร้านดึงไปแสดง)
+  installmentTerms?: string | null;    // JSON: [{"months":12,"monthly":2190}, ...]
+  installmentPromo?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -104,6 +107,9 @@ export interface CreateVariantRequest {
   reorderPoint: number;
   imageUrl?: string;
   imageUrls?: string[];
+  downPayment?: number | null;
+  installmentTerms?: string | null;
+  installmentPromo?: string | null;
 }
 
 // ─── Edit (แก้ที่พิมพ์ผิด หลังสร้าง/รับของ) ────────────────────────────
@@ -118,6 +124,9 @@ export interface UpdateVariantRequest {
   imageUrl?: string;
   imageUrls?: string[];
   active: boolean;
+  downPayment?: number | null;
+  installmentTerms?: string | null;
+  installmentPromo?: string | null;
 }
 
 export interface UpdateSerialRequest {
@@ -766,6 +775,9 @@ export interface SalesOrderItemResponse {
   sku: string;
   productName: string;
   imei: string | null;
+  color: string | null;
+  storage: string | null;
+  condition: string | null;   // "มือ 1" / "มือ 2" ฯลฯ
   labelPrice: number;
   sellPrice: number;
   quantity: number;

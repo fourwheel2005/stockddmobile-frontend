@@ -399,6 +399,22 @@ function AddVariantModal({ productId, serialized, productModelNumber, editVarian
   const [variantImages, setVariantImages] = useState<string[]>(
     editVariant?.imageUrls?.length ? editVariant.imageUrls
       : (editVariant?.imageUrl ? [editVariant.imageUrl] : []));
+  // ผ่อนดาวน์ มือ 1 (ต่อรุ่น+ความจุ) — กรอกที่นี่ เว็บหน้าร้านดึงไปแสดง
+  const [downPayment, setDownPayment] = useState<string>(
+    editVariant?.downPayment != null ? String(editVariant.downPayment) : '');
+  const [instPromo, setInstPromo] = useState<string>(editVariant?.installmentPromo ?? '');
+  const [instTerms, setInstTerms] = useState<{ months: string; monthly: string }[]>(() => {
+    try {
+      const arr = editVariant?.installmentTerms ? JSON.parse(editVariant.installmentTerms) : [];
+      return Array.isArray(arr) && arr.length
+        ? arr.map((t: { months?: number; monthly?: number }) => ({ months: String(t.months ?? ''), monthly: String(t.monthly ?? '') }))
+        : [];
+    } catch { return []; }
+  });
+  const addTerm = () => setInstTerms((a) => [...a, { months: '', monthly: '' }]);
+  const patchTerm = (i: number, patch: Partial<{ months: string; monthly: string }>) =>
+    setInstTerms((a) => a.map((t, j) => (j === i ? { ...t, ...patch } : t)));
+  const removeTerm = (i: number) => setInstTerms((a) => a.filter((_, j) => j !== i));
   // เพิ่มสีมือถือ: เครื่องรายตัว ข้อมูลครบเท่าหน้ารับสต๊อก (บางเครื่องต่างกันได้)
   const [devices, setDevices] = useState<PhoneDevice[]>([emptyDevice()]);
   const patchDevice = (i: number, patch: Partial<PhoneDevice>) =>
@@ -444,11 +460,17 @@ function AddVariantModal({ productId, serialized, productModelNumber, editVarian
   const create = useMutation({
     mutationFn: async (req: CreateVariantRequest) => {
       if (isEdit) {
+        const cleanTerms = instTerms
+          .map((t) => ({ months: Number(t.months), monthly: Number(t.monthly) }))
+          .filter((t) => Number.isFinite(t.months) && t.months > 0 && Number.isFinite(t.monthly) && t.monthly >= 0);
         return productsApi.updateVariant(productId, editVariant!.id, {
           color: req.color, storage: req.storage, network: req.network, barcode: req.barcode,
           imageUrl: variantImages[0], imageUrls: variantImages,
           costPrice: req.costPrice, sellingPrice: req.sellingPrice,
           reorderPoint: req.reorderPoint, active: editVariant!.active,
+          downPayment: downPayment.trim() === '' ? null : Number(downPayment),
+          installmentTerms: cleanTerms.length ? JSON.stringify(cleanTerms) : null,
+          installmentPromo: instPromo.trim() || null,
         });
       }
       // เพิ่มสีมือถือ + เครื่องรายตัว → จัดกลุ่มเป็น variant ตามสเปกเว็บ DD
@@ -684,6 +706,45 @@ function AddVariantModal({ productId, serialized, productModelNumber, editVarian
               รูปสีนี้ <span className="text-xs font-normal text-slate-500">(หลายรูปได้ · รูปแรก = ปก · เว็บหน้าร้านมือ 1 ดึงจากตรงนี้)</span>
             </label>
             <ImageEditor value={variantImages} onChange={setVariantImages} />
+          </div>
+          )}
+
+          {/* ตารางผ่อน มือ 1 (ต่อรุ่น+ความจุ) — กรอกที่นี่ เว็บหน้าร้านดึงไปแสดง */}
+          {isEdit && (
+          <div className="space-y-2 rounded-md border border-amber-200 bg-amber-50/60 p-3">
+            <div className="flex items-center gap-2 text-sm font-semibold text-amber-900">
+              💳 ตารางผ่อน (มือ 1) <span className="text-xs font-normal text-amber-700">— โชว์บนเว็บหน้าร้าน · เว้นว่างได้ถ้าไม่ผ่อน</span>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-600">เงินดาวน์ (บาท)</label>
+                <input type="number" min={0} className="input" placeholder="เช่น 6990"
+                       value={downPayment} onChange={(e) => setDownPayment(e.target.value)} />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-600">โปรโมชัน (ถ้ามี)</label>
+                <input className="input" placeholder="เช่น ฟรีฟิล์ม+เคส"
+                       value={instPromo} onChange={(e) => setInstPromo(e.target.value)} />
+              </div>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">ค่างวด (เพิ่มได้หลายช่วง)</label>
+              <div className="space-y-2">
+                {instTerms.map((t, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <input type="number" min={1} className="input w-24" placeholder="งวด"
+                           value={t.months} onChange={(e) => patchTerm(i, { months: e.target.value })} />
+                    <span className="text-xs text-slate-500">เดือน ×</span>
+                    <input type="number" min={0} className="input w-32" placeholder="บาท/เดือน"
+                           value={t.monthly} onChange={(e) => patchTerm(i, { monthly: e.target.value })} />
+                    <button type="button" className="rounded p-1 text-red-500 hover:bg-red-50"
+                            onClick={() => removeTerm(i)} title="ลบช่วงนี้">✕</button>
+                  </div>
+                ))}
+                <button type="button" onClick={addTerm}
+                        className="text-sm font-medium text-amber-700 hover:text-amber-900">+ เพิ่มงวด</button>
+              </div>
+            </div>
           </div>
           )}
 
