@@ -11,7 +11,8 @@ import type {
 
 export const posApi = {
   scan: (q: string) =>
-    api.get<CartScanResponse>('/pos/scan', { params: { q } }).then((r) => r.data),
+    // scan ต้องเร็ว (< 1s) — ตั้ง timeout สั้นกว่า global กันหน้าค้างนานถ้าเซิร์ฟเวอร์ไม่ตอบ
+    api.get<CartScanResponse>('/pos/scan', { params: { q }, timeout: 12000 }).then((r) => r.data),
 
   checkout: (req: CheckoutRequest) =>
     api.post<SalesOrderResponse>('/pos/checkout', req).then((r) => r.data),

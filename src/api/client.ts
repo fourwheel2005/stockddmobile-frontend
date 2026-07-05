@@ -5,6 +5,9 @@ const baseURL = import.meta.env.VITE_API_BASE_URL ?? '/api/v1';
 
 export const api = axios.create({
   baseURL,
+  // กัน request ค้างตลอดไปเมื่อเซิร์ฟเวอร์ไม่ตอบ/เน็ตสะดุด (เดิมไม่ตั้ง → หน้าจอ "คา" ไม่หลุด)
+  // 45s เผื่อ checkout/อัปสลิปที่นานหน่อย · ปกติ scan/GET เสร็จใน < 1s
+  timeout: 45000,
   headers: {
     'Content-Type': 'application/json',
     'ngrok-skip-browser-warning': 'true',
@@ -82,7 +85,14 @@ api.interceptors.response.use(
 
 export function extractErrorMessage(err: unknown): string {
   if (axios.isAxiosError(err)) {
-    const data = err.response?.data as { message?: string; errors?: Array<{ field: string; message: string }> } | undefined;
+    // ไม่มี response กลับมาเลย (เซิร์ฟเวอร์ไม่ตอบ / timeout / เน็ตหลุด) → ข้อความไทยชัดเจน
+    if (!err.response) {
+      if (err.code === 'ECONNABORTED' || /timeout/i.test(err.message)) {
+        return 'เซิร์ฟเวอร์ตอบช้าเกินไป (timeout) — ลองใหม่อีกครั้ง';
+      }
+      return 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ — เช็คเน็ต/เซิร์ฟเวอร์แล้วลองใหม่';
+    }
+    const data = err.response.data as { message?: string; errors?: Array<{ field: string; message: string }> } | undefined;
     if (data?.errors?.length) {
       return data.errors.map((e) => `${e.field}: ${e.message}`).join(', ');
     }
