@@ -146,6 +146,10 @@ export interface UpdateSerialRequest {
   warrantyExpire?: string;             // YYYY-MM-DD
   note?: string;
   imageUrls?: string[];   // แก้รูปรายเครื่อง (แทนที่ทั้งชุด · รูปแรก = ปก)
+  downPayment?: number | null;         // ผ่อนดาวน์ มือ 2 (รายเครื่อง)
+  installmentTerms?: string | null;    // JSON: [{"months":12,"monthly":2190}, ...]
+  installmentPromo?: string | null;
+  installmentProvided?: boolean;       // true = ตั้งใจแก้ตารางผ่อน (ให้ backend เซ็ต/ล้าง)
 }
 
 // ─── Device Service Log (ประวัติซ่อม/อะไหล่รายเครื่อง — เครื่องมือสอง) ────
@@ -322,6 +326,9 @@ export interface SerializedItemResponse {
   imageUrls?: string[] | null;     // รูปรายเครื่อง — เว็บหน้าร้านดึงไปแสดง
   branchId?: string | null;        // เครื่องอยู่สาขาไหน (Phase 2A)
   branchName?: string | null;
+  downPayment?: number | null;         // ผ่อนดาวน์ มือ 2 (เว็บหน้าร้านดึงไปแสดง)
+  installmentTerms?: string | null;    // JSON: [{"months":12,"monthly":2190}, ...]
+  installmentPromo?: string | null;
 }
 
 /** ยอดขายแยกสาขา (Phase 2C) */

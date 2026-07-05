@@ -278,6 +278,21 @@ function EditSerialModal({ item, onClose, onSaved }: {
   const [purchasePrice, setPurchasePrice] = useState(item.purchasePrice != null ? String(item.purchasePrice) : '');
   const [sellingPrice, setSellingPrice] = useState(item.sellingPrice != null ? String(item.sellingPrice) : '');
   const [imageUrls, setImageUrls] = useState<string[]>(item.imageUrls ?? []);
+  // ผ่อนดาวน์ มือ 2 (รายเครื่อง) — กรอกที่นี่ เว็บหน้าร้านดึงไปแสดง
+  const [downPayment, setDownPayment] = useState(item.downPayment != null ? String(item.downPayment) : '');
+  const [instPromo, setInstPromo] = useState(item.installmentPromo ?? '');
+  const [instTerms, setInstTerms] = useState<{ months: string; monthly: string }[]>(() => {
+    try {
+      const arr = item.installmentTerms ? JSON.parse(item.installmentTerms) : [];
+      return Array.isArray(arr) && arr.length
+        ? arr.map((t: { months?: number; monthly?: number }) => ({ months: String(t.months ?? ''), monthly: String(t.monthly ?? '') }))
+        : [];
+    } catch { return []; }
+  });
+  const addTerm = () => setInstTerms((a) => [...a, { months: '', monthly: '' }]);
+  const patchTerm = (i: number, patch: Partial<{ months: string; monthly: string }>) =>
+    setInstTerms((a) => a.map((t, j) => (j === i ? { ...t, ...patch } : t)));
+  const removeTerm = (i: number) => setInstTerms((a) => a.filter((_, j) => j !== i));
 
   // STAFF ไม่มีสิทธิ์เห็นต้นทุน (purchasePrice = null แต่มี purchasePriceCode) → ซ่อนช่องราคาทุน กันบันทึกทับเป็น 0
   const canSeeCost = item.purchasePrice != null || item.purchasePriceCode == null;
@@ -299,6 +314,16 @@ function EditSerialModal({ item, onClose, onSaved }: {
       purchasePrice: !canSeeCost || purchasePrice === '' ? undefined : Number(purchasePrice),
       sellingPrice: sellingPrice === '' ? undefined : Number(sellingPrice),
       imageUrls,   // แทนที่รูปทั้งชุด (รูปแรก = ปก)
+      // ตารางผ่อน มือ 2 (installmentProvided = ให้ backend เซ็ต/ล้างตามที่ส่งมา)
+      installmentProvided: true,
+      downPayment: downPayment.trim() === '' ? null : Number(downPayment),
+      installmentTerms: (() => {
+        const clean = instTerms
+          .map((t) => ({ months: Number(t.months), monthly: Number(t.monthly) }))
+          .filter((t) => Number.isFinite(t.months) && t.months > 0 && Number.isFinite(t.monthly) && t.monthly >= 0);
+        return clean.length ? JSON.stringify(clean) : null;
+      })(),
+      installmentPromo: instPromo.trim() || null,
     }),
     onSuccess: () => { toast.success('แก้ไขเครื่องแล้ว'); onSaved(); onClose(); },
     onError: (e) => toast.error(extractErrorMessage(e)),
@@ -417,6 +442,43 @@ function EditSerialModal({ item, onClose, onSaved }: {
               รูปเครื่องนี้ <span className="font-normal text-slate-400">(เพิ่ม/ลบ/ตั้งปกได้)</span>
             </label>
             <ImageEditor value={imageUrls} onChange={setImageUrls} />
+          </div>
+
+          {/* ตารางผ่อน มือ 2 (รายเครื่อง) — กรอกที่นี่ เว็บหน้าร้านดึงไปแสดง */}
+          <div className="space-y-2 rounded-md border border-amber-200 bg-amber-50/60 p-3">
+            <div className="flex items-center gap-2 text-sm font-semibold text-amber-900">
+              💳 ผ่อนเครื่องนี้ (มือ 2) <span className="text-xs font-normal text-amber-700">— โชว์บนเว็บ · เว้นว่าง = ไม่ผ่อน</span>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-0.5 block text-xs font-semibold text-slate-600">เงินดาวน์ (บาท)</label>
+                <input type="number" min={0} className="input" value={downPayment}
+                       onChange={(e) => setDownPayment(e.target.value)} placeholder="เช่น 3900" />
+              </div>
+              <div>
+                <label className="mb-0.5 block text-xs font-semibold text-slate-600">โปรโมชัน (ถ้ามี)</label>
+                <input className="input" value={instPromo}
+                       onChange={(e) => setInstPromo(e.target.value)} placeholder="เช่น ฟรีเคส" />
+              </div>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-600">ค่างวด (เพิ่มได้หลายช่วง)</label>
+              <div className="space-y-2">
+                {instTerms.map((t, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <input type="number" min={1} className="input w-24" placeholder="งวด"
+                           value={t.months} onChange={(e) => patchTerm(i, { months: e.target.value })} />
+                    <span className="text-xs text-slate-500">เดือน ×</span>
+                    <input type="number" min={0} className="input w-32" placeholder="บาท/เดือน"
+                           value={t.monthly} onChange={(e) => patchTerm(i, { monthly: e.target.value })} />
+                    <button type="button" className="rounded p-1 text-red-500 hover:bg-red-50"
+                            onClick={() => removeTerm(i)} title="ลบช่วงนี้">✕</button>
+                  </div>
+                ))}
+                <button type="button" onClick={addTerm}
+                        className="text-sm font-medium text-amber-700 hover:text-amber-900">+ เพิ่มงวด</button>
+              </div>
+            </div>
           </div>
 
           {/* ประวัติซ่อม/อะไหล่ (เครื่องมือสอง) — ค่าซ่อมรวมเข้าต้นทุน */}
