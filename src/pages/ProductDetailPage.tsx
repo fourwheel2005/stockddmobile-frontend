@@ -28,12 +28,40 @@ export function ProductDetailPage() {
   const [serialsVariant, setSerialsVariant] = useState<VariantResponse | null>(null);
   const [editingProduct, setEditingProduct] = useState(false);
   const canEdit = useAuthStore((s) => s.hasRole('ADMIN', 'MANAGER'));
+  const qc = useQueryClient();
 
   const { data: product, isLoading } = useQuery({
     queryKey: ['product', id],
     queryFn: () => productsApi.get(id!),
     enabled: !!id,
   });
+
+  // ลบ SKU (รุ่นย่อย) จากแถวได้เลย — force-confirm ถ้ามีเครื่องพร้อมขาย (FIX-078)
+  const removeVariant = useMutation({
+    mutationFn: ({ variantId, force }: { variantId: string; force: boolean }) =>
+      productsApi.deactivateVariant(id!, variantId, force),
+    onSuccess: () => {
+      toast.success('ลบรุ่นย่อยแล้ว');
+      qc.invalidateQueries({ queryKey: ['product', id] });
+      qc.invalidateQueries({ queryKey: ['inventory'] });
+      qc.invalidateQueries({ queryKey: ['inventory-serials'] });
+    },
+  });
+  const handleDeleteVariant = async (v: VariantResponse) => {
+    const label = `${v.sku} (${[v.color, v.storage].filter(Boolean).join(' ')})`;
+    if (!confirm(`ลบรุ่นย่อย ${label} ?`)) return;
+    try {
+      await removeVariant.mutateAsync({ variantId: v.id, force: false });
+    } catch (e) {
+      const msg = extractErrorMessage(e);
+      if (/เครื่องพร้อมขาย|ลบพร้อมเครื่อง/i.test(msg)) {
+        if (confirm(`${msg}\n\nลบรุ่นย่อยนี้ + เครื่องที่ใส่ผิด (เฉพาะที่ยังไม่เคยขาย) เลยไหม?`)) {
+          try { await removeVariant.mutateAsync({ variantId: v.id, force: true }); }
+          catch (e2) { toast.error(extractErrorMessage(e2)); }
+        }
+      } else { toast.error(msg); }
+    }
+  };
 
   /* คงเหลือต่อ SKU — ดึงจาก inventory เพื่อให้เห็นชัดว่ามีสต็อกหรือยัง
      (hooks ต้องอยู่ก่อน early return ตามกฎ React) */
@@ -211,6 +239,11 @@ export function ProductDetailPage() {
                               title="รับเครื่องเข้าสต็อกของ SKU นี้">
                           <ArrowDownToLine className="h-3.5 w-3.5" /> รับเข้า
                         </Link>
+                        <button type="button" onClick={() => handleDeleteVariant(v)}
+                              className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs text-red-600 hover:border-red-400 hover:bg-red-50"
+                              title="ลบ SKU นี้ (มีเครื่องพร้อมขายจะถามก่อน)">
+                          <Trash2 className="h-3.5 w-3.5" /> ลบ
+                        </button>
                       </div>
                     )}
                   </td>
