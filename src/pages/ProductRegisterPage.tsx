@@ -433,12 +433,21 @@ export function ProductRegisterPage() {
     return [...base, ...extras.sort()];
   }, [productPage, productKind]);
 
-  /* รุ่นนี้มีในระบบแล้วไหม — match ตามชื่อรุ่น (กัน user ลงทะเบียนซ้ำรุ่นเดิม → ควร "รับสินค้าเข้า" แทน) */
+  /* รุ่นนี้มีในระบบแล้วไหม — match ตามชื่อรุ่น → กดบันทึกจะ auto-merge เข้ารุ่นเดิม (FIX-080) */
   const existingProduct = useMemo(() => {
     const n = (name || '').trim().toLowerCase();
     if (!n || isClone) return null;
     return (productPage?.content ?? []).find((p) => p.name?.trim().toLowerCase() === n) ?? null;
   }, [name, productPage, isClone]);
+
+  /* รุ่นมีอยู่แล้ว → เติมหมวดหมู่ + ยี่ห้อ จากรุ่นเดิมให้อัตโนมัติ (ถ้ายังไม่ได้เลือก) — FIX-080 */
+  const categoryIdW = useWatch({ control, name: 'categoryId' });
+  useEffect(() => {
+    if (existingProduct && !categoryIdW) {
+      setValue('categoryId', existingProduct.categoryId, { shouldDirty: false });
+      if (existingProduct.brand) setValue('brand', existingProduct.brand, { shouldDirty: false });
+    }
+  }, [existingProduct, categoryIdW, setValue]);
 
   /* Submit */
   const submit = useMutation({
@@ -449,6 +458,31 @@ export function ProductRegisterPage() {
       qc.invalidateQueries({ queryKey: ['lots'] });
       toast.success(`บันทึก "${product.name}" สำเร็จ`);
       navigate(`/products/${product.id}`);
+    },
+    onError: (e) => toast.error(extractErrorMessage(e)),
+  });
+
+  /* AUTO-MERGE: รุ่นมีอยู่แล้ว → เพิ่ม variant เข้ารุ่นเดิม (backend findMatchingVariant แยกมือ1/2/สี/ความจุ) — ไม่สร้างซ้ำ */
+  const merge = useMutation({
+    mutationFn: async ({ productId, req }: { productId: string; req: ProductWizardRequest }) => {
+      for (const vb of req.variants) {
+        await productsApi.addVariantWithStock(productId, {
+          variant: vb,
+          branchId: req.branchId,
+          lotNo: req.lotNo,
+          importDate: req.importDate,
+          note: req.note,
+        });
+      }
+      return productId;
+    },
+    onSuccess: (productId) => {
+      qc.invalidateQueries({ queryKey: ['products'] });
+      qc.invalidateQueries({ queryKey: ['inventory'] });
+      qc.invalidateQueries({ queryKey: ['lots'] });
+      qc.invalidateQueries({ queryKey: ['product', productId] });
+      toast.success('เพิ่มเข้ารุ่นเดิมแล้ว (ไม่สร้างซ้ำ · แยกมือ 1/2 ให้อัตโนมัติ)');
+      navigate(`/products/${productId}`);
     },
     onError: (e) => toast.error(extractErrorMessage(e)),
   });
@@ -608,13 +642,19 @@ export function ProductRegisterPage() {
   };
 
   const onSubmit = (d: FormValues) => {
+    const req = buildPayload(d);
+    if (!req) return;
+    // รุ่นมีอยู่แล้ว → auto-merge เข้ารุ่นเดิม (backend แยกมือ1/2/สี/ความจุ) — ข้ามเช็ค SKU ซ้ำ เพราะ findMatchingVariant จัดการเอง
+    if (existingProduct && !isClone) {
+      merge.mutate({ productId: existingProduct.id, req });
+      return;
+    }
     if (skuStatus === 'taken') {
       toast.error('รุ่นนี้มีในระบบแล้ว — เพิ่มเครื่องด้วย "รับสินค้าเข้า" หรือเปลี่ยนรหัสถ้าเป็นรุ่นใหม่');
       scrollToSection('section-other');
       return;
     }
-    const req = buildPayload(d);
-    if (req) submit.mutate(req);
+    submit.mutate(req);
   };
 
   /* Summary — มือถือคิดราคารายเครื่อง · อุปกรณ์เสริมใช้ราคาระดับรุ่น */
@@ -649,21 +689,21 @@ export function ProductRegisterPage() {
       </header>
 
       {/* รุ่นนี้มีอยู่แล้ว → ไม่ต้องลงทะเบียนซ้ำ พาไป "รับสินค้าเข้า" เลย (ลด user งง) */}
-      {existingProduct && (
-        <div className="flex flex-col gap-3 rounded-xl border-2 border-amber-300 bg-amber-50 p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-2 text-sm text-amber-900">
-            <PackageOpen className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+      {existingProduct && !isClone && (
+        <div className="flex flex-col gap-3 rounded-xl border-2 border-emerald-300 bg-emerald-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-2 text-sm text-emerald-900">
+            <PackageOpen className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
             <div>
-              <div className="font-semibold">“{existingProduct.name}” มีในระบบแล้ว</div>
-              <div className="text-xs text-amber-800">
-                ถ้าจะ<strong>เพิ่มเครื่องรุ่นนี้</strong> ไม่ต้องลงทะเบียนใหม่ — กดปุ่มขวาเพื่อไป “รับสินค้าเข้า” ใส่ IMEI ได้เลย
+              <div className="font-semibold">“{existingProduct.name}” มีในระบบแล้ว — จะเพิ่มเข้ารุ่นเดิม (ไม่สร้างซ้ำ)</div>
+              <div className="text-xs text-emerald-800">
+                กด <strong>“เพิ่มเข้ารุ่นเดิม”</strong> ระบบจะเพิ่มสี/ความจุเข้ารุ่นนี้ให้ · <strong>แยก SKU มือ 1 / มือ 2 ให้อัตโนมัติ</strong> · เว็บหน้าร้านโชว์หน้าเดียว
               </div>
             </div>
           </div>
           <button type="button"
-                  onClick={() => navigate(`/products?q=${encodeURIComponent(existingProduct.name)}`)}
-                  className="btn-primary shrink-0 whitespace-nowrap bg-amber-600 hover:bg-amber-700">
-            <PackageOpen className="h-4 w-4" /> ไปรับเครื่องเข้ารุ่นนี้
+                  onClick={() => navigate(`/products/${existingProduct.id}`)}
+                  className="btn-secondary shrink-0 whitespace-nowrap">
+            <PackageOpen className="h-4 w-4" /> เปิดรุ่นเดิม
           </button>
         </div>
       )}
@@ -1021,10 +1061,13 @@ export function ProductRegisterPage() {
           </div>
           <div className="flex flex-wrap gap-2">
             <Link to="/products" className="btn-secondary">ยกเลิก</Link>
-            <button type="submit" disabled={submit.isPending || skuStatus === 'taken'}
-                    className="btn-primary">
+            <button type="submit"
+                    disabled={submit.isPending || merge.isPending || (skuStatus === 'taken' && !(existingProduct && !isClone))}
+                    className={`btn-primary ${existingProduct && !isClone ? 'bg-emerald-600 hover:bg-emerald-700' : ''}`}>
               <Save className="h-4 w-4" />
-              {submit.isPending ? 'กำลังบันทึก...' : isClone ? 'บันทึกเป็นสินค้าใหม่' : 'บันทึก'}
+              {submit.isPending || merge.isPending ? 'กำลังบันทึก...'
+                : existingProduct && !isClone ? 'เพิ่มเข้ารุ่นเดิม'
+                : isClone ? 'บันทึกเป็นสินค้าใหม่' : 'บันทึก'}
             </button>
           </div>
         </div>
