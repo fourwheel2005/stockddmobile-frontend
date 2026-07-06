@@ -70,7 +70,7 @@ export function AdjustmentPage() {
   const delta = newQuantity === '' ? 0 : Number(newQuantity) - currentQty;
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-2xl space-y-4">
       <div>
         <h1 className="flex items-center gap-2 page-title">
           <SlidersHorizontal className="h-6 w-6 text-amber-600" /> ปรับสต็อก (Adjustment)
@@ -85,7 +85,7 @@ export function AdjustmentPage() {
         พร้อมชื่อผู้ทำรายการและเหตุผล
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-4">
         <div className="card">
           <div className="card-body space-y-4">
             <div className="grid grid-cols-2 gap-3">

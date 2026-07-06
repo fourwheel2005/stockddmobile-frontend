@@ -21,7 +21,7 @@ import { formatTHB } from '@/lib/format';
 import { ACQ_INFO, ACQ_ORDER } from '@/lib/acquisition';
 import type { AcquisitionType, ProductWizardRequest } from '@/types/api';
 import { AccessorySerialList } from '@/components/products/AccessorySerialList';
-import { MultiImageUpload } from '@/components/MultiImageUpload';
+import { MultiImageUpload, ImageEditor } from '@/components/MultiImageUpload';
 
 /* ─── ตัวเลือกแนะนำ ─────────────────────────────────────────────────── */
 /** ดึงสินค้าหน้าเดียวพอ (ร้านมีรุ่นหลักสิบ) มาทำ autocomplete เลขรุ่น */
@@ -211,6 +211,8 @@ export function ProductRegisterPage() {
   // ร้านส่วนใหญ่ track อุปกรณ์เสริมรายชิ้น (มี serial) → default เปิดโหมด serial = ได้รหัส DD ต่อชิ้นอัตโนมัติ
   // (ของ fungible เช่น เคส/ฟิล์ม สลับเป็น "นับจำนวน" ได้ 1 คลิก)
   const [accessorySerialOn, setAccessorySerialOn] = useState(true);
+  /** รูปสินค้า (ระดับรุ่น) — อุปกรณ์เสริมใช้รูปเดียวทั้งรุ่น · เว็บหน้าร้านดึงไปแสดง (FIX-081) */
+  const [accessoryImages, setAccessoryImages] = useState<string[]>([]);
   /** ค่าเริ่มต้นที่มา — ใช้กับอุปกรณ์เสริม (มือถือใช้ "ที่มา" รายเครื่องในแถว). */
   const [defaultAcq, setDefaultAcq] = useState<AcquisitionType>('PURCHASE');
   const [scannerMode, setScannerMode] = useState(false);
@@ -595,7 +597,10 @@ export function ProductRegisterPage() {
             costPrice: Number(first.purchasePrice) || 0,
             sellingPrice: Number(first.sellingPrice) || 0,
             reorderPoint: Number(d.reorderPoint),
-            imageUrls: coverImages,
+            // อุปกรณ์เสริม (serial) → รูประดับรุ่น · มือถือ → รูปจากเครื่องแรกในกลุ่ม (FIX-081)
+            imageUrls: productKind === 'accessory'
+              ? (accessoryImages.length ? accessoryImages : undefined)
+              : coverImages,
             // มือ 1 (NEW): ผ่อนเป็นต่อรุ่น → ตั้งที่ variant (จากเครื่องแรกในกลุ่ม)
             ...(first.condition === 'NEW' ? {
               downPayment: first.downPayment,
@@ -614,6 +619,7 @@ export function ProductRegisterPage() {
           costPrice: Number(d.costPrice) || 0,
           sellingPrice: Number(d.sellingPrice) || 0,
           reorderPoint: Number(d.reorderPoint),
+          imageUrls: accessoryImages.length ? accessoryImages : undefined,   // รูปสินค้า (FIX-081)
         },
         quantity: qty,
         acquisitionType: d.lotAcquisitionType || 'PURCHASE',
@@ -671,7 +677,7 @@ export function ProductRegisterPage() {
 
   /* render */
   return (
-    <div className="space-y-4 pb-32">
+    <div className="mx-auto max-w-3xl space-y-4 pb-32">
       <Link to="/products" className="inline-flex items-center gap-1 text-sm text-brand-600 hover:underline">
         <ArrowLeft className="h-4 w-4" /> กลับไปรายการสินค้า
       </Link>
@@ -792,6 +798,13 @@ export function ProductRegisterPage() {
                 <input className="input" list="brand-list" placeholder="Apple" {...register('brand')} />
                 <datalist id="brand-list">{BRAND_OPTIONS.map((b) => <option key={b} value={b} />)}</datalist>
               </FieldRow>
+
+              {/* อุปกรณ์เสริม: รูปสินค้า (ระดับรุ่น) — เว็บหน้าร้านดึงไปแสดง · มือถือใช้รูปรายเครื่องด้านล่าง (FIX-081) */}
+              {productKind === 'accessory' && (
+                <FieldRow label="รูปสินค้า" hint="หลายรูปได้ · รูปแรก = ปก · เว็บหน้าร้านดึงไปแสดง">
+                  <ImageEditor value={accessoryImages} onChange={setAccessoryImages} />
+                </FieldRow>
+              )}
 
           </div>
         </div>

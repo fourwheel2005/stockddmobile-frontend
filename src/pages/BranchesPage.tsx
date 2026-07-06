@@ -15,9 +15,9 @@ export function BranchesPage() {
   const [creating, setCreating] = useState(false);
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4 p-4">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="flex items-center gap-2 text-xl font-bold">
+        <h1 className="flex items-center gap-2 page-title">
           <Building2 className="h-6 w-6 text-brand-600" /> สาขา
         </h1>
         <button className="btn-primary" onClick={() => setCreating(true)}>

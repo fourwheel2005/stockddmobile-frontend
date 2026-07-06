@@ -523,7 +523,7 @@ export function ProductWizardPage() {
 
   /* ─── Render ──────────────────────────────────────────────────────── */
   return (
-    <div className="space-y-6 pb-32">
+    <div className="mx-auto max-w-3xl space-y-4 pb-32">
       <Link to="/products" className="inline-flex items-center gap-1 text-sm text-brand-600 hover:underline">
         <ArrowLeft className="h-4 w-4" /> กลับไปรายการสินค้า
       </Link>

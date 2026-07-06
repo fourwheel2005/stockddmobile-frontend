@@ -229,10 +229,11 @@ export function ReportsPage() {
             </tbody>
           </table>
         </div>
+      </div>
 
-        {/* ยอดขายแยกสาขา (Phase 2C) — โชว์เมื่อมี >1 สาขา */}
-        {(byBranch.data?.length ?? 0) > 1 && (
-          <div className="card overflow-hidden">
+      {/* ยอดขายแยกสาขา (Phase 2C) — โชว์เมื่อมี >1 สาขา */}
+      {(byBranch.data?.length ?? 0) > 1 && (
+        <div className="card overflow-hidden">
             <div className="card-header font-semibold">🏪 ยอดขายแยกสาขา</div>
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs text-slate-500">
@@ -261,7 +262,6 @@ export function ReportsPage() {
             <p className="px-5 py-2 text-[11px] text-slate-400">* กำไร = ยอดขาย − ทุนสินค้า (ไม่รวมค่าส่ง/ค่าซ่อม)</p>
           </div>
         )}
-      </div>
     </div>
   );
 }

@@ -111,39 +111,35 @@ export function InventoryPage() {
     data?.content.find((r) => r.variantId === variantId)?.productName ?? null;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="page-title">Inventory</h1>
           <p className="text-sm text-slate-500">รายการสต็อกทั้งหมด</p>
         </div>
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={lowStockOnly}
-            onChange={(e) => { setLowStockOnly(e.target.checked); setPage(0); }}
-          />
-          แสดงเฉพาะของน้อย
-        </label>
-      </div>
-
-      {/* IMEI/SN Scanner */}
-      <div className="card">
-        <div className="card-body">
-          <label className="mb-1 block text-sm font-medium">สแกน/ค้นหา IMEI หรือ Serial Number</label>
-          <div className="flex gap-2">
+        {/* IMEI/SN Scanner — compact inline bar (secondary action, ไม่กินพื้นที่แนวตั้ง) */}
+        <div className="flex w-full items-center gap-2 sm:w-auto">
+          <div className="relative flex-1 sm:w-72">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
-              className="input"
-              placeholder="กรอกหรือสแกน IMEI / SN"
+              className="input pl-9"
+              placeholder="สแกน / ค้นหา IMEI หรือ Serial"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') handleLookup(); }}
             />
-            <button onClick={handleLookup} className="btn-primary">
-              <Search className="h-4 w-4" /> ค้นหา
-            </button>
           </div>
+          <button onClick={handleLookup} className="btn-primary shrink-0">
+            <Search className="h-4 w-4" /> ค้นหา
+          </button>
+        </div>
+      </div>
+
+      {/* ผลค้นหา IMEI/SN — แสดงเฉพาะเมื่อมีผล (ไม่มีการ์ดว่างกินที่) */}
+      {(foundDevice || notFound) && (
+        <div className="card">
+          <div className="p-4">
 
           {/* ผลค้นหา = การ์ดเครื่อง (รายเครื่อง ไม่ใช่หมวดรวม) */}
           {foundDevice && (() => {
@@ -196,8 +192,9 @@ export function InventoryPage() {
               <button onClick={clearSearch} className="rounded p-1 text-amber-500 hover:bg-amber-100"><X className="h-4 w-4" /></button>
             </div>
           )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* สรุปจำนวนเครื่องพร้อมขาย + filter มือ1/มือ2 (กดเพื่อกรองตาราง) */}
       <div className="grid grid-cols-3 gap-3">

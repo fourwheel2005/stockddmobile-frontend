@@ -218,7 +218,7 @@ export function ProductDetailPage() {
                   <td className="px-5 py-3 text-right">{v.reorderPoint}</td>
                   <td className="px-5 py-3 text-right">
                     {canEdit && (
-                      <div className="flex justify-end gap-1">
+                      <div className="flex items-center justify-end gap-1">
                         <button type="button" onClick={() => setEditingVariant(v)}
                               className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
                               title="แก้ไข SKU นี้ (สี/ความจุ/ราคา/barcode)">
@@ -229,20 +229,22 @@ export function ProductDetailPage() {
                               title="ดู/แก้ไขรายเครื่อง — IMEI/Serial/เลขรุ่น/แหล่งที่มา/ราคา/แบต/สภาพ">
                           <PackageOpen className="h-3.5 w-3.5" /> รายเครื่อง
                         </button>
+                        {/* การกระทำรอง — icon-only กัน action column ล้น (hover เห็น tooltip) */}
+                        <span className="mx-0.5 h-4 w-px bg-slate-200" aria-hidden />
                         <Link to={`/products/new?cloneProduct=${product.id}&cloneFrom=${v.id}`}
-                              className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs text-brand-700 hover:bg-brand-50"
+                              className="rounded-md border border-slate-200 p-1.5 text-brand-700 hover:bg-brand-50"
                               title="คัดลอก SKU นี้ → สร้างสินค้าใหม่ที่มีข้อมูลเหมือนกัน (แก้ IMEI/สี/ความจุได้)">
-                          <Copy className="h-3.5 w-3.5" /> คัดลอก
+                          <Copy className="h-3.5 w-3.5" />
                         </Link>
                         <Link to={`/products?q=${encodeURIComponent(product.name)}`}
-                              className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs text-emerald-700 hover:bg-emerald-50"
+                              className="rounded-md border border-slate-200 p-1.5 text-emerald-700 hover:bg-emerald-50"
                               title="รับเครื่องเข้าสต็อกของ SKU นี้">
-                          <ArrowDownToLine className="h-3.5 w-3.5" /> รับเข้า
+                          <ArrowDownToLine className="h-3.5 w-3.5" />
                         </Link>
                         <button type="button" onClick={() => handleDeleteVariant(v)}
-                              className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs text-red-600 hover:border-red-400 hover:bg-red-50"
+                              className="rounded-md border border-slate-200 p-1.5 text-red-600 hover:border-red-400 hover:bg-red-50"
                               title="ลบ SKU นี้ (มีเครื่องพร้อมขายจะถามก่อน)">
-                          <Trash2 className="h-3.5 w-3.5" /> ลบ
+                          <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       </div>
                     )}

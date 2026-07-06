@@ -77,7 +77,7 @@ export function OutboundPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div>
         <h1 className="flex items-center gap-2 page-title">
           <ArrowUpFromLine className="h-6 w-6 text-red-600" /> จ่ายสินค้าออก
@@ -85,7 +85,7 @@ export function OutboundPage() {
         <p className="text-sm text-slate-500">บันทึกการจ่ายสินค้าออก (Outbound / Sale)</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="max-w-2xl space-y-4">
         <div className="card">
           <div className="card-body space-y-4">
             <div className="grid grid-cols-2 gap-3">
