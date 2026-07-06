@@ -911,12 +911,43 @@ export function PosTerminalPage() {
 
         <div className="card border-amber-400 border-2">
           <div className="card-body space-y-3">
-            <div className="text-xs uppercase text-amber-700 font-semibold">
-              ยอดสุทธิที่ต้องชำระ (Net Total)
-            </div>
-            <div className="rounded-md bg-slate-900 px-4 py-6 text-right text-4xl font-bold text-amber-300">
-              {formatTHB(grandTotal)}
-            </div>
+            {paymentMethod === 'INSTALLMENT' ? (
+              // ผ่อน → ตัวใหญ่ = "รับวันนี้ (เงินดาวน์)" · ราคาเครื่องเต็มยังบันทึกในระบบ (กำไรไม่เพี้ยน) FIX-072
+              (() => {
+                const monthlyShow = installmentMonthly > 0
+                  ? installmentMonthly
+                  : (installmentMonths > 0 ? Math.ceil(Math.max(0, grandTotal - downAmount) / installmentMonths) : 0);
+                return (
+                  <>
+                    <div className="text-xs uppercase text-amber-700 font-semibold">
+                      รับวันนี้ (เงินดาวน์)
+                    </div>
+                    <div className="rounded-md bg-slate-900 px-4 py-6 text-right text-4xl font-bold text-amber-300">
+                      {formatTHB(downAmount)}
+                    </div>
+                    <div className="flex justify-between text-xs text-slate-500">
+                      <span>ราคาเครื่อง (บันทึกในระบบ)</span>
+                      <span>{formatTHB(grandTotal)}</span>
+                    </div>
+                    {monthlyShow > 0 && installmentMonths > 0 && (
+                      <div className="flex justify-between text-xs text-slate-500">
+                        <span>ผ่อน {installmentMonths} เดือน</span>
+                        <span>{formatTHB(monthlyShow)} / เดือน</span>
+                      </div>
+                    )}
+                  </>
+                );
+              })()
+            ) : (
+              <>
+                <div className="text-xs uppercase text-amber-700 font-semibold">
+                  ยอดสุทธิที่ต้องชำระ (Net Total)
+                </div>
+                <div className="rounded-md bg-slate-900 px-4 py-6 text-right text-4xl font-bold text-amber-300">
+                  {formatTHB(grandTotal)}
+                </div>
+              </>
+            )}
             <button
               className="btn-primary w-full bg-emerald-600 hover:bg-emerald-700 text-base"
               disabled={checkout.isPending || !!checkoutBlockedReason}
