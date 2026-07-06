@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
-import { PackagePlus, Plus, Eye, Sparkles, FolderOpen } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { PackagePlus, Plus, Eye, Sparkles, FolderOpen, Trash2 } from 'lucide-react';
 import { productsApi } from '@/api/products';
+import { extractErrorMessage } from '@/api/client';
 import { useAuthStore } from '@/stores/authStore';
 import { formatDate, formatTHB } from '@/lib/format';
 import { SearchVariantBar } from '@/components/receive/SearchVariantBar';
@@ -27,6 +29,20 @@ export function ProductsPage() {
   const [query, setQuery] = useState(searchParams.get('q') ?? '');
   const [receiveTarget, setReceiveTarget] = useState<VariantResponse | null>(null);
   const canEdit = useAuthStore((s) => s.hasRole('ADMIN', 'MANAGER'));
+  const qc = useQueryClient();
+
+  const del = useMutation({
+    mutationFn: (id: string) => productsApi.deactivate(id),
+    onSuccess: () => {
+      toast.success('ลบสินค้าแล้ว');
+      qc.invalidateQueries({ queryKey: ['products', 'all'] });
+    },
+    onError: (e) => toast.error(extractErrorMessage(e)),
+  });
+  const handleDelete = (p: { id: string; name: string }) => {
+    if (!confirm(`ลบสินค้า "${p.name}" ?\nซ่อนออกจากรายการ · ข้อมูล/ประวัติยังอยู่ (กู้คืนได้)`)) return;
+    del.mutate(p.id);
+  };
 
   // List (default view) — ดึงทั้งหมด แล้วจัดกลุ่มตามรุ่น (album-as-heading) ฝั่ง client
   const productsList = useQuery({
@@ -40,6 +56,7 @@ export function ProductsPage() {
     const rows = productsList.data?.content ?? [];
     const map = new Map<string, { name: string; items: typeof rows }>();
     for (const p of rows) {
+      if (!p.active) continue;   // ลบแล้ว (ปิด) → ซ่อนออกจากรายการ (FIX-076)
       const key = (p.name ?? '').trim().toLowerCase();
       const g = map.get(key) ?? { name: p.name, items: [] };
       g.items.push(p);
@@ -182,12 +199,21 @@ export function ProductsPage() {
                         <span className="text-slate-400">· {formatDate(p.createdAt)}</span>
                       </div>
                     </div>
-                    <Link
-                      to={`/products/${p.id}`}
-                      className="shrink-0 rounded-md border border-slate-200 p-2 text-slate-600 hover:border-brand-400 hover:bg-brand-50 hover:text-brand-700"
-                      title="ดูรายละเอียด + เครื่องในรุ่น">
-                      <Eye className="h-4 w-4" />
-                    </Link>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <Link
+                        to={`/products/${p.id}`}
+                        className="rounded-md border border-slate-200 p-2 text-slate-600 hover:border-brand-400 hover:bg-brand-50 hover:text-brand-700"
+                        title="ดูรายละเอียด + เครื่องในรุ่น">
+                        <Eye className="h-4 w-4" />
+                      </Link>
+                      {canEdit && (
+                        <button type="button" onClick={() => handleDelete(p)} disabled={del.isPending}
+                                className="rounded-md border border-slate-200 p-2 text-red-600 hover:border-red-400 hover:bg-red-50 disabled:opacity-50"
+                                title="ลบสินค้า (ซ่อนออกจากรายการ · กู้คืนได้)">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
