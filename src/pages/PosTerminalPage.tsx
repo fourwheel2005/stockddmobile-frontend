@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { ScanLine, Trash2, ShoppingCart, Receipt, Search, ListChecks, UserCircle2, Printer, Upload, X, Wrench, Truck, Globe, Store, Plus } from 'lucide-react';
+import { ScanLine, Trash2, ShoppingCart, Receipt, Search, ListChecks, UserCircle2, Printer, Upload, X, Wrench, Truck, Globe, Store, Plus, ChevronDown, ChevronUp } from 'lucide-react';
 import { posApi } from '@/api/pos';
 import { filesApi } from '@/api/files';
 import { extractErrorMessage } from '@/api/client';
@@ -116,6 +116,9 @@ export function PosTerminalPage() {
   const [shippingAddress, setShippingAddress] = useState('');
   const [shippingFeeGrandpa, setShippingFeeGrandpa] = useState<number>(0);
   const [shippingFeeGrandma, setShippingFeeGrandma] = useState<number>(0);
+  // การ์ดลูกค้า/จัดส่ง — ยุบไว้ default (หน้าร้านเงินสดไม่ต้องใช้) · กดเปิดเองได้
+  const [custCardOpen, setCustCardOpen] = useState(false);
+  const [shipCardOpen, setShipCardOpen] = useState(false);
   const [showOwnerShip, setShowOwnerShip] = useState(false);
   const [showOpenSession, setShowOpenSession] = useState(false);
   const [showPrinterSettings, setShowPrinterSettings] = useState(false);
@@ -373,6 +376,15 @@ export function PosTerminalPage() {
   const onlineNeedsIdentity = isOnline && !hasCustomerIdentity;
   const installmentNeedsIdentity = paymentMethod === 'INSTALLMENT' && !hasCustomerIdentity;
   const shippingSplitOver = (shippingFeeGrandpa + shippingFeeGrandma) > shippingFee;
+
+  // การ์ดลูกค้า/จัดส่ง กางเองเมื่อ "จำเป็น" หรือ "มีข้อมูลแล้ว" — กันไม่ให้ซ่อนของที่กรอกไว้
+  const custCardMustOpen = !!customer || walkInName.trim().length > 0 || walkInPhone.trim().length > 0
+    || paymentMethod === 'INSTALLMENT' || isOnline;
+  const custCardExpanded = custCardOpen || custCardMustOpen;
+  const custSummaryName = customer?.name || walkInName || 'ยังไม่ระบุลูกค้า';
+  const shipCardMustOpen = isOnline || shippingFee > 0 || shippingFeeGrandpa > 0 || shippingFeeGrandma > 0
+    || (!!shippingPartner && shippingPartner !== 'PICKUP') || shippingAddress.trim().length > 0;
+  const shipCardExpanded = shipCardOpen || shipCardMustOpen;
   const checkoutBlockedReason =
     !hasOpenSession ? 'กรุณาเปิดเก๊ะก่อน' :
     cart.length === 0 ? 'ยังไม่มีสินค้าในตะกร้า' :
@@ -549,15 +561,25 @@ export function PosTerminalPage() {
 
       {/* ─── Customer info (walk-in หรือ ระบบ) + ช่องทาง ──────────── */}
       <div className="card border-2 border-sky-300">
-        <div className="card-header flex items-center gap-2 bg-sky-50">
-          <UserCircle2 className="h-5 w-5 text-sky-700" />
-          <span>ข้อมูลลูกค้า + ช่องทาง</span>
+        <button type="button" onClick={() => setCustCardOpen((o) => !o)}
+                className="card-header flex w-full items-center gap-2 bg-sky-50 text-left">
+          <UserCircle2 className="h-5 w-5 shrink-0 text-sky-700" />
+          <span className="shrink-0">ข้อมูลลูกค้า + ช่องทาง</span>
           {(paymentMethod === 'INSTALLMENT' || isOnline) && (
-            <span className="ml-auto rounded bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">
+            <span className="shrink-0 rounded bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">
               * จำเป็น
             </span>
           )}
-        </div>
+          {!custCardExpanded && (
+            <span className="truncate text-xs font-normal text-slate-500">
+              {custSummaryName} · {isOnline ? 'ออนไลน์' : 'หน้าร้าน'}
+            </span>
+          )}
+          <span className="ml-auto shrink-0 text-slate-400">
+            {custCardExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </span>
+        </button>
+        {custCardExpanded && (
         <div className="card-body grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div className="sm:col-span-1">
             <label className="mb-1 block text-xs font-medium text-slate-600">ช่องทางการขาย</label>
@@ -645,19 +667,30 @@ export function PosTerminalPage() {
             </div>
           )}
         </div>
+        )}
       </div>
 
       {/* ─── ค่าจัดส่งพัสดุ + พาร์ทเนอร์ (collapsible สำหรับหน้าร้าน) ── */}
       <div className="card border-2 border-orange-300">
-        <div className="card-header flex items-center gap-2 bg-orange-50">
-          <Truck className="h-5 w-5 text-orange-700" />
-          <span>ค่าจัดส่งพัสดุ + พาร์ทเนอร์</span>
+        <button type="button" onClick={() => setShipCardOpen((o) => !o)}
+                className="card-header flex w-full items-center gap-2 bg-orange-50 text-left">
+          <Truck className="h-5 w-5 shrink-0 text-orange-700" />
+          <span className="shrink-0">ค่าจัดส่งพัสดุ + พาร์ทเนอร์</span>
           {isOnline && (
-            <span className="ml-auto rounded bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">
+            <span className="shrink-0 rounded bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">
               * จำเป็น (ออนไลน์)
             </span>
           )}
-        </div>
+          {!shipCardExpanded && (
+            <span className="truncate text-xs font-normal text-slate-500">
+              {shippingFee > 0 ? `ค่าส่ง ${formatTHB(shippingFee)}` : 'รับเอง / ไม่มีค่าส่ง'}
+            </span>
+          )}
+          <span className="ml-auto shrink-0 text-slate-400">
+            {shipCardExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </span>
+        </button>
+        {shipCardExpanded && (
         <div className="card-body space-y-3">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div>
@@ -771,6 +804,7 @@ export function PosTerminalPage() {
           )}
 
         </div>
+        )}
       </div>
 
       {/* ─── Installment details panel (only for INSTALLMENT) ───────── */}
