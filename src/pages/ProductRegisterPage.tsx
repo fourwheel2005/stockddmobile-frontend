@@ -78,6 +78,10 @@ interface ItemRow {
   purchasePrice: number | '';
   sellingPrice: number | '';
   imageUrls: string[];
+  // ผ่อนดาวน์ (มือ1 = ต่อรุ่น · มือ2 = ต่อเครื่อง) — เว็บหน้าร้านดึงไปแสดง
+  downPayment: number | '';
+  installmentTerms: { months: string; monthly: string }[];
+  installmentPromo: string;
 }
 
 interface FormValues {
@@ -112,6 +116,7 @@ const EMPTY_ITEM: ItemRow = {
   condition: 'NEW', batteryHealth: '', deviceColor: '', modelNumber: '',
   deviceStorage: '', deviceNetwork: '', warrantyTerms: '', warrantyExpire: '',
   acquisitionType: 'PURCHASE', purchasePrice: '', sellingPrice: '', imageUrls: [],
+  downPayment: '', installmentTerms: [], installmentPromo: '',
 };
 
 function todayIso(): string {
@@ -451,12 +456,25 @@ export function ProductRegisterPage() {
   const buildPayload = (d: FormValues): ProductWizardRequest | null => {
     const blank = (s?: string) => (s && s.trim()) ? s.trim() : undefined;
 
+    // ผ่อนดาวน์รายเครื่อง → {downPayment, installmentTerms(JSON), installmentPromo}
+    const instOf = (it: ItemRow) => {
+      const clean = it.installmentTerms
+        .map((t) => ({ months: Number(t.months), monthly: Number(t.monthly) }))
+        .filter((t) => Number.isFinite(t.months) && t.months > 0 && Number.isFinite(t.monthly) && t.monthly >= 0);
+      return {
+        downPayment: it.downPayment === '' ? undefined : Number(it.downPayment),
+        installmentTerms: clean.length ? JSON.stringify(clean) : undefined,
+        installmentPromo: blank(it.installmentPromo),
+      };
+    };
+
     let validItems: Array<{
       serialNumber: string; stockCode?: string; imei?: string; condition?: Condition;
       batteryHealth?: number; deviceColor?: string; modelNumber?: string;
       deviceStorage?: string; deviceNetwork?: string;
       acquisitionType?: AcquisitionType; purchasePrice?: number; sellingPrice?: number;
       warrantyTerms?: string; warrantyExpire?: string; imageUrls?: string[];
+      downPayment?: number; installmentTerms?: string; installmentPromo?: string;
     }> | undefined;
     let qty: number | undefined;
 
@@ -487,6 +505,8 @@ export function ProductRegisterPage() {
           warrantyExpire: blank(it.warrantyExpire),
           // รูปรายเครื่อง (FIX-043) — เว็บหน้าร้านดึงไปแสดง
           imageUrls: it.imageUrls?.length ? it.imageUrls : undefined,
+          // ผ่อนดาวน์ (มือ2 → serial · มือ1 → variant spec ด้านล่าง)
+          ...instOf(it),
         }));
       if (validItems.length === 0) {
         toast.error('ใส่อย่างน้อย 1 ชิ้น (IMEI หรือ Serial)');
@@ -538,6 +558,12 @@ export function ProductRegisterPage() {
             sellingPrice: Number(first.sellingPrice) || 0,
             reorderPoint: Number(d.reorderPoint),
             imageUrls: coverImages,
+            // มือ 1 (NEW): ผ่อนเป็นต่อรุ่น → ตั้งที่ variant (จากเครื่องแรกในกลุ่ม)
+            ...(first.condition === 'NEW' ? {
+              downPayment: first.downPayment,
+              installmentTerms: first.installmentTerms,
+              installmentPromo: first.installmentPromo,
+            } : {}),
           },
           items,
         };
@@ -1119,6 +1145,9 @@ function ItemCard({
   const [imgUploading, setImgUploading] = useState(false);
   const [imgDrag, setImgDrag] = useState(false);
   const setImages = (next: string[]) => setValue(`items.${idx}.imageUrls`, next, { shouldDirty: true });
+  /* ผ่อนดาวน์ (มือ1 = ต่อรุ่น · มือ2 = ต่อเครื่อง) — งวดหลายช่วง */
+  const instTerms = (useWatch({ control, name: `items.${idx}.installmentTerms` }) as { months: string; monthly: string }[] | undefined) ?? [];
+  const setInstTerms = (next: { months: string; monthly: string }[]) => setValue(`items.${idx}.installmentTerms`, next, { shouldDirty: true });
   const uploadImages = async (files: File[]) => {
     const ok = files.filter((f) => {
       if (!f.type.startsWith('image/')) { toast.error(`"${f.name}" ไม่ใช่ไฟล์รูป`); return false; }
@@ -1276,6 +1305,47 @@ function ItemCard({
           onRemove={(i) => setImages(images.filter((_, k) => k !== i))}
           onMakeCover={(i) => { if (i <= 0) return; const n = [...images]; const [p] = n.splice(i, 1); n.unshift(p); setImages(n); }}
         />
+      </div>
+
+      {/* ผ่อนดาวน์ — เว็บหน้าร้านดึงไปแสดง (มือ1 = ต่อรุ่น · มือ2 = ต่อเครื่อง · เว้นว่าง = ไม่ผ่อน) */}
+      <div className="mt-2 space-y-2 rounded-md border border-amber-200 bg-amber-50/60 p-2.5">
+        <div className="flex items-center gap-2 text-xs font-semibold text-amber-900">
+          💳 ผ่อนดาวน์ <span className="font-normal text-amber-700">
+            {condition === 'NEW' ? '(มือ1 · ตั้งครั้งเดียวใช้ทั้งรุ่น/ความจุ)' : '(มือ2 · รายเครื่องนี้)'} — เว้นว่างได้
+          </span>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="mb-0.5 block text-[11px] font-medium text-slate-600">เงินดาวน์ (บาท)</label>
+            <input type="number" min={0} className="input text-sm" placeholder="เช่น 6990"
+                   {...register(`items.${idx}.downPayment`)} />
+          </div>
+          <div>
+            <label className="mb-0.5 block text-[11px] font-medium text-slate-600">โปรโมชัน (ถ้ามี)</label>
+            <input className="input text-sm" placeholder="เช่น ฟรีฟิล์ม+เคส"
+                   {...register(`items.${idx}.installmentPromo`)} />
+          </div>
+        </div>
+        <div>
+          <label className="mb-0.5 block text-[11px] font-medium text-slate-600">ค่างวด (เพิ่มได้หลายช่วง)</label>
+          <div className="space-y-1.5">
+            {instTerms.map((t, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <input type="number" min={1} className="input w-20 text-sm" placeholder="งวด"
+                       value={t.months}
+                       onChange={(e) => setInstTerms(instTerms.map((x, k) => (k === i ? { ...x, months: e.target.value } : x)))} />
+                <span className="text-[11px] text-slate-500">เดือน ×</span>
+                <input type="number" min={0} className="input w-28 text-sm" placeholder="บาท/เดือน"
+                       value={t.monthly}
+                       onChange={(e) => setInstTerms(instTerms.map((x, k) => (k === i ? { ...x, monthly: e.target.value } : x)))} />
+                <button type="button" className="rounded p-1 text-red-500 hover:bg-red-50"
+                        onClick={() => setInstTerms(instTerms.filter((_, k) => k !== i))} title="ลบช่วงนี้">✕</button>
+              </div>
+            ))}
+            <button type="button" onClick={() => setInstTerms([...instTerms, { months: '', monthly: '' }])}
+                    className="text-xs font-medium text-amber-700 hover:text-amber-900">+ เพิ่มงวด</button>
+          </div>
+        </div>
       </div>
     </div>
   );

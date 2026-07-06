@@ -189,6 +189,9 @@ export interface WizardVariantSpec {
   reorderPoint: number;
   imageUrl?: string;
   imageUrls?: string[];
+  downPayment?: number;          // ผ่อนดาวน์ มือ1 (ต่อรุ่น)
+  installmentTerms?: string;     // JSON [{months,monthly}]
+  installmentPromo?: string;
 }
 
 export interface WizardInitialItem {
@@ -210,6 +213,9 @@ export interface WizardInitialItem {
   warrantyExpire?: string;
   /** รูปรายเครื่อง (หลายรูป) — รูปแรก = ปก */
   imageUrls?: string[];
+  downPayment?: number;          // ผ่อนดาวน์ มือ2 (ต่อเครื่อง)
+  installmentTerms?: string;     // JSON [{months,monthly}]
+  installmentPromo?: string;
 }
 
 export interface WizardVariantBlock {
