@@ -80,7 +80,7 @@ interface ItemRow {
   imageUrls: string[];
   // ผ่อนดาวน์ (มือ1 = ต่อรุ่น · มือ2 = ต่อเครื่อง) — เว็บหน้าร้านดึงไปแสดง
   downPayment: number | '';
-  installmentTerms: { months: string; monthly: string }[];
+  installmentTerms: { months: string; monthly: string; down?: string }[];
   installmentPromo: string;
 }
 
@@ -459,7 +459,11 @@ export function ProductRegisterPage() {
     // ผ่อนดาวน์รายเครื่อง → {downPayment, installmentTerms(JSON), installmentPromo}
     const instOf = (it: ItemRow) => {
       const clean = it.installmentTerms
-        .map((t) => ({ months: Number(t.months), monthly: Number(t.monthly) }))
+        .map((t) => {
+          const down = t.down?.trim() === '' || t.down == null ? undefined : Number(t.down);
+          return { months: Number(t.months), monthly: Number(t.monthly),
+                   ...(down != null && Number.isFinite(down) && down >= 0 ? { down } : {}) };
+        })
         .filter((t) => Number.isFinite(t.months) && t.months > 0 && Number.isFinite(t.monthly) && t.monthly >= 0);
       return {
         downPayment: it.downPayment === '' ? undefined : Number(it.downPayment),
@@ -1146,8 +1150,8 @@ function ItemCard({
   const [imgDrag, setImgDrag] = useState(false);
   const setImages = (next: string[]) => setValue(`items.${idx}.imageUrls`, next, { shouldDirty: true });
   /* ผ่อนดาวน์ (มือ1 = ต่อรุ่น · มือ2 = ต่อเครื่อง) — งวดหลายช่วง */
-  const instTerms = (useWatch({ control, name: `items.${idx}.installmentTerms` }) as { months: string; monthly: string }[] | undefined) ?? [];
-  const setInstTerms = (next: { months: string; monthly: string }[]) => setValue(`items.${idx}.installmentTerms`, next, { shouldDirty: true });
+  const instTerms = (useWatch({ control, name: `items.${idx}.installmentTerms` }) as { months: string; monthly: string; down?: string }[] | undefined) ?? [];
+  const setInstTerms = (next: { months: string; monthly: string; down?: string }[]) => setValue(`items.${idx}.installmentTerms`, next, { shouldDirty: true });
   const uploadImages = async (files: File[]) => {
     const ok = files.filter((f) => {
       if (!f.type.startsWith('image/')) { toast.error(`"${f.name}" ไม่ใช่ไฟล์รูป`); return false; }
@@ -1330,7 +1334,7 @@ function ItemCard({
           <label className="mb-0.5 block text-[11px] font-medium text-slate-600">ค่างวด (เพิ่มได้หลายช่วง)</label>
           <div className="space-y-1.5">
             {instTerms.map((t, i) => (
-              <div key={i} className="flex items-center gap-2">
+              <div key={i} className="flex flex-wrap items-center gap-2">
                 <input type="number" min={1} className="input w-20 text-sm" placeholder="งวด"
                        value={t.months}
                        onChange={(e) => setInstTerms(instTerms.map((x, k) => (k === i ? { ...x, months: e.target.value } : x)))} />
@@ -1338,11 +1342,16 @@ function ItemCard({
                 <input type="number" min={0} className="input w-28 text-sm" placeholder="บาท/เดือน"
                        value={t.monthly}
                        onChange={(e) => setInstTerms(instTerms.map((x, k) => (k === i ? { ...x, monthly: e.target.value } : x)))} />
+                <span className="text-[11px] text-slate-500">· ดาวน์</span>
+                <input type="number" min={0} className="input w-28 text-sm" placeholder="เว้น=ค่าเริ่มต้น"
+                       value={t.down ?? ''}
+                       title="เงินดาวน์เฉพาะงวดนี้ · เว้นว่าง = ใช้ดาวน์เริ่มต้นด้านบน"
+                       onChange={(e) => setInstTerms(instTerms.map((x, k) => (k === i ? { ...x, down: e.target.value } : x)))} />
                 <button type="button" className="rounded p-1 text-red-500 hover:bg-red-50"
                         onClick={() => setInstTerms(instTerms.filter((_, k) => k !== i))} title="ลบช่วงนี้">✕</button>
               </div>
             ))}
-            <button type="button" onClick={() => setInstTerms([...instTerms, { months: '', monthly: '' }])}
+            <button type="button" onClick={() => setInstTerms([...instTerms, { months: '', monthly: '', down: '' }])}
                     className="text-xs font-medium text-amber-700 hover:text-amber-900">+ เพิ่มงวด</button>
           </div>
         </div>

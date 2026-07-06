@@ -458,16 +458,17 @@ function AddVariantModal({ productId, serialized, productModelNumber, editVarian
   const [downPayment, setDownPayment] = useState<string>(
     editVariant?.downPayment != null ? String(editVariant.downPayment) : '');
   const [instPromo, setInstPromo] = useState<string>(editVariant?.installmentPromo ?? '');
-  const [instTerms, setInstTerms] = useState<{ months: string; monthly: string }[]>(() => {
+  const [instTerms, setInstTerms] = useState<{ months: string; monthly: string; down: string }[]>(() => {
     try {
       const arr = editVariant?.installmentTerms ? JSON.parse(editVariant.installmentTerms) : [];
       return Array.isArray(arr) && arr.length
-        ? arr.map((t: { months?: number; monthly?: number }) => ({ months: String(t.months ?? ''), monthly: String(t.monthly ?? '') }))
+        ? arr.map((t: { months?: number; monthly?: number; down?: number }) =>
+            ({ months: String(t.months ?? ''), monthly: String(t.monthly ?? ''), down: t.down != null ? String(t.down) : '' }))
         : [];
     } catch { return []; }
   });
-  const addTerm = () => setInstTerms((a) => [...a, { months: '', monthly: '' }]);
-  const patchTerm = (i: number, patch: Partial<{ months: string; monthly: string }>) =>
+  const addTerm = () => setInstTerms((a) => [...a, { months: '', monthly: '', down: '' }]);
+  const patchTerm = (i: number, patch: Partial<{ months: string; monthly: string; down: string }>) =>
     setInstTerms((a) => a.map((t, j) => (j === i ? { ...t, ...patch } : t)));
   const removeTerm = (i: number) => setInstTerms((a) => a.filter((_, j) => j !== i));
   // เพิ่มสีมือถือ: เครื่องรายตัว ข้อมูลครบเท่าหน้ารับสต๊อก (บางเครื่องต่างกันได้)
@@ -516,7 +517,11 @@ function AddVariantModal({ productId, serialized, productModelNumber, editVarian
     mutationFn: async (req: CreateVariantRequest) => {
       if (isEdit) {
         const cleanTerms = instTerms
-          .map((t) => ({ months: Number(t.months), monthly: Number(t.monthly) }))
+          .map((t) => {
+            const down = t.down.trim() === '' ? undefined : Number(t.down);   // ดาวน์ต่องวด (เว้น = ใช้ดาวน์เริ่มต้น)
+            return { months: Number(t.months), monthly: Number(t.monthly),
+                     ...(down != null && Number.isFinite(down) && down >= 0 ? { down } : {}) };
+          })
           .filter((t) => Number.isFinite(t.months) && t.months > 0 && Number.isFinite(t.monthly) && t.monthly >= 0);
         return productsApi.updateVariant(productId, editVariant!.id, {
           color: req.color, storage: req.storage, network: req.network, barcode: req.barcode,
@@ -787,12 +792,16 @@ function AddVariantModal({ productId, serialized, productModelNumber, editVarian
               <label className="mb-1 block text-xs font-medium text-slate-600">ค่างวด (เพิ่มได้หลายช่วง)</label>
               <div className="space-y-2">
                 {instTerms.map((t, i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <input type="number" min={1} className="input w-24" placeholder="งวด"
+                  <div key={i} className="flex flex-wrap items-center gap-2">
+                    <input type="number" min={1} className="input w-20" placeholder="งวด"
                            value={t.months} onChange={(e) => patchTerm(i, { months: e.target.value })} />
                     <span className="text-xs text-slate-500">เดือน ×</span>
-                    <input type="number" min={0} className="input w-32" placeholder="บาท/เดือน"
+                    <input type="number" min={0} className="input w-28" placeholder="บาท/เดือน"
                            value={t.monthly} onChange={(e) => patchTerm(i, { monthly: e.target.value })} />
+                    <span className="text-xs text-slate-500">· ดาวน์</span>
+                    <input type="number" min={0} className="input w-28" placeholder="เว้น=ค่าเริ่มต้น"
+                           value={t.down} onChange={(e) => patchTerm(i, { down: e.target.value })}
+                           title="เงินดาวน์เฉพาะงวดนี้ · เว้นว่าง = ใช้ดาวน์เริ่มต้นด้านบน" />
                     <button type="button" className="rounded p-1 text-red-500 hover:bg-red-50"
                             onClick={() => removeTerm(i)} title="ลบช่วงนี้">✕</button>
                   </div>
