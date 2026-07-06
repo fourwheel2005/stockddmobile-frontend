@@ -273,6 +273,8 @@ export interface InventoryResponse {
   availableQty: number;
   reorderPoint: number;
   lowStock: boolean;
+  newInStock?: number;            // จำนวนพร้อมขาย "มือ 1"
+  secondHandInStock?: number;     // จำนวนพร้อมขาย "มือ 2"
   imageUrl?: string | null;       // รูปปก
   imageUrls?: string[] | null;    // รูปทั้งหมด (เว็บหน้าร้านดึงไปแสดง)
   updatedAt: string;

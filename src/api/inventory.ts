@@ -69,6 +69,11 @@ export const inventoryApi = {
   updateSerial: (serialItemId: string, req: UpdateSerialRequest) =>
     api.put<SerializedItemResponse>(`/inventory/serials/${serialItemId}`, req).then((r) => r.data),
 
+  /** ย้ายเครื่อง (พร้อมขาย) ไป SKU อื่นของรุ่นเดียวกัน — แก้ลงผิดมือ 1/มือ 2 */
+  moveSerialToVariant: (serialItemId: string, targetVariantId: string) =>
+    api.post<void>(`/inventory/serials/${serialItemId}/move-variant`, null,
+      { params: { targetVariantId } }).then((r) => r.data),
+
   // ─── ประวัติซ่อม/อะไหล่รายเครื่อง (เครื่องมือสอง) ──────────────────
   listServiceLogs: (serialItemId: string) =>
     api.get<DeviceServiceLogResponse[]>(`/inventory/serials/${serialItemId}/service-logs`).then((r) => r.data),

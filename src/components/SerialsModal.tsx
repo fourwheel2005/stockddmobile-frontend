@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { X, Wrench, ShieldAlert, Undo2, BatteryMedium, Pencil, Save, Plus, Trash2 } from 'lucide-react';
+import { X, Wrench, ShieldAlert, Undo2, BatteryMedium, Pencil, Save, Plus, Trash2, ArrowLeftRight } from 'lucide-react';
 import { inventoryApi } from '@/api/inventory';
 import { extractErrorMessage } from '@/api/client';
 import { formatDate, formatTHB } from '@/lib/format';
 import { acqLabel, ACQ_ORDER, ACQ_INFO } from '@/lib/acquisition';
 import { RepairIntakeModal } from '@/components/RepairIntakeModal';
 import { ImageEditor } from '@/components/MultiImageUpload';
-import type { SerializedStatus, ServiceState, SerializedItemResponse, SerializedCondition, AcquisitionType, DeviceServiceType } from '@/types/api';
+import type { SerializedStatus, ServiceState, SerializedItemResponse, SerializedCondition, AcquisitionType, DeviceServiceType, VariantResponse } from '@/types/api';
 
 interface Props {
   variantId: string;
@@ -17,6 +17,8 @@ interface Props {
   onClose: () => void;
   /** ไฮไลต์เครื่องที่ค้นเจอ (เปิดจากผลค้นหา IMEI) */
   highlightId?: string;
+  /** SKU อื่นของรุ่นเดียวกัน — ใช้เป็นปลายทาง "ย้าย SKU" (แก้ลงผิดมือ 1/2) */
+  productVariants?: VariantResponse[];
 }
 
 const STATUS_BADGE: Record<SerializedStatus, string> = {
@@ -50,11 +52,14 @@ const CONDITION_TH: Record<string, string> = {
   DEFECTIVE: 'ชำรุด',
 };
 
-export function SerialsModal({ variantId, productName, sku, onClose, highlightId }: Props) {
+export function SerialsModal({ variantId, productName, sku, onClose, highlightId, productVariants }: Props) {
   const qc = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<SerializedStatus | ''>('');
   const [editing, setEditing] = useState<SerializedItemResponse | null>(null);
   const [repairFor, setRepairFor] = useState<SerializedItemResponse | null>(null);
+  const [moveFor, setMoveFor] = useState<SerializedItemResponse | null>(null);
+  // SKU อื่นของรุ่นเดียวกันที่ย้ายไปได้ (active + ไม่ใช่ตัวปัจจุบัน)
+  const moveTargets = (productVariants ?? []).filter((v) => v.id !== variantId && v.active);
 
   const { data, isLoading } = useQuery({
     queryKey: ['serials', variantId, statusFilter],
@@ -180,6 +185,13 @@ export function SerialsModal({ variantId, productName, sku, onClose, highlightId
                       </button>
                       {s.status === 'IN_STOCK' && (
                         <>
+                          {moveTargets.length > 0 && (
+                            <button className="rounded p-1.5 text-indigo-700 hover:bg-indigo-50"
+                                    title="ย้ายไป SKU อื่น (แก้ลงผิดมือ 1/มือ 2)"
+                                    onClick={() => setMoveFor(s)}>
+                              <ArrowLeftRight className="h-4 w-4" />
+                            </button>
+                          )}
                           <button className="rounded p-1.5 text-amber-700 hover:bg-amber-50"
                                   title="ส่งซ่อม"
                                   onClick={() => handleService(s.id, 'AWAITING_REPAIR')}>
@@ -249,7 +261,76 @@ export function SerialsModal({ variantId, productName, sku, onClose, highlightId
         }}
       />
     )}
+
+    {moveFor && (
+      <MoveVariantModal
+        item={moveFor}
+        targets={moveTargets}
+        onClose={() => setMoveFor(null)}
+        onMoved={() => {
+          setMoveFor(null);
+          qc.invalidateQueries({ queryKey: ['serials', variantId] });
+          qc.invalidateQueries({ queryKey: ['inventory'] });
+          qc.invalidateQueries({ queryKey: ['product'] });
+        }}
+      />
+    )}
     </>
+  );
+}
+
+/* ─── ย้ายเครื่องไป SKU อื่นของรุ่นเดียวกัน (แก้ลงผิดมือ 1/2) ─────────── */
+function MoveVariantModal({ item, targets, onClose, onMoved }: {
+  item: SerializedItemResponse;
+  targets: VariantResponse[];
+  onClose: () => void;
+  onMoved: () => void;
+}) {
+  const [targetId, setTargetId] = useState('');
+  const move = useMutation({
+    mutationFn: () => inventoryApi.moveSerialToVariant(item.id, targetId),
+    onSuccess: () => { toast.success('ย้าย SKU แล้ว'); onMoved(); },
+    onError: (e) => toast.error(extractErrorMessage(e)),
+  });
+  const label = (v: VariantResponse) =>
+    `${v.sku} · ${[v.color, v.storage].filter(Boolean).join(' ') || '-'}`;
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/50 p-4">
+      <div className="w-full max-w-md rounded-lg bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b px-5 py-3">
+          <h3 className="font-semibold">ย้ายเครื่องไป SKU อื่น</h3>
+          <button type="button" onClick={onClose} className="rounded p-1 hover:bg-slate-100">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="space-y-3 px-5 py-4">
+          <div className="rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600">
+            เครื่อง: <span className="font-mono">{item.imei || item.serialNumber}</span>
+            {item.stockCode && <span className="ml-1 text-slate-400">({item.stockCode})</span>}
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-slate-600">ย้ายไป SKU (รุ่นเดียวกัน)</label>
+            <select className="input" value={targetId} onChange={(e) => setTargetId(e.target.value)}>
+              <option value="">— เลือก SKU ปลายทาง —</option>
+              {targets.map((v) => (
+                <option key={v.id} value={v.id}>{label(v)}</option>
+              ))}
+            </select>
+          </div>
+          <p className="text-[11px] text-slate-500">
+            ระบบจะย้ายสต๊อกเครื่องนี้ไป SKU ที่เลือก + บันทึกประวัติ · ราคา/สภาพรายเครื่องคงเดิม (แก้เพิ่มได้ที่ ✏️)
+          </p>
+        </div>
+        <div className="flex justify-end gap-2 border-t px-5 py-3">
+          <button type="button" onClick={onClose} className="btn-secondary">ยกเลิก</button>
+          <button type="button" disabled={!targetId || move.isPending} onClick={() => move.mutate()}
+                  className="btn-primary">
+            <ArrowLeftRight className="h-4 w-4" /> {move.isPending ? 'กำลังย้าย...' : 'ย้าย'}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

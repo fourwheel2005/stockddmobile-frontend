@@ -46,8 +46,12 @@ export function ProductDetailPage() {
     })),
   });
   const qtyByVariant = new Map<string, number>();
+  const condByVariant = new Map<string, { newQ: number; sh: number }>();   // มือ1/มือ2 พร้อมขาย
   stockQueries.forEach((q, i) => {
-    if (q.data) qtyByVariant.set(variants[i].id, q.data.quantity);
+    if (q.data) {
+      qtyByVariant.set(variants[i].id, q.data.quantity);
+      condByVariant.set(variants[i].id, { newQ: q.data.newInStock ?? 0, sh: q.data.secondHandInStock ?? 0 });
+    }
   });
   const stockResolved = variants.length > 0 && stockQueries.every((q) => q.isSuccess || q.isError);
   const totalQty = [...qtyByVariant.values()].reduce((sum, n) => sum + n, 0);
@@ -159,11 +163,21 @@ export function ProductDetailPage() {
                     {(() => {
                       const qty = qtyByVariant.get(v.id);
                       if (qty === undefined) return <span className="text-slate-400">{stockResolved ? '–' : '…'}</span>;
-                      return qty > 0
-                        ? <button type="button" onClick={() => setSerialsVariant(v)}
+                      if (qty <= 0) return <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-700">0 · ยังไม่รับเข้า</span>;
+                      const c = condByVariant.get(v.id);
+                      const badge = !c ? null
+                        : c.newQ > 0 && c.sh === 0 ? <span className="badge-blue">มือ 1</span>
+                        : c.sh > 0 && c.newQ === 0 ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">มือ 2</span>
+                        : c.newQ > 0 && c.sh > 0 ? <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-medium text-purple-700">ผสม 1+2</span>
+                        : null;
+                      return (
+                        <div className="flex items-center justify-end gap-1.5">
+                          {badge}
+                          <button type="button" onClick={() => setSerialsVariant(v)}
                                   className="font-semibold text-brand-700 underline decoration-dotted underline-offset-2 hover:text-brand-800"
                                   title="ดู/แก้ไขรายเครื่อง (IMEI/Serial/ที่มา/ราคา)">{qty}</button>
-                        : <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-700">0 · ยังไม่รับเข้า</span>;
+                        </div>
+                      );
                     })()}
                   </td>
                   <td className="px-5 py-3 text-right">
@@ -238,6 +252,7 @@ export function ProductDetailPage() {
       )}
       {serialsVariant && (
         <SerialsModal variantId={serialsVariant.id} productName={product.name} sku={serialsVariant.sku}
+                      productVariants={product.variants}
                       onClose={() => setSerialsVariant(null)} />
       )}
     </div>
