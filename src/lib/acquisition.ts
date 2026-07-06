@@ -3,9 +3,10 @@ import type { AcquisitionType } from '@/types/api';
 /** ป้ายไทย + คำอธิบายสำหรับ "ที่มาเครื่อง" (acquisition type) ใช้ร่วมทั้งระบบ. */
 export const ACQ_INFO: Record<AcquisitionType, { th: string; help: string; group: 'TXN' | 'SUPPLIER' }> = {
   // ─── ประเภทธุรกรรม ─────────────────────────────────────────
-  PURCHASE:   { th: 'ซื้อมา',         help: 'ซื้อเครื่องเข้าร้านปกติ',          group: 'TXN' },
-  TRADE_IN:   { th: 'เทิร์น',         help: 'รับเทิร์นจากลูกค้า (มักเป็นมือ 2)', group: 'TXN' },
-  OUTRIGHT:   { th: 'ซื้อขายขาด',     help: 'ซื้อขายขาด — ไม่รับคืน/เคลม',      group: 'TXN' },
+  PURCHASE:      { th: 'ซื้อมา',         help: 'ซื้อเครื่องเข้าร้านปกติ',          group: 'TXN' },
+  TRADE_IN:      { th: 'เทิร์น',         help: 'รับเทิร์นจากลูกค้า (มักเป็นมือ 2)', group: 'TXN' },
+  OUTRIGHT:      { th: 'ซื้อขายขาด',     help: 'ซื้อขายขาด — ไม่รับคืน/เคลม',      group: 'TXN' },
+  RETURN_CREDIT: { th: 'เครื่องคืน (มีเครดิต)', help: 'ลูกค้าคืนเครื่อง มีเครดิต — กรอกชื่อลูกค้า', group: 'TXN' },
   // ─── ซัพพลายเออร์ (nickname หน้าร้าน) ─────────────────────
   ICE:        { th: 'น้ำแข็ง',        help: 'รับจากซัพพลายเออร์ "น้ำแข็ง"',     group: 'SUPPLIER' },
   BORROW:     { th: 'ยืมมั้ย',        help: 'รับจาก "ยืมมั้ย"',                 group: 'SUPPLIER' },
@@ -17,7 +18,7 @@ export const ACQ_INFO: Record<AcquisitionType, { th: string; help: string; group
 
 /** ลำดับการแสดงผลใน dropdown — ธุรกรรมก่อน แล้วซัพพลายเออร์ */
 export const ACQ_ORDER: AcquisitionType[] = [
-  'PURCHASE', 'TRADE_IN', 'OUTRIGHT',
+  'PURCHASE', 'TRADE_IN', 'OUTRIGHT', 'RETURN_CREDIT',
   'ICE', 'BORROW', 'P_GREEN', 'GREETER', 'RED_HEAT', 'AMP_MOBILE',
 ];
 

@@ -141,6 +141,7 @@ export interface UpdateSerialRequest {
   batteryHealth?: number;
   condition?: SerializedCondition;
   acquisitionType?: AcquisitionType;   // ที่มา (null = ไม่แตะค่าเดิม)
+  sourceCustomer?: string;             // ชื่อลูกค้าที่คืนเครื่อง (RETURN_CREDIT)
   purchasePrice?: number;              // ราคาทุนรายเครื่อง
   sellingPrice?: number;               // ราคาขายรายเครื่อง
   warrantyExpire?: string;             // YYYY-MM-DD
@@ -206,6 +207,7 @@ export interface WizardInitialItem {
   deviceStorage?: string;
   deviceNetwork?: string;
   acquisitionType?: AcquisitionType;
+  sourceCustomer?: string;       // ชื่อลูกค้าที่คืนเครื่อง (RETURN_CREDIT)
   purchasePrice?: number;
   sellingPrice?: number;
   warrantyTerms?: string;
@@ -295,7 +297,7 @@ export type SerializedStatus =
 
 export type AcquisitionType =
   // ประเภทธุรกรรม
-  | 'PURCHASE' | 'TRADE_IN' | 'OUTRIGHT'
+  | 'PURCHASE' | 'TRADE_IN' | 'OUTRIGHT' | 'RETURN_CREDIT'
   // ซัพพลายเออร์หน้าร้าน
   | 'ICE' | 'BORROW' | 'P_GREEN' | 'GREETER' | 'RED_HEAT' | 'AMP_MOBILE';
 export type ServiceState = 'AWAITING_REPAIR' | 'SENT_CLAIM';
@@ -327,6 +329,7 @@ export interface SerializedItemResponse {
   deviceStorage: string | null;
   deviceNetwork: string | null;
   acquisitionType: AcquisitionType | null;
+  sourceCustomer: string | null;   // ชื่อลูกค้าที่คืนเครื่อง (RETURN_CREDIT)
   serviceState: ServiceState | null;
   defectNote: string | null;
   imageUrls?: string[] | null;     // รูปรายเครื่อง — เว็บหน้าร้านดึงไปแสดง

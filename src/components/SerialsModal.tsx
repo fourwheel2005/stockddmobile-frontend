@@ -275,6 +275,7 @@ function EditSerialModal({ item, onClose, onSaved }: {
     (item.condition as SerializedCondition) ?? 'SECOND_HAND');
   const [acquisitionType, setAcquisitionType] = useState<AcquisitionType>(
     (item.acquisitionType as AcquisitionType) ?? 'PURCHASE');
+  const [sourceCustomer, setSourceCustomer] = useState(item.sourceCustomer ?? '');
   const [purchasePrice, setPurchasePrice] = useState(item.purchasePrice != null ? String(item.purchasePrice) : '');
   const [sellingPrice, setSellingPrice] = useState(item.sellingPrice != null ? String(item.sellingPrice) : '');
   const [imageUrls, setImageUrls] = useState<string[]>(item.imageUrls ?? []);
@@ -311,6 +312,8 @@ function EditSerialModal({ item, onClose, onSaved }: {
       batteryHealth: battery === '' ? undefined : Number(battery),
       condition,
       acquisitionType,
+      // ส่งชื่อลูกค้าเฉพาะ RETURN_CREDIT · เคสอื่นล้างเป็นค่าว่าง
+      sourceCustomer: acquisitionType === 'RETURN_CREDIT' ? (sourceCustomer.trim() || '') : '',
       purchasePrice: !canSeeCost || purchasePrice === '' ? undefined : Number(purchasePrice),
       sellingPrice: sellingPrice === '' ? undefined : Number(sellingPrice),
       imageUrls,   // แทนที่รูปทั้งชุด (รูปแรก = ปก)
@@ -423,6 +426,14 @@ function EditSerialModal({ item, onClose, onSaved }: {
               </select>
             </div>
           </div>
+          {acquisitionType === 'RETURN_CREDIT' && (
+            <div>
+              <label className="mb-0.5 block text-xs font-semibold text-slate-600">ชื่อลูกค้าที่คืนเครื่อง</label>
+              <input className="input" value={sourceCustomer}
+                     onChange={(e) => setSourceCustomer(e.target.value)}
+                     placeholder="เช่น คุณสมชาย (เครื่องคืน มีเครดิต)" />
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             {canSeeCost && (
               <div>

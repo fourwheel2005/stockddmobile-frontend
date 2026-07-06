@@ -250,14 +250,14 @@ type PhoneDevice = {
   condition: 'NEW' | 'SECOND_HAND'; batteryHealth: string;
   color: string; storage: string; modelNumber: string;
   warrantyTerms: string; warrantyExpire: string;
-  acquisitionType: AcquisitionType;
+  acquisitionType: AcquisitionType; sourceCustomer: string;
   costPrice: string; sellingPrice: string;
   imageUrls: string[];
 };
 const emptyDevice = (): PhoneDevice => ({
   imei: '', serialNumber: '', condition: 'NEW', batteryHealth: '',
   color: '', storage: '', modelNumber: '', warrantyTerms: WARRANTY_NEW, warrantyExpire: '',
-  acquisitionType: 'PURCHASE', costPrice: '', sellingPrice: '', imageUrls: [],
+  acquisitionType: 'PURCHASE', sourceCustomer: '', costPrice: '', sellingPrice: '', imageUrls: [],
 });
 /** เครื่องใหม่ลอก สภาพ/สี/ความจุ/ที่มา/ราคา/ประกัน จากเครื่องล่าสุด (เคลียร์ IMEI/Serial/รูป) */
 const cloneDevice = (last: PhoneDevice): PhoneDevice => ({
@@ -356,6 +356,13 @@ function DeviceCard({ idx, device, onChange, onRemove, disableRemove, colorList,
             </optgroup>
           </select>
         </div>
+        {device.acquisitionType === 'RETURN_CREDIT' && (
+          <div className="col-span-2">
+            <label className="mb-0.5 block text-xs font-semibold text-slate-600">ชื่อลูกค้าที่คืนเครื่อง</label>
+            <input className="input text-sm" placeholder="เช่น คุณสมชาย (เครื่องคืน มีเครดิต)"
+                   value={device.sourceCustomer} onChange={(e) => onChange({ sourceCustomer: e.target.value })} />
+          </div>
+        )}
         <div className={needsExpire ? '' : 'col-span-2'}>
           <label className="mb-0.5 block text-xs font-semibold text-slate-600">ประกัน</label>
           <input className="input text-sm" list={`dc-warranty-${idx}`} placeholder="เช่น ประกันร้าน 1 เดือน"
@@ -490,6 +497,7 @@ function AddVariantModal({ productId, serialized, productModelNumber, editVarian
           deviceStorage: d.storage.trim() || undefined,
           modelNumber: d.modelNumber.trim() || productModelNumber || undefined,
           acquisitionType: d.acquisitionType,
+          sourceCustomer: d.acquisitionType === 'RETURN_CREDIT' ? (d.sourceCustomer.trim() || undefined) : undefined,
           purchasePrice: d.costPrice === '' ? undefined : Number(d.costPrice),
           sellingPrice: d.sellingPrice === '' ? undefined : Number(d.sellingPrice),
           warrantyTerms: d.warrantyTerms.trim() || undefined,
