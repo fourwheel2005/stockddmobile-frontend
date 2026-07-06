@@ -1,4 +1,5 @@
 import { formatTHB, formatDateTime } from '@/lib/format';
+import { hasRealImei } from '@/lib/escpos/ddmobileReceipt';
 import type { PaymentMethod, SalesOrderResponse, ShippingPartner } from '@/types/api';
 
 const PAYMENT_TH: Record<PaymentMethod, string> = {
@@ -74,9 +75,11 @@ export function ReceiptPrintView({ order, shopName = 'Stockdd Mobile' }: Props) 
               <td className="py-1.5">
                 <div>{it.productName}</div>
                 {spec && <div className="text-xs text-slate-600">{spec}</div>}
-                {it.imei
+                {hasRealImei(it.imei)
                   ? <div className="text-xs text-slate-600">IMEI: {it.imei}</div>
-                  : <div className="text-xs text-slate-600">{it.sku}</div>}
+                  : it.serialNumber
+                    ? <div className="text-xs text-slate-600">SN: {it.serialNumber}</div>
+                    : <div className="text-xs text-slate-600">{it.sku}</div>}
               </td>
               {!hidePrice && <td className="py-1.5 text-right">{it.quantity}</td>}
               {!hidePrice && <td className="py-1.5 text-right">{formatTHB(it.sellPrice)}</td>}

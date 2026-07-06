@@ -791,6 +791,7 @@ export interface SalesOrderItemResponse {
   sku: string;
   productName: string;
   imei: string | null;
+  serialNumber: string | null;   // แสดง SN เมื่อไม่มี IMEI (iPad WiFi)
   color: string | null;
   storage: string | null;
   condition: string | null;   // "มือ 1" / "มือ 2" ฯลฯ

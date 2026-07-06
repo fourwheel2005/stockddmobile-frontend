@@ -22,6 +22,7 @@ export interface ReceiptData {
     sku: string;
     productName: string;
     imei?: string | null;
+    serialNumber?: string | null;
     color?: string | null;
     storage?: string | null;
     condition?: string | null;   // "มือ 1" / "มือ 2" ฯลฯ
@@ -52,6 +53,10 @@ export interface ReceiptData {
   footerMessage?: string;
   qrCodeData?: string;
 }
+
+/** IMEI จริง = มีค่า + ไม่ใช่เลข 0 ล้วน (iPad WiFi กรอก 000... = ไม่มี IMEI → ใช้ SN) — FIX-075 */
+export const hasRealImei = (imei?: string | null): boolean =>
+  !!imei && imei.trim() !== '' && !/^0+$/.test(imei.trim());
 
 const PAYMENT_TH: Record<string, string> = {
   CASH: 'เงินสด',
@@ -154,9 +159,11 @@ export function buildDDMobileReceipt(
     const spec = [it.color, it.storage, it.condition].filter(Boolean).join(' · ');
     if (spec) b.textln(`   ${spec}`);
 
-    // Line 3: IMEI (หรือ SKU สำหรับอุปกรณ์เสริม)
-    if (it.imei) {
+    // Line 3: IMEI · ถ้าไม่มี IMEI จริง (iPad WiFi กรอก 000...) → SN · ไม่มีทั้งคู่ → SKU (FIX-075)
+    if (hasRealImei(it.imei)) {
       b.textln(`   IMEI: ${it.imei}`);
+    } else if (it.serialNumber) {
+      b.textln(`   SN: ${it.serialNumber}`);
     } else {
       b.textln(`   SKU: ${it.sku}`);
     }
