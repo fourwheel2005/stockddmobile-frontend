@@ -416,7 +416,7 @@ export function PosTerminalPage() {
           <h1 className="flex items-center gap-2 page-title">
             <ScanLine className="h-6 w-6 text-brand-600" /> ระบบขายหน้าร้าน (POS Terminal)
           </h1>
-          <p className="text-sm text-slate-500">สแกนบาร์โค้ดสินค้า หรือ IMEI 15 หลัก</p>
+          <p className="text-sm text-slate-500">สแกนบาร์โค้ด / IMEI / Serial (iPad · Watch ไม่มี IMEI → ใช้ Serial)</p>
         </div>
         <div className="flex items-center gap-2">
           <button className="btn-secondary" onClick={() => setShowImeiPicker(true)}>
@@ -458,7 +458,7 @@ export function PosTerminalPage() {
           <div className={`space-y-2 rounded-lg bg-slate-800 p-5 shadow-sm transition-all
                           ${scanReady ? 'ring-2 ring-emerald-400 ring-offset-2' : ''}`}>
             <label className="flex items-center justify-between text-xs font-semibold uppercase text-amber-400">
-              <span>📦 สแกนบาร์โค้ดสินค้า หรือ พิมพ์เลข IMEI 15 หลัก</span>
+              <span>📦 สแกน/พิมพ์ บาร์โค้ด · IMEI · Serial (iPad/Watch ใช้ Serial)</span>
               {scanReady
                 ? <span className="text-emerald-400">🟢 พร้อมรับสแกน</span>
                 : <span className="text-slate-400">⚪ คลิกในช่องเพื่อเริ่มสแกน</span>}
@@ -471,7 +471,7 @@ export function PosTerminalPage() {
                 className="flex-1 rounded-md border border-slate-600 px-3 py-2 text-sm shadow-sm
                            placeholder:text-slate-500 focus:border-amber-500 focus:outline-none
                            focus:ring-2 focus:ring-amber-500/40"
-                placeholder="ยิงสแกนเนอร์บาร์โค้ด หรือพิมพ์รหัสที่นี่..."
+                placeholder="ยิงบาร์โค้ด / IMEI / Serial หรือพิมพ์ที่นี่..."
                 value={scanQuery}
                 onChange={(e) => setScanQuery(e.target.value)}
                 onFocus={() => setScanReady(true)}

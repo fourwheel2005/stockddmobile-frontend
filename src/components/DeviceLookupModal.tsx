@@ -48,7 +48,7 @@ export function DeviceLookupModal({ onClose }: { onClose: () => void }) {
       <div className="w-full max-w-md rounded-lg bg-white shadow-xl">
         <div className="flex items-center justify-between border-b px-5 py-3">
           <h2 className="flex items-center gap-2 font-semibold">
-            <Search className="h-5 w-5 text-brand-600" /> เช็ครายละเอียดสินค้า (ยิง IMEI)
+            <Search className="h-5 w-5 text-brand-600" /> เช็ครายละเอียดสินค้า (ยิง IMEI/Serial)
           </h2>
           <button onClick={onClose} className="rounded p-1 hover:bg-slate-100"><X className="h-4 w-4" /></button>
         </div>
