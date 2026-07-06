@@ -110,16 +110,20 @@ export function ReceiptPrintView({ order, shopName = 'Stockdd Mobile' }: Props) 
             </div>
           </>
         )}
+        {hidePrice && (
+          // ผ่อน → ยอดสุทธิ = เงินดาวน์ที่รับวันนี้ (ไม่โชว์ราคาเต็ม) — FIX-072
+          <div className="flex justify-between border-t border-slate-400 pt-1 text-base">
+            <strong>ยอดสุทธิ:</strong>
+            <strong>{formatTHB(order.downPaymentAmount ?? 0)}</strong>
+          </div>
+        )}
         <div className="flex justify-between">
           <span>วิธีชำระ:</span>
           <span>{order.paymentMethod ? PAYMENT_TH[order.paymentMethod] : '-'}</span>
         </div>
         {order.paymentMethod === 'INSTALLMENT' && order.installmentMonths && (
           <>
-            <div className="flex justify-between">
-              <span>เงินดาวน์:</span>
-              <span>{formatTHB(order.downPaymentAmount ?? 0)}</span>
-            </div>
+            <div className="text-xs text-slate-500">(ยอดสุทธิ = เงินดาวน์ที่รับวันนี้)</div>
             {(order.cashAmount ?? 0) > 0 && (
               <div className="flex justify-between text-slate-500">
                 <span className="pl-3">- เงินสด:</span>
