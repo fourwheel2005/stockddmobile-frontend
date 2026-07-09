@@ -1204,6 +1204,20 @@ function ItemCard({
   const images = (useWatch({ control, name: `items.${idx}.imageUrls` }) as string[] | undefined) ?? [];
   const [imgUploading, setImgUploading] = useState(false);
   const [imgDrag, setImgDrag] = useState(false);
+  /* มือ1: รูปเป็นระดับรุ่น/สี (เว็บอ่านจาก variant = รูปเครื่องแรกของกลุ่มสี×ความจุ)
+     → เครื่องถัดไปสี/ความจุเดียวกัน ใช้รูปร่วมอัตโนมัติ ไม่ต้องอัปซ้ำ (FIX-086) */
+  const allItems = (useWatch({ control, name: 'items' }) as FormValues['items'] | undefined) ?? [];
+  const norm = (s?: string) => (s ?? '').trim().toLowerCase();
+  const me = allItems[idx];
+  const sharedFromIdx = condition === 'NEW'
+    ? allItems.findIndex((x, i) =>
+        i < idx && (x.condition ?? 'NEW') === 'NEW'
+        && norm(x.deviceColor) === norm(me?.deviceColor)
+        && norm(x.deviceStorage) === norm(me?.deviceStorage)
+        && (x.imageUrls?.length ?? 0) > 0)
+    : -1;
+  const autoShared = sharedFromIdx >= 0 && images.length === 0;
+  const [forceOwnImages, setForceOwnImages] = useState(false);
   const setImages = (next: string[]) => setValue(`items.${idx}.imageUrls`, next, { shouldDirty: true });
   /* ผ่อนดาวน์ (มือ1 = ต่อรุ่น · มือ2 = ต่อเครื่อง) — งวดหลายช่วง */
   const instTerms = (useWatch({ control, name: `items.${idx}.installmentTerms` }) as { months: string; monthly: string; down?: string }[] | undefined) ?? [];
@@ -1351,20 +1365,37 @@ function ItemCard({
         </div>
       </div>
 
-      {/* รูปเครื่องนี้ (รายเครื่อง) — เว็บหน้าร้านดึงไปแสดง · รูปแรก = ปก */}
+      {/* รูปเครื่องนี้ (รายเครื่อง) — เว็บหน้าร้านดึงไปแสดง · รูปแรก = ปก
+          มือ1: เครื่องถัดไปสี/ความจุเดียวกัน ใช้รูปร่วมอัตโนมัติ (FIX-086) */}
       <div className="mt-2">
-        <label className="mb-1 block text-xs font-semibold text-slate-600">
-          รูปเครื่องนี้ <span className="font-normal text-slate-400">(หลายรูปได้ · รูปแรก = ปก)</span>
-        </label>
-        <MultiImageUpload
-          images={images} uploading={imgUploading} dragOver={imgDrag}
-          onDragOver={(e) => { e.preventDefault(); setImgDrag(true); }}
-          onDragLeave={() => setImgDrag(false)}
-          onDrop={(e) => { e.preventDefault(); setImgDrag(false); uploadImages(Array.from(e.dataTransfer.files || [])); }}
-          onSelect={(files) => uploadImages(files)}
-          onRemove={(i) => setImages(images.filter((_, k) => k !== i))}
-          onMakeCover={(i) => { if (i <= 0) return; const n = [...images]; const [p] = n.splice(i, 1); n.unshift(p); setImages(n); }}
-        />
+        {autoShared && !forceOwnImages ? (
+          <div className="flex flex-wrap items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50/60 px-2.5 py-2 text-xs text-emerald-800">
+            <span>🖼 <strong>ใช้รูปร่วมกับ{unitLabel}ที่ {sharedFromIdx + 1} อัตโนมัติ</strong> (มือ1 สี/ความจุเดียวกัน — เว็บโชว์รูปเดียวกัน ไม่ต้องอัปซ้ำ)</span>
+            <button type="button" onClick={() => setForceOwnImages(true)}
+                    className="rounded border border-emerald-300 bg-white px-2 py-0.5 text-[11px] text-emerald-700 hover:bg-emerald-100">
+              อัปรูปแยกเฉพาะเครื่องนี้
+            </button>
+          </div>
+        ) : (
+          <>
+            <label className="mb-1 block text-xs font-semibold text-slate-600">
+              รูปเครื่องนี้ <span className="font-normal text-slate-400">
+                {condition === 'NEW'
+                  ? '(มือ1 · อัปเครื่องแรกพอ — เครื่องอื่นสีเดียวกันใช้รูปนี้อัตโนมัติ · รูปแรก = ปก)'
+                  : '(หลายรูปได้ · รูปแรก = ปก)'}
+              </span>
+            </label>
+            <MultiImageUpload
+              images={images} uploading={imgUploading} dragOver={imgDrag}
+              onDragOver={(e) => { e.preventDefault(); setImgDrag(true); }}
+              onDragLeave={() => setImgDrag(false)}
+              onDrop={(e) => { e.preventDefault(); setImgDrag(false); uploadImages(Array.from(e.dataTransfer.files || [])); }}
+              onSelect={(files) => uploadImages(files)}
+              onRemove={(i) => setImages(images.filter((_, k) => k !== i))}
+              onMakeCover={(i) => { if (i <= 0) return; const n = [...images]; const [p] = n.splice(i, 1); n.unshift(p); setImages(n); }}
+            />
+          </>
+        )}
       </div>
 
       {/* ผ่อนดาวน์ — เว็บหน้าร้านดึงไปแสดง (มือ1 = ต่อรุ่น · มือ2 = ต่อเครื่อง · เว้นว่าง = ไม่ผ่อน) */}
