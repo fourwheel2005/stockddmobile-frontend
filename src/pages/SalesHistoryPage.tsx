@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { Receipt, Printer, Undo2, Landmark, CheckCircle2, Clock, XCircle, PackageOpen, Search } from 'lucide-react';
+import { Receipt, Printer, Undo2, Landmark, CheckCircle2, Clock, XCircle, PackageOpen, Search, Wrench } from 'lucide-react';
 import { posApi } from '@/api/pos';
+import { repairApi } from '@/api/repair';
 import { SalesCalendar } from '@/components/SalesCalendar';
 import { extractErrorMessage } from '@/api/client';
 import { useAuthStore } from '@/stores/authStore';
@@ -13,8 +14,34 @@ import { RefundMethodModal } from '@/components/RefundMethodModal';
 import { ReturnDeviceModal } from '@/components/ReturnDeviceModal';
 import { usePrinter } from '@/hooks/usePrinter';
 import { formatTHB, formatDateTime } from '@/lib/format';
-import type { FinancePayoutStatus, SalesOrderResponse, SalesOrderStatus } from '@/types/api';
+import type { FinancePayoutStatus, RepairStatus, RepairTicket, SalesOrderResponse, SalesOrderStatus } from '@/types/api';
 import { FINANCE_PARTNER_LABEL } from '@/types/api';
+
+// ─── งานซ่อม (รวมเข้าประวัติการขาย FIX-084) ────────────────────────────
+const REPAIR_STATUS: Record<RepairStatus, { label: string; cls: string }> = {
+  RECEIVED:    { label: 'รับเข้า',       cls: 'badge-slate' },
+  IN_PROGRESS: { label: 'กำลังซ่อม',     cls: 'badge-blue' },
+  DONE:        { label: 'ซ่อมเสร็จ',     cls: 'badge-green' },
+  PICKED_UP:   { label: 'รับเครื่องแล้ว', cls: 'badge-green' },
+  CANCELLED:   { label: 'ยกเลิก',        cls: 'badge-red' },
+};
+
+/** วันที่ (local) แบบ YYYY-MM-DD สำหรับเทียบกับวันที่เลือกจากปฏิทิน */
+function localDay(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function repairMatches(r: RepairTicket, q: string): boolean {
+  const s = q.toLowerCase();
+  return [r.ticketNo, r.customerName, r.customerPhone, r.deviceModel, r.deviceBrand]
+    .filter(Boolean)
+    .some((v) => (v as string).toLowerCase().includes(s));
+}
+
+type HistoryRow =
+  | { kind: 'SALE'; date: string; sale: SalesOrderResponse }
+  | { kind: 'REPAIR'; date: string; repair: RepairTicket };
 
 const FINANCE_BADGE_STYLE: Record<FinancePayoutStatus, { cls: string; icon: typeof Clock }> = {
   PENDING:  { cls: 'bg-amber-100 text-amber-800',  icon: Clock },
@@ -82,6 +109,23 @@ export function SalesHistoryPage() {
     }),
   });
 
+  // งานซ่อม — แทรกในหน้าแรกเมื่อดู "ทุกสถานะ" (ไม่กรองสถานะบิลขาย). ดึงมาชุดเดียวแล้วกรอง client-side
+  const showRepairs = page === 0 && !status;
+  const { data: repairData } = useQuery({
+    queryKey: ['repair-tickets', 'history-merge'],
+    queryFn: () => repairApi.list({ size: 200 }),
+    enabled: showRepairs,
+  });
+
+  // รวม ขาย + ซ่อม → เรียงตามวันล่าสุด (ISO เรียงตามตัวอักษรได้เลย)
+  const rows: HistoryRow[] = [
+    ...(data?.content ?? []).map((s): HistoryRow => ({ kind: 'SALE', date: s.createdAt, sale: s })),
+    ...(showRepairs ? (repairData?.content ?? []) : [])
+      .filter((r) => !day || localDay(r.receivedAt) === day)
+      .filter((r) => !q || repairMatches(r, q))
+      .map((r): HistoryRow => ({ kind: 'REPAIR', date: r.receivedAt, repair: r })),
+  ].sort((a, b) => b.date.localeCompare(a.date));
+
   const refund = useMutation({
     mutationFn: ({ id, reason }: { id: string; reason: string }) => posApi.refund(id, reason),
     onSuccess: (order) => {
@@ -139,7 +183,7 @@ export function SalesHistoryPage() {
           <h1 className="flex items-center gap-2 page-title">
             <Receipt className="h-6 w-6 text-brand-600" /> ประวัติการขาย (Sales History)
           </h1>
-          <p className="text-sm text-slate-500">บิลทั้งหมดที่ออกจากระบบ POS</p>
+          <p className="text-sm text-slate-500">บิลขาย + งานซ่อม (🔧) รวมในไทม์ไลน์เดียว</p>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-sm">
           {/* ค้นหาเลขบิล / ลูกค้า */}
@@ -187,54 +231,90 @@ export function SalesHistoryPage() {
               {isLoading && (
                 <tr><td colSpan={9} className="px-5 py-8 text-center text-slate-400">กำลังโหลด...</td></tr>
               )}
-              {data?.content.map((o) => (
-                <tr key={o.id} className="hover:bg-slate-50">
+              {rows.map((row) => row.kind === 'SALE' ? (
+                <tr key={row.sale.id} className="hover:bg-slate-50">
                   <td className="px-5 py-3">
-                    <Link to={`/pos/orders/${o.id}`} className="font-mono font-semibold text-brand-700 hover:underline">
-                      {o.billNo}
+                    <Link to={`/pos/orders/${row.sale.id}`} className="font-mono font-semibold text-brand-700 hover:underline">
+                      {row.sale.billNo}
                     </Link>
-                    {o.branchName && (
-                      <span className="ml-1.5 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">🏪 {o.branchName}</span>
+                    {row.sale.branchName && (
+                      <span className="ml-1.5 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">🏪 {row.sale.branchName}</span>
                     )}
                     {/* FinanceBadge ซ่อนชั่วคราว — ร้านผ่อนเอง ไม่ผ่านไฟแนนซ์ */}
                   </td>
-                  <td className="px-5 py-3">{o.customerName ?? <span className="text-slate-400">Walk-in</span>}</td>
-                  <td className="px-5 py-3 text-right">{o.items.length}</td>
-                  <td className="px-5 py-3 text-right font-bold">{formatTHB(o.grandTotal)}</td>
-                  <td className="px-5 py-3 text-xs">{o.paymentMethod ?? '-'}</td>
-                  <td className="px-5 py-3"><span className={STATUS_BADGE[o.status]}>{STATUS_LABEL[o.status]}</span></td>
-                  <td className="px-5 py-3 text-xs">{o.createdBy}</td>
-                  <td className="px-5 py-3 text-xs text-slate-500">{formatDateTime(o.createdAt)}</td>
+                  <td className="px-5 py-3">{row.sale.customerName ?? <span className="text-slate-400">Walk-in</span>}</td>
+                  <td className="px-5 py-3 text-right">{row.sale.items.length}</td>
+                  <td className="px-5 py-3 text-right font-bold">{formatTHB(row.sale.grandTotal)}</td>
+                  <td className="px-5 py-3 text-xs">{row.sale.paymentMethod ?? '-'}</td>
+                  <td className="px-5 py-3"><span className={STATUS_BADGE[row.sale.status]}>{STATUS_LABEL[row.sale.status]}</span></td>
+                  <td className="px-5 py-3 text-xs">{row.sale.createdBy}</td>
+                  <td className="px-5 py-3 text-xs text-slate-500">{formatDateTime(row.sale.createdAt)}</td>
                   <td className="px-5 py-3">
                     <div className="flex items-center justify-end gap-1">
                       <button
                         className="rounded p-1.5 text-slate-600 hover:bg-slate-100"
                         title="พิมพ์ใบเสร็จ"
-                        onClick={() => handlePrint(o.id)}>
+                        onClick={() => handlePrint(row.sale.id)}>
                         <Printer className="h-4 w-4" />
                       </button>
-                      {canRefund && o.status === 'PAID' && o.paymentMethod === 'INSTALLMENT' && (
+                      {canRefund && row.sale.status === 'PAID' && row.sale.paymentMethod === 'INSTALLMENT' && (
                         <button
                           className="rounded p-1.5 text-amber-700 hover:bg-amber-50"
                           title="รับเครื่องคืน (ผ่อนไม่ไหว)"
-                          onClick={() => setReturnOrder(o)}>
+                          onClick={() => setReturnOrder(row.sale)}>
                           <PackageOpen className="h-4 w-4" />
                         </button>
                       )}
-                      {canRefund && o.status === 'PAID' && (
+                      {canRefund && row.sale.status === 'PAID' && (
                         <button
                           className="rounded p-1.5 text-amber-700 hover:bg-amber-50"
                           title="คืนเงิน"
-                          onClick={() => handleRefund(o)}>
+                          onClick={() => handleRefund(row.sale)}>
                           <Undo2 className="h-4 w-4" />
                         </button>
                       )}
                     </div>
                   </td>
                 </tr>
+              ) : (
+                <tr key={`r-${row.repair.id}`} className="bg-amber-50/30 hover:bg-amber-50/60">
+                  <td className="px-5 py-3">
+                    <Link to="/repairs" className="font-mono font-semibold text-amber-700 hover:underline">
+                      {row.repair.ticketNo}
+                    </Link>
+                    <span className="ml-1.5 inline-flex items-center gap-0.5 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
+                      <Wrench className="h-3 w-3" /> ซ่อม
+                    </span>
+                  </td>
+                  <td className="px-5 py-3">
+                    {row.repair.customerName || <span className="text-slate-400">-</span>}
+                    <div className="text-[11px] text-slate-400">
+                      {[row.repair.deviceBrand, row.repair.deviceModel].filter(Boolean).join(' ')}
+                      {row.repair.reportedSymptom ? ` · ${row.repair.reportedSymptom}` : ''}
+                    </div>
+                  </td>
+                  <td className="px-5 py-3 text-right text-slate-300">—</td>
+                  <td className="px-5 py-3 text-right font-bold">
+                    {formatTHB(row.repair.repairCost || row.repair.estimatedCost || 0)}
+                    {row.repair.depositAmount > 0 && (
+                      <div className="text-[11px] font-normal text-slate-400">มัดจำ {formatTHB(row.repair.depositAmount)}</div>
+                    )}
+                  </td>
+                  <td className="px-5 py-3 text-xs">{row.repair.paymentMethod ?? '-'}</td>
+                  <td className="px-5 py-3"><span className={REPAIR_STATUS[row.repair.status].cls}>{REPAIR_STATUS[row.repair.status].label}</span></td>
+                  <td className="px-5 py-3 text-xs">{row.repair.receivedBy}</td>
+                  <td className="px-5 py-3 text-xs text-slate-500">{formatDateTime(row.repair.receivedAt)}</td>
+                  <td className="px-5 py-3">
+                    <div className="flex items-center justify-end gap-1">
+                      <Link to="/repairs" className="inline-flex rounded p-1.5 text-slate-600 hover:bg-slate-100" title="ไปหน้างานซ่อม">
+                        <Wrench className="h-4 w-4" />
+                      </Link>
+                    </div>
+                  </td>
+                </tr>
               ))}
-              {data && data.content.length === 0 && (
-                <tr><td colSpan={9} className="px-5 py-8 text-center text-slate-400">ยังไม่มีบิล</td></tr>
+              {!isLoading && rows.length === 0 && (
+                <tr><td colSpan={9} className="px-5 py-8 text-center text-slate-400">ยังไม่มีรายการ</td></tr>
               )}
             </tbody>
           </table>
