@@ -160,11 +160,12 @@ export function buildDDMobileReceipt(
     if (spec) b.textln(`   ${spec}`);
 
     // Line 3: IMEI · ถ้าไม่มี IMEI จริง (iPad WiFi กรอก 000...) → SN · ไม่มีทั้งคู่ → SKU (FIX-075)
+    // บิลค่างวด (FIX-085) ไม่มี IMEI/SN/SKU เลย → ข้ามบรรทัดนี้ (กันพิมพ์ "SKU: null")
     if (hasRealImei(it.imei)) {
       b.textln(`   IMEI: ${it.imei}`);
     } else if (it.serialNumber) {
       b.textln(`   SN: ${it.serialNumber}`);
-    } else {
+    } else if (it.sku) {
       b.textln(`   SKU: ${it.sku}`);
     }
 
