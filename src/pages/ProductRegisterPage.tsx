@@ -26,8 +26,6 @@ import { MultiImageUpload, ImageEditor } from '@/components/MultiImageUpload';
 /* ─── ตัวเลือกแนะนำ ─────────────────────────────────────────────────── */
 /** ดึงสินค้าหน้าเดียวพอ (ร้านมีรุ่นหลักสิบ) มาทำ autocomplete เลขรุ่น */
 const PRODUCT_SUGGESTION_PAGE_SIZE = 500;
-/** ซ่อนโหมดยิงสแกน IMEI ไว้ก่อน (ลดความสับสน) — เก็บโค้ดไว้ เปลี่ยนเป็น true เพื่อเปิดใช้อนาคต */
-const SHOW_SCANNER_MODE = false;
 const BRAND_OPTIONS = ['Apple', 'Samsung', 'Xiaomi', 'OPPO', 'Vivo', 'Google', 'Huawei', 'realme'];
 /** ชื่อรุ่น iPhone ทุกรุ่น (ใหม่→เก่า) — ใช้เป็น suggestion ให้ format ชื่อเหมือนกัน
  *  (สำคัญหลัง FIX-013: SKU = ชื่อรุ่น → ชื่อต่างกันนิดเดียว = variant ซ้ำ).
@@ -234,9 +232,6 @@ export function ProductRegisterPage() {
   const [accessoryImages, setAccessoryImages] = useState<string[]>([]);
   /** ค่าเริ่มต้นที่มา — ใช้กับอุปกรณ์เสริม (มือถือใช้ "ที่มา" รายเครื่องในแถว). */
   const [defaultAcq, setDefaultAcq] = useState<AcquisitionType>('PURCHASE');
-  const [scannerMode, setScannerMode] = useState(false);
-  const [scanText, setScanText] = useState('');
-  const scannerRef = useRef<HTMLInputElement>(null);
   /** submit ถูกบล็อกเพราะมือ1 ขาดสี/ความจุ → ไฮไลต์ช่องรายเครื่อง (FIX-088) */
   const [flagMissingSpec, setFlagMissingSpec] = useState(false);
 
@@ -374,10 +369,6 @@ export function ProductRegisterPage() {
     });
   };
 
-  /* Scanner auto-focus */
-  useEffect(() => { if (scannerMode) scannerRef.current?.focus(); }, [scannerMode]);
-
-
   /** ค่าเริ่มต้นของแถวเครื่องใหม่ — ลอก สภาพ/ที่มา/สี/ความจุ/เครือข่าย จากแถวล่าสุด
    *  (รับเครื่องล็อตเดียวกันสะดวก ไม่ต้องกรอกซ้ำ) · ประกันปล่อยว่างให้ auto-fill ตามสภาพ */
   const nextItemDefaults = (): ItemRow => {
@@ -392,38 +383,6 @@ export function ProductRegisterPage() {
       deviceStorage: last.deviceStorage ?? '',
       deviceNetwork: last.deviceNetwork ?? '',
     };
-  };
-
-  /* Scanner / paste IMEIs */
-  const ingestImeis = (raw: string): number => {
-    const tokens = raw.split(/[\s,;]+/).map((s) => s.trim()).filter(Boolean);
-    if (tokens.length === 0) return 0;
-    const existing = getValues('items');
-    const firstEmpty = existing.findIndex((it) => !it.imei && !it.serialNumber);
-    let cursor = 0;
-    if (firstEmpty >= 0) {
-      setValue(`items.${firstEmpty}.imei`, tokens[cursor]);
-      cursor++;
-    }
-    for (; cursor < tokens.length; cursor++) {
-      append({ ...nextItemDefaults(), imei: tokens[cursor] });
-    }
-    return tokens.length;
-  };
-  const handleScannerKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key !== 'Enter') return;
-    e.preventDefault();
-    const n = ingestImeis(scanText);
-    if (n > 0) toast.success(`เพิ่ม ${n} เครื่อง`, { duration: 1000 });
-    setScanText('');
-  };
-  const handleScannerPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
-    const txt = e.clipboardData.getData('text');
-    if (!/[\s,;]/.test(txt)) return;
-    e.preventDefault();
-    const n = ingestImeis(txt);
-    if (n > 0) toast.success(`วาง ${n} เครื่อง`, { duration: 1000 });
-    setScanText('');
   };
 
   /* Markup presets */
@@ -1010,30 +969,6 @@ export function ProductRegisterPage() {
                       ))}
                     </optgroup>
                   </select>
-                </FieldRow>
-                )}
-
-                {SHOW_SCANNER_MODE && (
-                <FieldRow label="โหมดสแกน" hint={`ยิงสแกนเนอร์ทีละ${productKind === 'phone' ? 'เครื่อง' : 'ชิ้น'} หรือวางหลายเลขพร้อมกัน`}>
-                  <div className="space-y-2">
-                    <button type="button" onClick={() => setScannerMode((v) => !v)}
-                            className={`btn text-sm ${scannerMode ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'btn-secondary'}`}>
-                      <ScanLine className="h-4 w-4" />
-                      {scannerMode
-                        ? `โหมดสแกนเปิด · ${fields.length} ${productKind === 'phone' ? 'เครื่อง' : 'ชิ้น'}`
-                        : 'เปิดโหมดยิงสแกน'}
-                    </button>
-                    {scannerMode && (
-                      <input ref={scannerRef} type="text" value={scanText}
-                             onChange={(e) => setScanText(e.target.value)}
-                             onKeyDown={handleScannerKey}
-                             onPaste={handleScannerPaste}
-                             placeholder={productKind === 'phone'
-                               ? 'ยิงเครื่อง → กด Enter เพิ่ม หรือวางหลายบรรทัด'
-                               : 'ยิง Serial → กด Enter เพิ่ม หรือวางหลายบรรทัด'}
-                             className="input font-mono border-emerald-400 focus:border-emerald-500 focus:ring-emerald-500/15" />
-                    )}
-                  </div>
                 </FieldRow>
                 )}
 

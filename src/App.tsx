@@ -6,7 +6,6 @@ import { DashboardPage } from '@/pages/DashboardPage';
 import { InventoryPage } from '@/pages/InventoryPage';
 import { ProductsPage } from '@/pages/ProductsPage';
 import { ProductDetailPage } from '@/pages/ProductDetailPage';
-import { ProductWizardPage } from '@/pages/ProductWizardPage';
 import { ProductRegisterPage } from '@/pages/ProductRegisterPage';
 import { InboundPage } from '@/pages/InboundPage';
 import { OutboundPage } from '@/pages/OutboundPage';
@@ -41,11 +40,10 @@ export default function App() {
           {/* Redirect routes เก่า → /products (รวมเป็นหน้าเดียว) */}
           <Route path="/receive" element={<Navigate to="/products" replace />} />
           <Route path="/inbound" element={<Navigate to="/products" replace />} />
-          {/* สร้างสินค้าใหม่ */}
+          {/* สร้างสินค้าใหม่ (FIX-089: ลบ wizard เก่า /products/new/advanced — ไม่มีลิงก์ชี้ไปแล้ว
+              clone/add-variant ใช้ ProductRegisterPage + AddVariantModal แทนครบ) */}
           <Route path="/products/new" element={<ProductRegisterPage />} />
-          {/* หน้าเดิม wizard — สำหรับ multi-variant / clone / add-variant */}
-          <Route path="/products/new/advanced" element={<ProductWizardPage />} />
-          <Route path="/products/:productId/variants/new" element={<ProductWizardPage />} />
+          <Route path="/products/new/advanced" element={<Navigate to="/products/new" replace />} />
           <Route path="/products/:id" element={<ProductDetailPage />} />
           <Route path="/outbound" element={<OutboundPage />} />
           <Route path="/pos" element={<PosTerminalPage />} />
