@@ -17,6 +17,17 @@ export const posApi = {
   checkout: (req: CheckoutRequest) =>
     api.post<SalesOrderResponse>('/pos/checkout', req).then((r) => r.data),
 
+  /** รับชำระค่างวด (เงินสด) — ออกบิลโดยไม่ตัดสต็อก, ไม่ผูกตารางงวดผ่อน (FIX-085) */
+  collectInstallment: (req: {
+    amount: number;
+    customerId?: string;
+    customerName?: string;
+    customerPhone?: string;
+    note?: string;
+    branchId?: string;
+  }) =>
+    api.post<SalesOrderResponse>('/pos/installment-collection', req).then((r) => r.data),
+
   listOrders: (params: { status?: SalesOrderStatus; branchId?: string; from?: string; to?: string; q?: string; page?: number; size?: number } = {}) =>
     api.get<PageResponse<SalesOrderResponse>>('/pos/orders', { params }).then((r) => r.data),
 

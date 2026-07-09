@@ -94,6 +94,13 @@ export function PosTerminalPage() {
   const [splitDown, setSplitDown] = useState<boolean>(false);
   const [downCash, setDownCash] = useState<number>(0);
   const [downTransfer, setDownTransfer] = useState<number>(0);
+
+  // ─── รับชำระค่างวด (เงินสด) — ออกบิลไม่ตัดสต็อก (FIX-085) ────────────
+  const [collectOpen, setCollectOpen] = useState(false);
+  const [collectAmount, setCollectAmount] = useState<number>(0);
+  const [collectName, setCollectName] = useState('');
+  const [collectPhone, setCollectPhone] = useState('');
+  const [collectNote, setCollectNote] = useState('');
   // Finance partner state — ซ่อนชั่วคราว (ร้านผ่อนเอง). เก็บใน git history เผื่ออนาคต.
   // const [financePartner, setFinancePartner] = useState<FinancePartner | ''>('');
 
@@ -355,6 +362,34 @@ export function PosTerminalPage() {
     onError: (e) => toast.error(extractErrorMessage(e)),
   });
 
+  // รับชำระค่างวด (เงินสด) — ออกบิลไม่ตัดสต็อก + auto-print (FIX-085)
+  const collectInstallment = useMutation({
+    mutationFn: () => posApi.collectInstallment({
+      amount: collectAmount,
+      customerId: customer?.id,
+      customerName: !customer && collectName.trim() ? collectName.trim() : undefined,
+      customerPhone: !customer && collectPhone.trim() ? collectPhone.trim() : undefined,
+      note: collectNote.trim() || undefined,
+      branchId: useBranchStore.getState().activeBranchId ?? undefined,
+    }),
+    onSuccess: (order) => {
+      toast.success(`ออกบิลค่างวด ${order.billNo} · ${formatTHB(order.grandTotal)}`);
+      qc.invalidateQueries({ queryKey: ['sales-orders'] });
+      qc.invalidateQueries({ queryKey: ['cash-session'] });
+      setLastBill(order);
+      printer.printReceipt(order.id, { openDrawer: true }).catch((e) => {
+        console.error('Auto-print (ค่างวด) failed:', e);
+      });
+      setCollectAmount(0);
+      setCollectName('');
+      setCollectPhone('');
+      setCollectNote('');
+      setCollectOpen(false);
+      inputRef.current?.focus();
+    },
+    onError: (e) => toast.error(extractErrorMessage(e)),
+  });
+
   // โอนเงินต้องแนบสลิปก่อนปิดบิล — รวม MIXED ที่มี transfer > 0
   const needSlip =
     paymentMethod === 'TRANSFER'
@@ -528,6 +563,63 @@ export function PosTerminalPage() {
                        value={paymentRef} onChange={(e) => setPaymentRef(e.target.value)} />
               );
             })()}
+
+            {/* รับชำระค่างวด (เงินสด) — ออกบิลไม่ตัดสต็อก · ไม่ผูกงวดผ่อน (FIX-085) */}
+            {paymentMethod === 'CASH' && (
+              <div className="mt-2 rounded-md border border-emerald-200 bg-emerald-50/50">
+                {!collectOpen ? (
+                  <button type="button" onClick={() => setCollectOpen(true)}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-semibold text-emerald-800 hover:bg-emerald-100/60">
+                    <span className="text-lg">🧾</span> รับชำระค่างวด (ลูกค้าจ่ายค่างวดเงินสด)
+                    <ChevronDown className="ml-auto h-4 w-4" />
+                  </button>
+                ) : (
+                  <div className="space-y-2 p-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-semibold text-emerald-800">🧾 รับชำระค่างวด (เงินสด)</span>
+                      <button type="button" onClick={() => setCollectOpen(false)}
+                              className="text-slate-400 hover:text-slate-600"><ChevronUp className="h-4 w-4" /></button>
+                    </div>
+                    <p className="text-[11px] leading-tight text-slate-500">
+                      ออกบิล/ใบเสร็จรับค่างวด <strong>ไม่ตัดสต็อก</strong> · ไม่ต้องมีสินค้าในตะกร้า · ไม่ผูกกับตารางงวดผ่อน
+                    </p>
+                    <div>
+                      <label className="text-[11px] text-slate-500">ยอดค่างวดที่รับ (บาท)</label>
+                      <input type="number" inputMode="numeric" min={0} className="input text-right text-lg font-bold"
+                             placeholder="0"
+                             value={collectAmount || ''} onChange={(e) => setCollectAmount(Number(e.target.value) || 0)} />
+                    </div>
+                    {customer ? (
+                      <div className="rounded bg-white/70 px-2 py-1 text-xs text-slate-600">
+                        ลูกค้า: <strong>{customer.name}</strong>{customer.phone ? ` · ${customer.phone}` : ''}
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-2">
+                        <input className="input" placeholder="ชื่อลูกค้า (ถ้ามี)"
+                               value={collectName} onChange={(e) => setCollectName(e.target.value)} />
+                        <input className="input" placeholder="เบอร์โทร (ถ้ามี)"
+                               value={collectPhone} onChange={(e) => setCollectPhone(e.target.value)} />
+                      </div>
+                    )}
+                    <input className="input" placeholder="หมายเหตุ เช่น งวดที่ 3 / iPhone 13"
+                           value={collectNote} onChange={(e) => setCollectNote(e.target.value)} />
+                    {!hasOpenSession && (
+                      <div className="rounded bg-amber-100 px-2 py-1 text-[11px] text-amber-800">
+                        ⚠️ ต้องเปิดเก๊ะเงินสดก่อนถึงจะออกบิลได้
+                      </div>
+                    )}
+                    <button type="button"
+                            disabled={collectAmount <= 0 || !hasOpenSession || collectInstallment.isPending}
+                            onClick={() => collectInstallment.mutate()}
+                            className="btn-primary w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50">
+                      {collectInstallment.isPending
+                        ? 'กำลังออกบิล...'
+                        : `ออกบิลค่างวด + พิมพ์ ${collectAmount > 0 ? `(${formatTHB(collectAmount)})` : ''}`}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* V31 — MIXED split editor */}
             {paymentMethod === 'MIXED' && (

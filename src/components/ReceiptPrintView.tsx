@@ -86,6 +86,15 @@ export function ReceiptPrintView({ order, shopName = 'Stockdd Mobile' }: Props) 
               {!hidePrice && <td className="py-1.5 text-right">{formatTHB(it.lineTotal)}</td>}
             </tr>
           ); })}
+          {order.items.length === 0 && (
+            /* บิลรับค่างวด (FIX-085) — ไม่มีสินค้าจากสต็อก */
+            <tr className="border-b border-slate-200">
+              <td className="py-1.5"><div>{order.note || 'รับชำระค่างวด'}</div></td>
+              {!hidePrice && <td className="py-1.5 text-right">1</td>}
+              {!hidePrice && <td className="py-1.5 text-right">{formatTHB(order.grandTotal)}</td>}
+              {!hidePrice && <td className="py-1.5 text-right">{formatTHB(order.grandTotal)}</td>}
+            </tr>
+          )}
         </tbody>
       </table>
 
