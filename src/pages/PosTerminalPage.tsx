@@ -243,6 +243,9 @@ export function PosTerminalPage() {
   const taxBase = Math.max(0, subtotal - discount);
   const vatAmount = Math.round(taxBase * (Number(vatRate) || 0)) / 100;
   const grandTotal = Math.max(0, taxBase + vatAmount + (Number(shippingFee) || 0));
+  // บิลผ่อน: อุปกรณ์เสริม (bulk ไม่มี serial เช่น หัวชาร์จ/เคส) = จ่ายสดวันนี้ ไม่รวมยอดผ่อน (FIX-090)
+  const addOnToday = cart.filter((l) => !l.serialized).reduce((s, l) => s + l.sellPrice * l.quantity, 0);
+  const payToday = downAmount + addOnToday;
   const discountExceedsSubtotal = discount > subtotal;
 
   // Add an IMEI from the picker modal to the cart
@@ -903,6 +906,7 @@ export function PosTerminalPage() {
       {paymentMethod === 'INSTALLMENT' && (
         <InstallmentPanel
           grandTotalTarget={Math.max(0, cart.reduce((s, l) => s + l.sellPrice * l.quantity, 0) - discount)}
+          addOnToday={addOnToday}
           months={installmentMonths} setMonths={setInstallmentMonths}
           monthly={installmentMonthly} setMonthly={setInstallmentMonthly}
           monthlyTouched={installmentMonthlyTouched} setMonthlyTouched={setInstallmentMonthlyTouched}
@@ -1038,21 +1042,33 @@ export function PosTerminalPage() {
         <div className="card border-amber-400 border-2">
           <div className="card-body space-y-3">
             {paymentMethod === 'INSTALLMENT' ? (
-              // ผ่อน → ตัวใหญ่ = "รับวันนี้ (เงินดาวน์)" · ราคาเครื่องเต็มยังบันทึกในระบบ (กำไรไม่เพี้ยน) FIX-072
+              // ผ่อน → ตัวใหญ่ = "รับวันนี้" = ดาวน์ + อุปกรณ์เสริมจ่ายสด (หัวชาร์จ/เคส) — FIX-072/FIX-090
               (() => {
                 const monthlyShow = installmentMonthly > 0
                   ? installmentMonthly
-                  : (installmentMonths > 0 ? Math.ceil(Math.max(0, grandTotal - downAmount) / installmentMonths) : 0);
+                  : (installmentMonths > 0 ? Math.ceil(Math.max(0, grandTotal - downAmount - addOnToday) / installmentMonths) : 0);
                 return (
                   <>
                     <div className="text-xs uppercase text-amber-700 font-semibold">
-                      รับวันนี้ (เงินดาวน์)
+                      รับวันนี้ {addOnToday > 0 ? '(ดาวน์ + อุปกรณ์เสริม)' : '(เงินดาวน์)'}
                     </div>
                     <div className="rounded-md bg-slate-900 px-4 py-6 text-right text-4xl font-bold text-amber-300">
-                      {formatTHB(downAmount)}
+                      {formatTHB(payToday)}
                     </div>
+                    {addOnToday > 0 && (
+                      <>
+                        <div className="flex justify-between text-xs text-slate-500">
+                          <span>เงินดาวน์</span>
+                          <span>{formatTHB(downAmount)}</span>
+                        </div>
+                        <div className="flex justify-between text-xs text-slate-500">
+                          <span>อุปกรณ์เสริม (จ่ายวันนี้)</span>
+                          <span>{formatTHB(addOnToday)}</span>
+                        </div>
+                      </>
+                    )}
                     <div className="flex justify-between text-xs text-slate-500">
-                      <span>ราคาเครื่อง (บันทึกในระบบ)</span>
+                      <span>ยอดรวมบิล (บันทึกในระบบ)</span>
                       <span>{formatTHB(grandTotal)}</span>
                     </div>
                     {monthlyShow > 0 && installmentMonths > 0 && (
@@ -1162,6 +1178,8 @@ const MONTH_OPTIONS = [3, 6, 10, 12, 18, 24, 36];
 
 interface InstallmentPanelProps {
   grandTotalTarget: number;
+  /** อุปกรณ์เสริม (bulk) ในบิล — จ่ายสดวันนี้ ไม่รวมยอดผ่อน (FIX-090) */
+  addOnToday?: number;
   months: number; setMonths: (m: number) => void;
   monthly: number; setMonthly: (n: number) => void;   // ค่างวด/เดือน — ส่งเข้า checkout เพื่อใช้ใน LINE/บิล
   monthlyTouched: boolean; setMonthlyTouched: (b: boolean) => void;  // state อยู่ที่ parent (reset ได้หลังปิดบิล)
@@ -1172,13 +1190,16 @@ interface InstallmentPanelProps {
 }
 
 function InstallmentPanel({
-  grandTotalTarget, months, setMonths, monthly, setMonthly, monthlyTouched, setMonthlyTouched,
+  grandTotalTarget, addOnToday = 0, months, setMonths, monthly, setMonthly, monthlyTouched, setMonthlyTouched,
   downAmount, setDownAmount, splitDown, setSplitDown,
   downCash, setDownCash, downTransfer, setDownTransfer,
 }: InstallmentPanelProps) {
-  const remaining = Math.max(0, grandTotalTarget - downAmount);
+  // ยอดผ่อนคงเหลือ = ยอดบิล − ดาวน์ − อุปกรณ์เสริมที่จ่ายสดวันนี้ (หัวชาร์จ/เคส ไม่รวมยอดผ่อน) FIX-090
+  const remaining = Math.max(0, grandTotalTarget - downAmount - addOnToday);
+  const payToday = downAmount + addOnToday;
   const splitSum = downCash + downTransfer;
-  const splitMatches = !splitDown || Math.abs(splitSum - downAmount) < 0.01;
+  // แบ่งจ่าย (สด+โอน) ต้องเท่ากับยอดรับวันนี้ทั้งหมด (ดาวน์ + อุปกรณ์เสริม)
+  const splitMatches = !splitDown || Math.abs(splitSum - payToday) < 0.01;
 
   // ค่างวด/เดือน — พนักงานกรอกเองได้ (ยืดหยุ่น รองรับดอกเบี้ยบริษัทผ่อน) แล้วคูณกับจำนวนเดือน
   // ค่าตั้งต้น = เงินต้นคงเหลือ ÷ เดือน (ปัดขึ้น) จนกว่าผู้ใช้จะแก้เอง · state+touched อยู่ที่ parent (reset หลังปิดบิล)
@@ -1243,6 +1264,12 @@ function InstallmentPanel({
             </p>
           </div>
           <div className="rounded-md bg-slate-50 p-3">
+            {addOnToday > 0 && (
+              <div className="mb-1 flex items-center justify-between">
+                <div className="text-xs text-slate-500">อุปกรณ์เสริม (จ่ายสดวันนี้ ไม่รวมยอดผ่อน)</div>
+                <div className="text-sm font-semibold text-emerald-700">{formatTHB(addOnToday)}</div>
+              </div>
+            )}
             <div className="flex items-center justify-between">
               <div className="text-xs text-slate-500">ส่วนที่เหลือผ่อน (เงินต้น)</div>
               <div className="text-sm font-semibold">{formatTHB(remaining)}</div>
@@ -1279,7 +1306,7 @@ function InstallmentPanel({
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={splitDown}
                  onChange={(e) => setSplitDown(e.target.checked)} />
-          <span>แบ่งจ่ายเงินดาวน์ (เงินสด + โอน)</span>
+          <span>แบ่งจ่ายยอดรับวันนี้ (เงินสด + โอน){addOnToday > 0 ? ' — รวมค่าอุปกรณ์เสริมด้วย' : ''}</span>
         </label>
 
         {splitDown && (
@@ -1309,15 +1336,17 @@ function InstallmentPanel({
                 ? 'bg-emerald-100 text-emerald-800'
                 : 'bg-red-100 text-red-800'
             }`}>
-              รวมแบ่ง: {formatTHB(splitSum)} / ต้องการ: {formatTHB(downAmount)}
+              รวมแบ่ง: {formatTHB(splitSum)} / ต้องการ: {formatTHB(payToday)}
+              {addOnToday > 0 && <span className="text-xs"> (ดาวน์ {formatTHB(downAmount)} + อุปกรณ์เสริม {formatTHB(addOnToday)})</span>}
               {splitMatches ? ' ✓' : ' — ⚠️ ตัวเลขไม่ตรง'}
             </div>
           </div>
         )}
 
         <div className="rounded-md bg-purple-50 px-3 py-2 text-xs text-purple-800">
-          💡 ระบบจะบันทึก: <strong>เงินดาวน์ {formatTHB(downAmount)}</strong> เป็นยอดที่จ่ายแล้ว
-          • <strong>{formatTHB(remaining)}</strong> ที่เหลือจะผ่านบริษัทผ่อน (ไม่บันทึกในระบบสต็อก)
+          💡 ระบบจะบันทึก: <strong>รับวันนี้ {formatTHB(payToday)}</strong>
+          {addOnToday > 0 ? <> (ดาวน์ {formatTHB(downAmount)} + อุปกรณ์เสริม {formatTHB(addOnToday)})</> : ' (เงินดาวน์)'} เป็นยอดที่จ่ายแล้ว
+          • <strong>{formatTHB(remaining)}</strong> ที่เหลือคือยอดผ่อน
         </div>
       </div>
     </div>

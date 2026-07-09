@@ -41,6 +41,7 @@ export interface ReceiptData {
   paymentReference?: string | null;
   installmentMonths?: number | null;
   downPaymentAmount?: number | null;
+  addOnTotal?: number | null;      // อุปกรณ์เสริมจ่ายสดวันนี้ในบิลผ่อน เช่น หัวชาร์จ (FIX-090)
   downCash?: number | null;        // เงินดาวน์ส่วนที่จ่ายสด
   downTransfer?: number | null;    // เงินดาวน์ส่วนที่โอน
   monthlyAmount?: number | null;
@@ -169,13 +170,16 @@ export function buildDDMobileReceipt(
       b.textln(`   SKU: ${it.sku}`);
     }
 
-    // Line 4: qty x price = total (ข้ามถ้าผ่อน — ไม่โชว์ราคา)
+    // Line 4: qty x price = total (ผ่อน → ซ่อนราคาเครื่อง แต่ "อุปกรณ์เสริมจ่ายสดวันนี้" โชว์ราคา — FIX-090)
+    const isAddOn = !hasRealImei(it.imei) && !it.serialNumber && (it.lineTotal ?? 0) > 0;
     if (!hidePrice) {
       const qty = it.quantity.toString();
       const price = fmtTHB(it.sellPrice);
       const tot = fmtTHB(it.lineTotal);
       const line = `${qty.padStart(8)} ${price.padStart(10)} ${tot.padStart(12)}`;
       b.text(' '.repeat(W - line.length)).textln(line);
+    } else if (isAddOn) {
+      b.textln(`   จ่ายวันนี้: ${it.quantity} x ${fmtTHB(it.sellPrice)} = ${fmtTHB(it.lineTotal)}`);
     }
   });
 
@@ -207,9 +211,14 @@ export function buildDDMobileReceipt(
     b.size(2, 1).justify('ยอดสุทธิ:', fmtTHB(data.grandTotal), W / 2).size(1, 1);
     b.separator('=', W);
   } else {
-    // ผ่อน → ยอดสุทธิ = เงินดาวน์ที่รับวันนี้ (ไม่โชว์ราคาเต็ม) — FIX-072
+    // ผ่อน → ยอดสุทธิ = เงินรับวันนี้ (ดาวน์ + อุปกรณ์เสริมจ่ายสด) ไม่โชว์ราคาเครื่องเต็ม — FIX-072/FIX-090
+    const addOn = data.addOnTotal ?? 0;
     b.separator('=', W);
-    b.size(2, 1).justify('ยอดสุทธิ:', fmtTHB(data.downPaymentAmount ?? 0), W / 2).size(1, 1);
+    if (addOn > 0) {
+      b.justify('เงินดาวน์:', fmtTHB(data.downPaymentAmount ?? 0), W);
+      b.justify('อุปกรณ์เสริม (จ่ายวันนี้):', fmtTHB(addOn), W);
+    }
+    b.size(2, 1).justify('ยอดสุทธิ:', fmtTHB((data.downPaymentAmount ?? 0) + addOn), W / 2).size(1, 1);
     b.separator('=', W);
   }
 

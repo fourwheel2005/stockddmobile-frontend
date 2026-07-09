@@ -55,8 +55,15 @@ export function ReceiptPrintView({ order, shopName = 'Stockdd Mobile' }: Props) 
 
       <hr className="my-3 border-dashed border-slate-400" />
 
-      {/* ผ่อน → ไม่โชว์ราคาเต็ม/ยอดรวม (ลูกค้าเห็นเฉพาะยอดดาวน์ที่จ่าย + ค่างวด) — FIX-070 */}
-      {(() => { const hidePrice = order.paymentMethod === 'INSTALLMENT'; return (
+      {/* ผ่อน → ไม่โชว์ราคาเครื่องเต็ม (ลูกค้าเห็นยอดดาวน์+อุปกรณ์เสริมที่จ่ายวันนี้ + ค่างวด) — FIX-070/FIX-090 */}
+      {(() => {
+      const hidePrice = order.paymentMethod === 'INSTALLMENT';
+      // อุปกรณ์เสริมจ่ายสดวันนี้ในบิลผ่อน = บรรทัดไม่มี IMEI/SN (หัวชาร์จ/เคส)
+      const addOn = hidePrice
+        ? order.items.filter((it) => !hasRealImei(it.imei) && !it.serialNumber)
+            .reduce((s, it) => s + (it.lineTotal ?? 0), 0)
+        : 0;
+      return (
       <>
       <table className="w-full text-sm">
         <thead>
@@ -80,6 +87,12 @@ export function ReceiptPrintView({ order, shopName = 'Stockdd Mobile' }: Props) 
                   : it.serialNumber
                     ? <div className="text-xs text-slate-600">SN: {it.serialNumber}</div>
                     : <div className="text-xs text-slate-600">{it.sku}</div>}
+                {/* บิลผ่อน: อุปกรณ์เสริมจ่ายสดวันนี้ → โชว์ราคา (เครื่องที่ผ่อนไม่โชว์) FIX-090 */}
+                {hidePrice && !hasRealImei(it.imei) && !it.serialNumber && (it.lineTotal ?? 0) > 0 && (
+                  <div className="text-xs text-emerald-700">
+                    จ่ายวันนี้: {it.quantity} × {formatTHB(it.sellPrice)} = {formatTHB(it.lineTotal)}
+                  </div>
+                )}
               </td>
               {!hidePrice && <td className="py-1.5 text-right">{it.quantity}</td>}
               {!hidePrice && <td className="py-1.5 text-right">{formatTHB(it.sellPrice)}</td>}
@@ -123,11 +136,23 @@ export function ReceiptPrintView({ order, shopName = 'Stockdd Mobile' }: Props) 
           </>
         )}
         {hidePrice && (
-          // ผ่อน → ยอดสุทธิ = เงินดาวน์ที่รับวันนี้ (ไม่โชว์ราคาเต็ม) — FIX-072
-          <div className="flex justify-between border-t border-slate-400 pt-1 text-base">
-            <strong>ยอดสุทธิ:</strong>
-            <strong>{formatTHB(order.downPaymentAmount ?? 0)}</strong>
-          </div>
+          // ผ่อน → ยอดสุทธิ = เงินรับวันนี้ (ดาวน์ + อุปกรณ์เสริมจ่ายสด) — FIX-072/FIX-090
+          <>
+            {addOn > 0 && (
+              <>
+                <div className="flex justify-between text-slate-600">
+                  <span>เงินดาวน์:</span><span>{formatTHB(order.downPaymentAmount ?? 0)}</span>
+                </div>
+                <div className="flex justify-between text-slate-600">
+                  <span>อุปกรณ์เสริม (จ่ายวันนี้):</span><span>{formatTHB(addOn)}</span>
+                </div>
+              </>
+            )}
+            <div className="flex justify-between border-t border-slate-400 pt-1 text-base">
+              <strong>ยอดสุทธิ:</strong>
+              <strong>{formatTHB((order.downPaymentAmount ?? 0) + addOn)}</strong>
+            </div>
+          </>
         )}
         <div className="flex justify-between">
           <span>วิธีชำระ:</span>
@@ -135,7 +160,9 @@ export function ReceiptPrintView({ order, shopName = 'Stockdd Mobile' }: Props) 
         </div>
         {order.paymentMethod === 'INSTALLMENT' && order.installmentMonths && (
           <>
-            <div className="text-xs text-slate-500">(ยอดสุทธิ = เงินดาวน์ที่รับวันนี้)</div>
+            <div className="text-xs text-slate-500">
+              (ยอดสุทธิ = เงินรับวันนี้{addOn > 0 ? ': ดาวน์ + อุปกรณ์เสริม' : ' (เงินดาวน์)'})
+            </div>
             {(order.cashAmount ?? 0) > 0 && (
               <div className="flex justify-between text-slate-500">
                 <span className="pl-3">- เงินสด:</span>
@@ -152,10 +179,10 @@ export function ReceiptPrintView({ order, shopName = 'Stockdd Mobile' }: Props) 
               <span>ผ่อน {order.installmentMonths} เดือน:</span>
               <span>
                 {formatTHB(
-                  // ค่างวดที่พนักงานกำหนด (รวมดอกเบี้ย) ถ้ามี · ไม่งั้น fallback (ยอด−ดาวน์)/งวด
+                  // ค่างวดที่พนักงานกำหนด (รวมดอกเบี้ย) ถ้ามี · ไม่งั้น fallback (ยอด−ดาวน์−อุปกรณ์เสริม)/งวด (FIX-090)
                   order.installmentMonthlyAmount != null && order.installmentMonthlyAmount > 0
                     ? order.installmentMonthlyAmount
-                    : ((order.grandTotal ?? 0) - (order.downPaymentAmount ?? 0)) /
+                    : Math.max(0, (order.grandTotal ?? 0) - (order.downPaymentAmount ?? 0) - addOn) /
                         Math.max(1, order.installmentMonths)
                 )} / เดือน
               </span>
