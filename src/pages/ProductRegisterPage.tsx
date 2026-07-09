@@ -123,6 +123,25 @@ function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+/* ─── ร่างอัตโนมัติ (FIX-088) — กันข้อมูลหายตอน refresh/เผลอปิดหน้า ─────── */
+const DRAFT_KEY = 'dd-register-draft-v1';
+type DraftShape = {
+  values: FormValues;
+  accessoryImages: string[];
+  productKind: ProductKind;
+  accessorySerialOn: boolean;
+  savedAt: number;
+};
+function readDraft(): DraftShape | null {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    const d = JSON.parse(raw) as DraftShape;
+    if (!d?.values || Date.now() - (d.savedAt ?? 0) > 48 * 3_600_000) return null;  // ร่างเก่าเกิน 48 ชม. ทิ้ง
+    return d;
+  } catch { return null; }
+}
+
 /* รหัสสินค้า running "DDxxxxx" ออกจาก backend (/products/variants/next-sku) = base
    รหัส "รายเครื่อง" = base + ลำดับเครื่อง (เครื่อง 1 = base, เครื่อง 2 = base+1, ...)
    → เครื่องแรก = variant SKU พอดี · sequential ไม่ซ้ำ */
@@ -218,6 +237,43 @@ export function ProductRegisterPage() {
   const [scannerMode, setScannerMode] = useState(false);
   const [scanText, setScanText] = useState('');
   const scannerRef = useRef<HTMLInputElement>(null);
+  /** submit ถูกบล็อกเพราะมือ1 ขาดสี/ความจุ → ไฮไลต์ช่องรายเครื่อง (FIX-088) */
+  const [flagMissingSpec, setFlagMissingSpec] = useState(false);
+
+  /* ─── ร่างอัตโนมัติ (FIX-088) — เซฟลง localStorage ทุก 0.8s หลังพิมพ์ · เสนอกู้ตอนเปิดหน้า ── */
+  const [draft, setDraft] = useState<DraftShape | null>(() => (cloneProductId ? null : readDraft()));
+  const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (isClone) return;   // โหมด clone ไม่เซฟร่าง (เทมเพลตจากรุ่นอื่น)
+    const sub = watch((values) => {
+      if (draftTimer.current) clearTimeout(draftTimer.current);
+      draftTimer.current = setTimeout(() => {
+        const hasData = (values.name ?? '').trim()
+          || (values.items ?? []).some((it) => ((it?.imei ?? '') || (it?.serialNumber ?? '')).trim());
+        if (!hasData) return;
+        try {
+          localStorage.setItem(DRAFT_KEY, JSON.stringify({
+            values, accessoryImages, productKind, accessorySerialOn, savedAt: Date.now(),
+          }));
+        } catch { /* localStorage เต็ม/ปิด — ข้ามเงียบๆ */ }
+      }, 800);
+    });
+    return () => { sub.unsubscribe(); if (draftTimer.current) clearTimeout(draftTimer.current); };
+  }, [watch, isClone, accessoryImages, productKind, accessorySerialOn]);
+
+  const clearDraft = () => {
+    try { localStorage.removeItem(DRAFT_KEY); } catch { /* noop */ }
+    setDraft(null);
+  };
+  const restoreDraft = () => {
+    if (!draft) return;
+    setProductKind(draft.productKind ?? 'phone');
+    setAccessorySerialOn(draft.accessorySerialOn ?? false);
+    setAccessoryImages(draft.accessoryImages ?? []);
+    reset(draft.values);
+    setDraft(null);
+    toast.success('กู้ร่างเดิมแล้ว — เช็คข้อมูลอีกรอบก่อนบันทึก');
+  };
 
   /* watchers */
   const serialized = watch('serialized');
@@ -458,6 +514,7 @@ export function ProductRegisterPage() {
       qc.invalidateQueries({ queryKey: ['products'] });
       qc.invalidateQueries({ queryKey: ['inventory'] });
       qc.invalidateQueries({ queryKey: ['lots'] });
+      clearDraft();   // บันทึกสำเร็จ → ทิ้งร่างอัตโนมัติ (FIX-088)
       toast.success(`บันทึก "${product.name}" สำเร็จ`);
       navigate(`/products/${product.id}`);
     },
@@ -483,6 +540,7 @@ export function ProductRegisterPage() {
       qc.invalidateQueries({ queryKey: ['inventory'] });
       qc.invalidateQueries({ queryKey: ['lots'] });
       qc.invalidateQueries({ queryKey: ['product', productId] });
+      clearDraft();   // บันทึกสำเร็จ → ทิ้งร่างอัตโนมัติ (FIX-088)
       toast.success('เพิ่มเข้ารุ่นเดิมแล้ว (ไม่สร้างซ้ำ · แยกมือ 1/2 ให้อัตโนมัติ)');
       navigate(`/products/${productId}`);
     },
@@ -557,7 +615,8 @@ export function ProductRegisterPage() {
       const newMissing = validItems.some(
         (it) => it.condition === 'NEW' && (!it.deviceColor || !it.deviceStorage));
       if (newMissing) {
-        toast.error('มือ 1 ต้องใส่ "สี" และ "ความจุ" ให้ครบทุกเครื่อง — เว็บหน้าร้านใช้สร้างตัวเลือกสี/ความจุ',
+        setFlagMissingSpec(true);   // ไฮไลต์ช่องที่ขาดสีแดงรายเครื่อง (FIX-088)
+        toast.error('มือ 1 ต้องใส่ "สี" และ "ความจุ" ให้ครบทุกเครื่อง — ช่องที่ขาดถูกไฮไลต์สีแดง',
           { duration: 5000 });
         scrollToSection('section-stock');
         return null;
@@ -713,6 +772,28 @@ export function ProductRegisterPage() {
                   className="btn-secondary shrink-0 whitespace-nowrap">
             <PackageOpen className="h-4 w-4" /> เปิดรุ่นเดิม
           </button>
+        </div>
+      )}
+
+      {/* กู้ร่างอัตโนมัติ (FIX-088) — มีร่างค้างจากรอบก่อน (refresh/เผลอปิด) */}
+      {draft && !isClone && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border-2 border-sky-300 bg-sky-50 p-3">
+          <div className="text-sm text-sky-900">
+            📝 <strong>มีร่างที่พิมพ์ค้างไว้</strong>
+            {(draft.values?.name ?? '').trim() && <> — {draft.values.name}</>}
+            {(() => {
+              const n = (draft.values?.items ?? []).filter(
+                (it) => ((it?.imei ?? '') || (it?.serialNumber ?? '')).trim()).length;
+              return n > 0 ? <> · {n} เครื่อง</> : null;
+            })()}
+            <span className="ml-1 text-xs text-sky-700">(ระบบบันทึกให้อัตโนมัติ)</span>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <button type="button" onClick={restoreDraft} className="btn-primary bg-sky-600 hover:bg-sky-700">
+              กู้ร่างเดิม
+            </button>
+            <button type="button" onClick={clearDraft} className="btn-secondary">ทิ้งร่าง</button>
+          </div>
         </div>
       )}
 
@@ -985,7 +1066,7 @@ export function ProductRegisterPage() {
                 ) : (
                   <FieldRow
                     label="รายการเครื่อง"
-                    hint={`ตอนนี้ ${fields.length} เครื่อง · กรอก สี/ความจุ/เครือข่าย/ประกัน รายเครื่องได้ · แถวใหม่ลอกค่าจากแถวก่อน`}>
+                    hint={`ตอนนี้ ${fields.length} เครื่อง · แถวใหม่ลอก สี/ความจุ/สภาพ/ที่มา อัตโนมัติ · ปุ่ม "คัดลอกจากเครื่องก่อนหน้า" ลอกครบทั้งแถว (รวมราคา/ประกัน)`}>
                     <div className="space-y-2">
                       {fields.map((f, idx) => (
                         <ItemCard key={f.id} idx={idx}
@@ -993,7 +1074,8 @@ export function ProductRegisterPage() {
                                   setValue={setValue} getValues={getValues}
                                   onRemove={() => fields.length > 1 ? remove(idx) : null}
                                   disableRemove={fields.length === 1}
-                                  unitLabel="เครื่อง" baseSku={skuVal} />
+                                  unitLabel="เครื่อง" baseSku={skuVal}
+                                  flagMissingSpec={flagMissingSpec} />
                       ))}
                       <button type="button"
                               onClick={() => append(nextItemDefaults())}
@@ -1176,6 +1258,7 @@ function FieldRow({
 
 function ItemCard({
   idx, register, control, setValue, getValues, onRemove, disableRemove, unitLabel = 'เครื่อง', baseSku = '',
+  flagMissingSpec = false,
 }: {
   idx: number;
   register: UseFormRegister<FormValues>;
@@ -1188,6 +1271,8 @@ function ItemCard({
   unitLabel?: string;
   /** รหัส running ตัวแรก (base) — รหัสเครื่องนี้ = base + idx */
   baseSku?: string;
+  /** submit ถูกบล็อกเพราะมือ1 ขาดสี/ความจุ → ไฮไลต์ช่องที่ขาดสีแดง (FIX-088) */
+  flagMissingSpec?: boolean;
 }) {
   const condition = useWatch({ control, name: `items.${idx}.condition` }) ?? 'NEW';
   const warrantyTerms = useWatch({ control, name: `items.${idx}.warrantyTerms` }) ?? '';
@@ -1225,6 +1310,42 @@ function ItemCard({
     : -1;
   const autoShared = sharedFromIdx >= 0 && images.length === 0;
   const [forceOwnImages, setForceOwnImages] = useState(false);
+
+  /* ผ่อนมือ1: ระบบเก็บผ่อนจาก "เครื่องแรกของกลุ่มสี×ความจุ" เท่านั้น (variant-level)
+     → เครื่องถัดไปกลุ่มเดียวกัน ยุบ editor เป็นโน้ต กันกรอกแล้วถูกทิ้งเงียบๆ (FIX-088) */
+  const instFirstIdx = condition === 'NEW'
+    ? allItems.findIndex((x, i) =>
+        i < idx && (x.condition ?? 'NEW') === 'NEW'
+        && norm(x.deviceColor) === norm(me?.deviceColor)
+        && norm(x.deviceStorage) === norm(me?.deviceStorage))
+    : -1;
+
+  /* คัดลอกทั้งแถวจากเครื่องก่อนหน้า — ทุกช่องยกเว้น IMEI/Serial/รูป (FIX-088) */
+  const copyFromPrev = () => {
+    const prev = getValues(`items.${idx - 1}`);
+    if (!prev) return;
+    (['condition', 'batteryHealth', 'deviceColor', 'deviceStorage', 'deviceNetwork',
+      'modelNumber', 'acquisitionType', 'purchasePrice', 'sellingPrice',
+      'warrantyTerms', 'warrantyExpire'] as const)
+      .forEach((k) => setValue(`items.${idx}.${k}`, prev[k], { shouldDirty: true }));
+    toast.success(`คัดลอกจาก${unitLabel}ที่ ${idx} แล้ว (ยกเว้น IMEI/Serial/รูป)`, { duration: 1500 });
+  };
+
+  /* ใช้ทุน/ขายของแถวนี้กับทุกเครื่อง (FIX-088) */
+  const applyPriceToAll = () => {
+    const cost = getValues(`items.${idx}.purchasePrice`);
+    const sell = getValues(`items.${idx}.sellingPrice`);
+    (getValues('items') ?? []).forEach((_, i) => {
+      if (i === idx) return;
+      setValue(`items.${i}.purchasePrice`, cost, { shouldDirty: true });
+      setValue(`items.${i}.sellingPrice`, sell, { shouldDirty: true });
+    });
+    toast.success('ใช้ราคานี้กับทุกเครื่องแล้ว', { duration: 1500 });
+  };
+
+  /* ไฮไลต์ช่องสี/ความจุที่มือ1 ยังไม่กรอก (หลัง submit ถูกบล็อก) */
+  const missColor = flagMissingSpec && condition === 'NEW' && !(me?.deviceColor ?? '').trim();
+  const missStorage = flagMissingSpec && condition === 'NEW' && !(me?.deviceStorage ?? '').trim();
   const setImages = (next: string[]) => setValue(`items.${idx}.imageUrls`, next, { shouldDirty: true });
   /* ผ่อนดาวน์ (มือ1 = ต่อรุ่น · มือ2 = ต่อเครื่อง) — งวดหลายช่วง */
   const instTerms = (useWatch({ control, name: `items.${idx}.installmentTerms` }) as { months: string; monthly: string; down?: string }[] | undefined) ?? [];
@@ -1257,11 +1378,20 @@ function ItemCard({
             </span>
           )}
         </span>
-        <button type="button" disabled={disableRemove} onClick={onRemove}
-                className="rounded p-1 text-red-500 transition-colors hover:bg-red-50 disabled:opacity-30"
-                title={`ลบ${unitLabel}`}>
-          <Trash2 className="h-3.5 w-3.5" />
-        </button>
+        <div className="flex items-center gap-1">
+          {idx > 0 && (
+            <button type="button" onClick={copyFromPrev}
+                    className="inline-flex items-center gap-1 rounded border border-slate-200 px-1.5 py-0.5 text-[11px] text-slate-600 hover:bg-slate-50"
+                    title={`คัดลอกทุกช่องจาก${unitLabel}ที่ ${idx} (ยกเว้น IMEI/Serial/รูป)`}>
+              <Copy className="h-3 w-3" /> คัดลอกจาก{unitLabel}ก่อนหน้า
+            </button>
+          )}
+          <button type="button" disabled={disableRemove} onClick={onRemove}
+                  className="rounded p-1 text-red-500 transition-colors hover:bg-red-50 disabled:opacity-30"
+                  title={`ลบ${unitLabel}`}>
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -1312,14 +1442,22 @@ function ItemCard({
           )}
         </div>
         <div>
-          <label className="mb-0.5 block text-xs font-semibold text-slate-600">สี</label>
-          <input className="input text-sm" list="color-list" placeholder="เช่น Black"
+          <label className="mb-0.5 block text-xs font-semibold text-slate-600">
+            สี {condition === 'NEW' && <span className="font-normal text-red-500">*มือ 1 ต้องใส่</span>}
+          </label>
+          <input className={`input text-sm ${missColor ? 'border-red-400 focus:border-red-500 focus:ring-red-500/15' : ''}`}
+                 list="color-list" placeholder="เช่น Black"
                  {...register(`items.${idx}.deviceColor`)} />
+          {missColor && <p className="mt-0.5 text-[11px] text-red-600">ยังไม่ใส่สี</p>}
         </div>
         <div>
-          <label className="mb-0.5 block text-xs font-semibold text-slate-600">ความจุ</label>
-          <input className="input text-sm" list="storage-list" placeholder="เช่น 256GB"
+          <label className="mb-0.5 block text-xs font-semibold text-slate-600">
+            ความจุ {condition === 'NEW' && <span className="font-normal text-red-500">*มือ 1 ต้องใส่</span>}
+          </label>
+          <input className={`input text-sm ${missStorage ? 'border-red-400 focus:border-red-500 focus:ring-red-500/15' : ''}`}
+                 list="storage-list" placeholder="เช่น 256GB"
                  {...register(`items.${idx}.deviceStorage`)} />
+          {missStorage && <p className="mt-0.5 text-[11px] text-red-600">ยังไม่ใส่ความจุ</p>}
         </div>
         <div>
           <label className="mb-0.5 block text-xs font-semibold text-slate-600">เลขรุ่น</label>
@@ -1369,6 +1507,13 @@ function ItemCard({
           <label className="mb-0.5 block text-xs font-semibold text-emerald-700">ราคาขาย (บาท)</label>
           <input type="number" step="0.01" min={0} className="input text-sm" placeholder="เช่น 22900"
                  {...register(`items.${idx}.sellingPrice`)} />
+          {allItems.length > 1 && (
+            <button type="button" onClick={applyPriceToAll}
+                    className="mt-1 text-[11px] text-emerald-700 underline decoration-dotted underline-offset-2 hover:text-emerald-800"
+                    title="เอาทุน/ขายของแถวนี้ ไปใส่ให้ทุกเครื่อง">
+              ⚡ ใช้ราคานี้กับทุกเครื่อง
+            </button>
+          )}
         </div>
       </div>
 
@@ -1405,7 +1550,13 @@ function ItemCard({
         )}
       </div>
 
-      {/* ผ่อนดาวน์ — เว็บหน้าร้านดึงไปแสดง (มือ1 = ต่อรุ่น · มือ2 = ต่อเครื่อง · เว้นว่าง = ไม่ผ่อน) */}
+      {/* ผ่อนดาวน์ — เว็บหน้าร้านดึงไปแสดง (มือ1 = ต่อสี/ความจุ ตั้งที่เครื่องแรกของกลุ่ม · มือ2 = ต่อเครื่อง)
+          เครื่องมือ1 ถัดไปกลุ่มเดียวกัน → ยุบเป็นโน้ต (ระบบใช้ของเครื่องแรกเท่านั้น — กันกรอกแล้วถูกทิ้ง) (FIX-088) */}
+      {instFirstIdx >= 0 ? (
+        <div className="mt-2 rounded-md border border-amber-200 bg-amber-50/60 px-2.5 py-2 text-xs text-amber-800">
+          💳 <strong>ผ่อนดาวน์: ใช้ตาม{unitLabel}ที่ {instFirstIdx + 1} อัตโนมัติ</strong> (มือ1 สี/ความจุเดียวกัน ตั้งครั้งเดียวที่เครื่องแรก)
+        </div>
+      ) : (
       <div className="mt-2 space-y-2 rounded-md border border-amber-200 bg-amber-50/60 p-2.5">
         <div className="flex items-center gap-2 text-xs font-semibold text-amber-900">
           💳 ผ่อนดาวน์ <span className="font-normal text-amber-700">
@@ -1450,6 +1601,7 @@ function ItemCard({
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }
