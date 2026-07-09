@@ -12,6 +12,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { BarcodeDisplay } from '@/components/BarcodeDisplay';
 import { ImageEditor } from '@/components/MultiImageUpload';
 import { SerialsModal } from '@/components/SerialsModal';
+import { FastInboundModal } from '@/components/receive/FastInboundModal';
 import { formatTHB } from '@/lib/format';
 import { ACQ_INFO, ACQ_ORDER } from '@/lib/acquisition';
 import {
@@ -26,6 +27,7 @@ export function ProductDetailPage() {
   const [showAddVariant, setShowAddVariant] = useState(false);
   const [editingVariant, setEditingVariant] = useState<VariantResponse | null>(null);
   const [serialsVariant, setSerialsVariant] = useState<VariantResponse | null>(null);
+  const [receiveVariant, setReceiveVariant] = useState<VariantResponse | null>(null);  // รับเข้าในหน้านี้เลย (FIX-087)
   const [editingProduct, setEditingProduct] = useState(false);
   const canEdit = useAuthStore((s) => s.hasRole('ADMIN', 'MANAGER'));
   const qc = useQueryClient();
@@ -88,6 +90,20 @@ export function ProductDetailPage() {
   if (isLoading) return <div className="text-slate-500">กำลังโหลด...</div>;
   if (!product) return <div className="text-slate-500">ไม่พบสินค้า</div>;
 
+  /* รับเข้าโดยไม่เด้งออกจากหน้า (FIX-087):
+     0 SKU → เพิ่มสี/ความจุก่อน · 1 SKU → เปิด modal รับเข้าเลย · หลาย SKU → เลื่อนไปตารางให้เลือก */
+  const handleReceive = () => {
+    if (product.variants.length === 0) { setShowAddVariant(true); return; }
+    if (product.variants.length === 1) { setReceiveVariant(product.variants[0]); return; }
+    document.getElementById('sku-table')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    toast('เลือกสีที่จะรับเข้า — กดปุ่ม 📥 ท้ายแถว', { icon: '👇', duration: 3000 });
+  };
+  const onReceiveDone = () => {
+    qc.invalidateQueries({ queryKey: ['product', id] });
+    qc.invalidateQueries({ queryKey: ['inventory'] });
+    qc.invalidateQueries({ queryKey: ['inventory-serials'] });
+  };
+
   return (
     <div className="space-y-6">
       <Link to="/products" className="inline-flex items-center gap-1 text-sm text-brand-600 hover:underline">
@@ -133,15 +149,15 @@ export function ProductDetailPage() {
             </div>
           </div>
           {canEdit && (
-            <Link to={`/products?q=${encodeURIComponent(product.name)}`}
-                  className="btn-primary shrink-0 animate-pulse self-start sm:self-center">
+            <button type="button" onClick={handleReceive}
+                    className="btn-primary shrink-0 animate-pulse self-start sm:self-center">
               <ArrowDownToLine className="h-4 w-4" /> รับสินค้าเข้าเลย
-            </Link>
+            </button>
           )}
         </div>
       )}
 
-      <div className="card">
+      <div id="sku-table" className="card scroll-mt-4">
         <div className="card-header flex flex-wrap items-center justify-between gap-2">
           <span>สี / ความจุ ที่มี <span className="font-normal text-slate-500">({product.variants.length} SKU)</span></span>
           <div className="flex flex-wrap gap-2">
@@ -153,10 +169,10 @@ export function ProductDetailPage() {
               </button>
             )}
             {canEdit && product.variants.length > 0 && (
-              <Link to={`/products?q=${encodeURIComponent(product.name)}`} className="btn-secondary"
-                    title="เพิ่มสต็อกให้ SKU/สีที่มีอยู่แล้ว">
+              <button type="button" onClick={handleReceive} className="btn-secondary"
+                      title="เพิ่มสต็อกให้ SKU/สีที่มีอยู่แล้ว — เปิดฟอร์มรับเข้าในหน้านี้เลย">
                 <ArrowDownToLine className="h-4 w-4" /> รับเข้าสีเดิม
-              </Link>
+              </button>
             )}
           </div>
         </div>
@@ -236,11 +252,11 @@ export function ProductDetailPage() {
                               title="คัดลอก SKU นี้ → สร้างสินค้าใหม่ที่มีข้อมูลเหมือนกัน (แก้ IMEI/สี/ความจุได้)">
                           <Copy className="h-3.5 w-3.5" />
                         </Link>
-                        <Link to={`/products?q=${encodeURIComponent(product.name)}`}
+                        <button type="button" onClick={() => setReceiveVariant(v)}
                               className="rounded-md border border-slate-200 p-1.5 text-emerald-700 hover:bg-emerald-50"
-                              title="รับเครื่องเข้าสต็อกของ SKU นี้">
+                              title="รับเครื่องเข้าสต็อกของ SKU นี้ — เปิดฟอร์มรับเข้าเลย">
                           <ArrowDownToLine className="h-3.5 w-3.5" />
-                        </Link>
+                        </button>
                         <button type="button" onClick={() => handleDeleteVariant(v)}
                               className="rounded-md border border-slate-200 p-1.5 text-red-600 hover:border-red-400 hover:bg-red-50"
                               title="ลบ SKU นี้ (มีเครื่องพร้อมขายจะถามก่อน)">
@@ -261,9 +277,10 @@ export function ProductDetailPage() {
                       <br />ต้องเพิ่มอย่างน้อย 1 สี/ความจุก่อน
                     </p>
                     {canEdit && (
-                      <Link to={`/products/new?cloneProduct=${product.id}`} className="btn-primary inline-flex">
-                        <Plus className="h-4 w-4" /> สร้างสินค้าใหม่จากรุ่นนี้
-                      </Link>
+                      // FIX-087: CTA ชี้ไป modal เพิ่มสี/ความจุ "เข้ารุ่นนี้" (เดิมพาไป clone เป็นรุ่นใหม่ — ผิดเป้า)
+                      <button type="button" onClick={() => setShowAddVariant(true)} className="btn-primary inline-flex">
+                        <Plus className="h-4 w-4" /> เพิ่มสี/ความจุ + เครื่อง เข้ารุ่นนี้
+                      </button>
                     )}
                   </div>
                 </td></tr>
@@ -289,6 +306,12 @@ export function ProductDetailPage() {
         <SerialsModal variantId={serialsVariant.id} productName={product.name} sku={serialsVariant.sku}
                       productVariants={product.variants}
                       onClose={() => setSerialsVariant(null)} />
+      )}
+      {/* รับเข้าในหน้านี้เลย — ไม่เด้งไปหน้าค้นหา (FIX-087) */}
+      {receiveVariant && (
+        <FastInboundModal variant={receiveVariant}
+                          onClose={() => setReceiveVariant(null)}
+                          onDone={onReceiveDone} />
       )}
     </div>
   );

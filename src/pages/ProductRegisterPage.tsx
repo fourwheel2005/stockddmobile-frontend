@@ -208,9 +208,9 @@ export function ProductRegisterPage() {
    *  - phone     → serialized=true เสมอ
    *  - accessory → toggle accessorySerialOn เพื่อสลับ serialized true/false */
   const [productKind, setProductKind] = useState<ProductKind>('phone');
-  // ร้านส่วนใหญ่ track อุปกรณ์เสริมรายชิ้น (มี serial) → default เปิดโหมด serial = ได้รหัส DD ต่อชิ้นอัตโนมัติ
-  // (ของ fungible เช่น เคส/ฟิล์ม สลับเป็น "นับจำนวน" ได้ 1 คลิก)
-  const [accessorySerialOn, setAccessorySerialOn] = useState(true);
+  // อุปกรณ์เสริมส่วนใหญ่คือ เคส/ฟิล์ม (นับจำนวน) → default ปิดโหมด serial (FIX-087)
+  // ของที่มี serial (พาวเวอร์แบงค์/หูฟัง/นาฬิกา) ค่อยติ๊กเปิดเอง 1 คลิก
+  const [accessorySerialOn, setAccessorySerialOn] = useState(false);
   /** รูปสินค้า (ระดับรุ่น) — อุปกรณ์เสริมใช้รูปเดียวทั้งรุ่น · เว็บหน้าร้านดึงไปแสดง (FIX-081) */
   const [accessoryImages, setAccessoryImages] = useState<string[]>([]);
   /** ค่าเริ่มต้นที่มา — ใช้กับอุปกรณ์เสริม (มือถือใช้ "ที่มา" รายเครื่องในแถว). */
@@ -553,12 +553,14 @@ export function ProductRegisterPage() {
         scrollToSection('section-stock');
         return null;
       }
-      // เตือน: มือ 1 ต้องมีสี+ความจุ (variant ห้าม null) — กันตัวเลือกเว็บเพี้ยน (ไม่บล็อก)
+      // มือ 1 ต้องมีสี+ความจุ (variant ห้าม null) — กัน SKU สีว่างหลุดขึ้นเว็บ (FIX-087: บล็อกจริง)
       const newMissing = validItems.some(
         (it) => it.condition === 'NEW' && (!it.deviceColor || !it.deviceStorage));
       if (newMissing) {
-        toast('⚠️ มือ 1 บางเครื่องไม่ได้ใส่สี/ความจุ — แนะนำใส่ให้ครบ เพื่อให้ตัวเลือกบนเว็บถูกต้อง',
-          { duration: 4000, icon: '📱' });
+        toast.error('มือ 1 ต้องใส่ "สี" และ "ความจุ" ให้ครบทุกเครื่อง — เว็บหน้าร้านใช้สร้างตัวเลือกสี/ความจุ',
+          { duration: 5000 });
+        scrollToSection('section-stock');
+        return null;
       }
     } else {
       qty = Number(d.quantity) || 0;
@@ -809,18 +811,16 @@ export function ProductRegisterPage() {
           </div>
         </div>
 
-        {/* ═════════ Section: ราคา ═════════ */}
+        {/* ═════════ Section: ราคา — เฉพาะอุปกรณ์เสริม ═════════
+            มือถือ: ทุน/ขายอยู่รายเครื่องใน "สต็อก" · จุดสั่งใหม่ย้ายไปท้าย Section สต็อก (FIX-087) */}
+        {productKind === 'accessory' && (
         <div id="section-price" className="card scroll-mt-4">
           <div className="card-header flex items-center gap-2">
             <span className="grid h-6 w-6 place-items-center rounded-full bg-brand-100 text-xs font-bold text-brand-700">2</span>
             <span className="font-semibold">ราคา</span>
-            <span className="text-xs text-slate-500">
-              {productKind === 'phone' ? '— จุดสั่งใหม่ (ทุน/ขาย อยู่รายเครื่องด้านล่าง)' : '— ทุน · ขาย · กำไร · จุดสั่งใหม่'}
-            </span>
+            <span className="text-xs text-slate-500">— ทุน · ขาย · กำไร · จุดสั่งใหม่</span>
           </div>
           <div className="card-body space-y-5">
-              {/* มือถือ: ราคาทุน/ขาย ย้ายไปรายเครื่อง (แต่ละเครื่องราคาต่างกัน) · อุปกรณ์เสริม: ราคาระดับรุ่น */}
-              {productKind === 'accessory' && (<>
               <FieldRow label="ราคาทุน" required hint="หน่วยเป็นบาท">
                 <input type="number" step="0.01" className="input" placeholder="35000"
                        {...register('costPrice', { required: true, min: 0 })} />
@@ -853,18 +853,18 @@ export function ProductRegisterPage() {
                   </div>
                 </FieldRow>
               )}
-              </>)}
 
               <FieldRow label="จุดสั่งใหม่" hint={`แนะนำ ${serialized ? 2 : 5} — เมื่อสต็อกเหลือ ≤ จำนวนนี้ ระบบเตือนผู้จัดการ`}>
                 <input type="number" className="input" {...register('reorderPoint', { min: 0 })} />
               </FieldRow>
           </div>
         </div>
+        )}
 
         {/* ═════════ Section: สต็อก ═════════ */}
         <div id="section-stock" className="card scroll-mt-4">
           <div className="card-header flex items-center gap-2">
-            <span className="grid h-6 w-6 place-items-center rounded-full bg-brand-100 text-xs font-bold text-brand-700">3</span>
+            <span className="grid h-6 w-6 place-items-center rounded-full bg-brand-100 text-xs font-bold text-brand-700">{productKind === 'phone' ? 2 : 3}</span>
             <span className="font-semibold">สต็อก</span>
             <span className="text-xs text-slate-500">
               — {productKind === 'phone'
@@ -1007,13 +1007,20 @@ export function ProductRegisterPage() {
                   </FieldRow>
                 )}
               </>)}
+
+              {/* มือถือ: จุดสั่งใหม่อยู่ท้ายสต็อก (Section ราคา ซ่อนไปแล้ว — ทุน/ขายอยู่รายเครื่อง) (FIX-087) */}
+              {productKind === 'phone' && (
+                <FieldRow label="จุดสั่งใหม่" hint="แนะนำ 2 — เมื่อสต็อกเหลือ ≤ จำนวนนี้ ระบบเตือนผู้จัดการ">
+                  <input type="number" className="input" {...register('reorderPoint', { min: 0 })} />
+                </FieldRow>
+              )}
           </div>
         </div>
 
         {/* ═════════ Section: อื่นๆ ═════════ */}
         <div id="section-other" className="card scroll-mt-4">
           <div className="card-header flex items-center gap-2">
-            <span className="grid h-6 w-6 place-items-center rounded-full bg-brand-100 text-xs font-bold text-brand-700">4</span>
+            <span className="grid h-6 w-6 place-items-center rounded-full bg-brand-100 text-xs font-bold text-brand-700">{productKind === 'phone' ? 3 : 4}</span>
             <span className="font-semibold">อื่นๆ</span>
             <span className="text-xs text-slate-500">— รายละเอียดเพิ่มเติม</span>
           </div>

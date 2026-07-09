@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { PackagePlus, Plus, Eye, Sparkles, FolderOpen, Trash2 } from 'lucide-react';
+import { PackagePlus, Plus, Eye, Sparkles, FolderOpen, Trash2, ArrowDownToLine } from 'lucide-react';
 import { productsApi } from '@/api/products';
 import { extractErrorMessage } from '@/api/client';
 import { useAuthStore } from '@/stores/authStore';
@@ -88,14 +88,23 @@ export function ProductsPage() {
             ค้นหา / ยิงสแกน → รับของเพิ่ม · ไม่เจอ → ลงทะเบียนใหม่
           </p>
         </div>
-        <Link to="/products/new" className="btn-primary bg-emerald-600 hover:bg-emerald-700">
-          <Plus className="h-4 w-4" /> สร้างสินค้าใหม่
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* งานหลักประจำวัน = รับของเข้า → ปุ่มเด่น (FIX-087) · โฟกัสช่องค้นหาให้เลย */}
+          <button type="button"
+                  onClick={() => document.getElementById('receive-search')?.focus()}
+                  className="btn-primary bg-emerald-600 hover:bg-emerald-700">
+            <ArrowDownToLine className="h-4 w-4" /> รับสินค้าเข้า
+          </button>
+          <Link to="/products/new" className="btn-secondary">
+            <Plus className="h-4 w-4" /> สร้างสินค้าใหม่
+          </Link>
+        </div>
       </div>
 
       {/* Search bar */}
       <SearchVariantBar
         autoFocus
+        inputId="receive-search"
         value={query}
         onChange={setQuery}
         loading={variantSearch.isFetching}
@@ -172,12 +181,12 @@ export function ProductsPage() {
                   </span>
                 </div>
                 {canEdit && (
-                  // เข้าหมวด (product เดิม) ไปเพิ่มสี/เครื่อง — ไม่สร้าง product ซ้ำ
+                  // ปุ่มนี้แค่ "เปิดรุ่น" (นำทางไปหน้ารุ่น) — label ตรงกับสิ่งที่เกิดจริง (FIX-087)
                   <Link
                     to={`/products/${album.items[0].id}`}
                     className="btn-secondary text-sm"
-                    title="เปิดรุ่นนี้ → เพิ่มสี/เครื่อง">
-                    <Plus className="h-4 w-4" /> เพิ่มสี/เครื่อง
+                    title="เปิดหน้ารุ่นนี้ — เพิ่มสี/เครื่อง หรือรับเข้าได้จากในหน้ารุ่น">
+                    <Eye className="h-4 w-4" /> เปิดรุ่น
                   </Link>
                 )}
               </div>

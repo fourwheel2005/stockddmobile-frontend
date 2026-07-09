@@ -9,6 +9,8 @@ interface Props {
   loading?: boolean;
   placeholder?: string;
   autoFocus?: boolean;
+  /** id ของ input — ให้ปุ่มภายนอก focus ได้ (เช่น ปุ่ม "รับสินค้าเข้า") */
+  inputId?: string;
 }
 
 /**
@@ -19,7 +21,7 @@ interface Props {
  *  - ESC → clear + refocus
  */
 export function SearchVariantBar({
-  value, onChange, debounceMs = 300, loading, placeholder, autoFocus,
+  value, onChange, debounceMs = 300, loading, placeholder, autoFocus, inputId,
 }: Props) {
   const [local, setLocal] = useState(value);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -46,6 +48,7 @@ export function SearchVariantBar({
       </div>
       <input
         ref={inputRef}
+        id={inputId}
         type="text"
         value={local}
         onChange={(e) => setLocal(e.target.value)}
