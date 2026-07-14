@@ -571,7 +571,9 @@ export function ProductRegisterPage() {
         return null;
       }
       // มือ 1 ต้องมีสี+ความจุ (variant ห้าม null) — กัน SKU สีว่างหลุดขึ้นเว็บ (FIX-087: บล็อกจริง)
-      const newMissing = validItems.some(
+      // เฉพาะ "มือถือ" เท่านั้น — อุปกรณ์เสริม (Quick-Add) ไม่มีช่องสี/ความจุให้กรอก
+      // และบังคับ condition = NEW เสมอ → ถ้าเช็คด้วยจะบล็อกตลอดโดยแก้ไม่ได้ (FIX-083)
+      const newMissing = productKind === 'phone' && validItems.some(
         (it) => it.condition === 'NEW' && (!it.deviceColor || !it.deviceStorage));
       if (newMissing) {
         setFlagMissingSpec(true);   // ไฮไลต์ช่องที่ขาดสีแดงรายเครื่อง (FIX-088)
