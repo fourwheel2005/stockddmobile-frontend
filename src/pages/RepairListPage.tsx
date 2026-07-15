@@ -153,10 +153,18 @@ export function RepairListPage() {
                     </div>
                     {t.imei && <div className="text-xs text-slate-500 font-mono">IMEI: {t.imei}</div>}
                     <div className="text-xs text-slate-600">🔧 {t.reportedSymptom}</div>
+                    {t.outsourced && (
+                      <div className="mt-0.5 inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
+                        ส่งช่าง{t.technicianName ? `: ${t.technicianName}` : ''}
+                      </div>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="font-semibold">{formatTHB(t.repairCost)}</div>
                     {t.depositAmount > 0 && <div className="text-xs text-slate-500">มัดจำ {formatTHB(t.depositAmount)}</div>}
+                    {t.outsourced && (t.outsourceCost ?? 0) > 0 && (
+                      <div className="text-xs text-slate-400">จ่ายช่าง {formatTHB(t.outsourceCost!)}</div>
+                    )}
                     {t.status === 'DONE' && <div className="text-xs text-amber-700">ค้าง {formatTHB(t.balanceDue)}</div>}
                   </td>
                   <td className="px-4 py-3">
@@ -320,6 +328,7 @@ function EditRepairDialog({ ticket, pending, onClose, onSave }: {
     imei: ticket.imei ?? '', serialNumber: ticket.serialNumber ?? '', screenCode: ticket.screenCode ?? '',
     reportedSymptom: ticket.reportedSymptom, workDescription: ticket.workDescription ?? '',
     estimatedCost: ticket.estimatedCost ?? 0, repairCost: ticket.repairCost, depositAmount: ticket.depositAmount,
+    outsourced: ticket.outsourced, technicianName: ticket.technicianName ?? '', outsourceCost: ticket.outsourceCost ?? 0,
     note: ticket.note ?? '',
   });
   const set = (p: Partial<typeof f>) => setF((s) => ({ ...s, ...p }));
@@ -368,6 +377,22 @@ function EditRepairDialog({ ticket, pending, onClose, onSave }: {
             <input className="input text-sm font-mono" placeholder="IMEI" value={f.imei} onChange={(e) => set({ imei: e.target.value })} />
             <input className="input text-sm" placeholder="รหัสหน้าจอ" value={f.screenCode} onChange={(e) => set({ screenCode: e.target.value })} />
           </div>
+          {/* ส่งซ่อมช่างนอก (FIX-093) */}
+          <div className="rounded-md border border-amber-200 bg-amber-50/60 p-2.5">
+            <label className="flex items-center gap-2 text-sm font-medium text-amber-900">
+              <input type="checkbox" checked={f.outsourced}
+                     onChange={(e) => set({ outsourced: e.target.checked })} />
+              🔧 ส่งซ่อมช่างอื่น
+            </label>
+            {f.outsourced && (
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <input className="input text-sm" placeholder="ชื่อช่าง" value={f.technicianName}
+                       onChange={(e) => set({ technicianName: e.target.value })} />
+                <input type="number" min={0} className="input text-sm" placeholder="ราคาส่งซ่อม (จ่ายช่าง)"
+                       value={f.outsourceCost} onChange={(e) => set({ outsourceCost: Number(e.target.value) || 0 })} />
+              </div>
+            )}
+          </div>
           <div className="grid grid-cols-2 gap-2">
             <input className="input text-sm" placeholder="ชื่อลูกค้า" value={f.customerName} onChange={(e) => set({ customerName: e.target.value })} />
             <input className="input text-sm" placeholder="เบอร์โทร" value={f.customerPhone} onChange={(e) => set({ customerPhone: e.target.value })} />
@@ -382,6 +407,9 @@ function EditRepairDialog({ ticket, pending, onClose, onSave }: {
                     imei: f.imei, serialNumber: f.serialNumber, screenCode: f.screenCode,
                     reportedSymptom: f.reportedSymptom, workDescription: f.workDescription,
                     estimatedCost: f.estimatedCost, repairCost: f.repairCost, depositAmount: f.depositAmount,
+                    outsourced: f.outsourced,
+                    technicianName: f.outsourced ? f.technicianName : '',
+                    outsourceCost: f.outsourced ? f.outsourceCost : 0,
                     note: f.note,
                   })}>
             {pending ? 'กำลังบันทึก…' : 'บันทึก'}

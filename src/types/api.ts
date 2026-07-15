@@ -938,6 +938,9 @@ export interface RepairTicket {
   repairCost: number;
   depositAmount: number;
   balanceDue: number;
+  outsourced: boolean;             // ส่งซ่อมช่างนอก (FIX-093)
+  technicianName: string | null;   // ชื่อช่าง
+  outsourceCost: number | null;    // ราคาส่งซ่อม (ต้นทุนจ่ายช่าง)
   paymentMethod: PaymentMethod | null;
   receivedBy: string;
   receivedAt: string;
@@ -960,6 +963,9 @@ export interface CreateRepairRequest {
   reportedSymptom: string;
   estimatedCost?: number;
   depositAmount?: number;
+  outsourced?: boolean;            // ส่งซ่อมช่างนอก (FIX-093)
+  technicianName?: string;
+  outsourceCost?: number;
   note?: string;
 }
 
@@ -985,6 +991,9 @@ export interface UpdateRepairRequest {
   estimatedCost?: number;
   repairCost?: number;
   depositAmount?: number;
+  outsourced?: boolean;            // ส่งซ่อมช่างนอก (FIX-093)
+  technicianName?: string;
+  outsourceCost?: number;
   note?: string;
 }
 

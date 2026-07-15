@@ -6,6 +6,7 @@ import { repairApi } from '@/api/repair';
 import { extractErrorMessage } from '@/api/client';
 import { CustomerPickerModal } from '@/components/CustomerPickerModal';
 import { useModalChrome, backdropCloseHandler } from '@/hooks/useModalChrome';
+import { formatTHB } from '@/lib/format';
 import type { Customer, CreateRepairRequest, RepairTicket } from '@/types/api';
 
 interface Props {
@@ -21,6 +22,7 @@ const EMPTY: CreateRepairRequest = {
   deviceColor: '', imei: '', serialNumber: '', screenCode: '',
   reportedSymptom: '',
   estimatedCost: undefined, depositAmount: undefined, note: '',
+  outsourced: false, technicianName: '', outsourceCost: undefined,
 };
 
 /**
@@ -61,6 +63,9 @@ export function RepairIntakeModal({ onClose, onCreated, initial }: Props) {
         reportedSymptom: form.reportedSymptom.trim(),
         estimatedCost: form.estimatedCost || undefined,
         depositAmount: form.depositAmount || undefined,
+        outsourced: form.outsourced,
+        technicianName: form.outsourced ? (form.technicianName?.trim() || undefined) : undefined,
+        outsourceCost: form.outsourced ? (form.outsourceCost || undefined) : undefined,
         note: form.note?.trim() || undefined,
       };
       return repairApi.create(payload);
@@ -190,6 +195,44 @@ export function RepairIntakeModal({ onClose, onCreated, initial }: Props) {
                      value={form.depositAmount ?? ''}
                      onChange={(e) => set('depositAmount', e.target.value === '' ? undefined : Number(e.target.value))} />
             </div>
+          </div>
+
+          {/* ส่งซ่อมช่างนอก (FIX-093) */}
+          <div className="rounded-md border border-amber-200 bg-amber-50/60 p-3">
+            <label className="flex items-center gap-2 text-sm font-medium text-amber-900">
+              <input type="checkbox" checked={form.outsourced ?? false}
+                     onChange={(e) => set('outsourced', e.target.checked)} />
+              🔧 ส่งซ่อมช่างอื่น (ร้านไม่ได้ซ่อมเอง)
+            </label>
+            {form.outsourced && (
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <label className="mb-1 block text-xs font-medium text-slate-600">ชื่อช่าง</label>
+                  <input className="input" placeholder="เช่น ช่างเอ / ร้านซ่อมบอร์ด XX"
+                         value={form.technicianName ?? ''}
+                         onChange={(e) => set('technicianName', e.target.value)} />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-600">ราคาส่งซ่อม (จ่ายช่าง)</label>
+                  <input type="number" min={0} step="0.01" className="input" placeholder="ต้นทุน"
+                         value={form.outsourceCost ?? ''}
+                         onChange={(e) => set('outsourceCost', e.target.value === '' ? undefined : Number(e.target.value))} />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-emerald-700">กำไรคาดการณ์</label>
+                  <div className="input flex items-center bg-slate-50 font-semibold text-emerald-700">
+                    {(() => {
+                      const charge = form.estimatedCost ?? 0;   // ราคาแจ้งลูกค้า (ประเมิน)
+                      const cost = form.outsourceCost ?? 0;
+                      return formatTHB(Math.max(0, charge - cost));
+                    })()}
+                  </div>
+                </div>
+                <p className="text-[11px] text-slate-500 sm:col-span-2">
+                  กำไร = ค่าซ่อมประเมิน (แจ้งลูกค้า) − ราคาส่งซ่อม (จ่ายช่าง)
+                </p>
+              </div>
+            )}
           </div>
 
           <div>
