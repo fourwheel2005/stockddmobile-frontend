@@ -136,23 +136,11 @@ export function ReceiptPrintView({ order, shopName = 'Stockdd Mobile' }: Props) 
           </>
         )}
         {hidePrice && (
-          // ผ่อน → ยอดสุทธิ = เงินรับวันนี้ (ดาวน์ + อุปกรณ์เสริมจ่ายสด) — FIX-072/FIX-090
-          <>
-            {addOn > 0 && (
-              <>
-                <div className="flex justify-between text-slate-600">
-                  <span>เงินดาวน์:</span><span>{formatTHB(order.downPaymentAmount ?? 0)}</span>
-                </div>
-                <div className="flex justify-between text-slate-600">
-                  <span>อุปกรณ์เสริม (จ่ายวันนี้):</span><span>{formatTHB(addOn)}</span>
-                </div>
-              </>
-            )}
-            <div className="flex justify-between border-t border-slate-400 pt-1 text-base">
-              <strong>ยอดสุทธิ:</strong>
-              <strong>{formatTHB((order.downPaymentAmount ?? 0) + addOn)}</strong>
-            </div>
-          </>
+          // ผ่อน → ยอดสุทธิ = ยอดที่ต้องชำระวันนี้ (ดาวน์ + อุปกรณ์เสริม) — FIX-072/FIX-097
+          <div className="flex justify-between border-t border-slate-400 pt-1 text-base">
+            <strong>ยอดที่ต้องชำระวันนี้:</strong>
+            <strong>{formatTHB((order.downPaymentAmount ?? 0) + addOn)}</strong>
+          </div>
         )}
         <div className="flex justify-between">
           <span>วิธีชำระ:</span>
@@ -160,18 +148,16 @@ export function ReceiptPrintView({ order, shopName = 'Stockdd Mobile' }: Props) 
         </div>
         {order.paymentMethod === 'INSTALLMENT' && order.installmentMonths && (
           <>
-            <div className="text-xs text-slate-500">
-              (ยอดสุทธิ = เงินรับวันนี้{addOn > 0 ? ': ดาวน์ + อุปกรณ์เสริม' : ' (เงินดาวน์)'})
-            </div>
+            {/* แยกเงินสด/เงินโอน ของยอดรับวันนี้ (FIX-097) */}
             {(order.cashAmount ?? 0) > 0 && (
               <div className="flex justify-between text-slate-500">
-                <span className="pl-3">- เงินสด:</span>
+                <span className="pl-3">💵 เงินสด:</span>
                 <span>{formatTHB(order.cashAmount ?? 0)}</span>
               </div>
             )}
             {(order.transferAmount ?? 0) > 0 && (
               <div className="flex justify-between text-slate-500">
-                <span className="pl-3">- เงินโอน:</span>
+                <span className="pl-3">📲 เงินโอน:</span>
                 <span>{formatTHB(order.transferAmount ?? 0)}</span>
               </div>
             )}

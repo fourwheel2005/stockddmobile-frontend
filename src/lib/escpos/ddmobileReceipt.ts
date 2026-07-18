@@ -211,14 +211,10 @@ export function buildDDMobileReceipt(
     b.size(2, 1).justify('ยอดสุทธิ:', fmtTHB(data.grandTotal), W / 2).size(1, 1);
     b.separator('=', W);
   } else {
-    // ผ่อน → ยอดสุทธิ = เงินรับวันนี้ (ดาวน์ + อุปกรณ์เสริมจ่ายสด) ไม่โชว์ราคาเครื่องเต็ม — FIX-072/FIX-090
+    // ผ่อน → ยอดสุทธิ = ยอดที่ต้องชำระวันนี้ (ดาวน์ + อุปกรณ์เสริม) ไม่โชว์ราคาเครื่องเต็ม — FIX-072/FIX-097
     const addOn = data.addOnTotal ?? 0;
     b.separator('=', W);
-    if (addOn > 0) {
-      b.justify('เงินดาวน์:', fmtTHB(data.downPaymentAmount ?? 0), W);
-      b.justify('อุปกรณ์เสริม (จ่ายวันนี้):', fmtTHB(addOn), W);
-    }
-    b.size(2, 1).justify('ยอดสุทธิ:', fmtTHB((data.downPaymentAmount ?? 0) + addOn), W / 2).size(1, 1);
+    b.size(2, 1).justify('ชำระวันนี้:', fmtTHB((data.downPaymentAmount ?? 0) + addOn), W / 2).size(1, 1);
     b.separator('=', W);
   }
 
@@ -238,8 +234,7 @@ export function buildDDMobileReceipt(
 
   // ─── Installment ────────────────────────────────
   if (data.paymentMethod === 'INSTALLMENT' && data.installmentMonths) {
-    // ยอดสุทธิด้านบน = เงินดาวน์แล้ว · ที่นี่แตก สด/โอน + ค่างวด (ไม่ซ้ำบรรทัดเงินดาวน์อีก)
-    b.textln('(ยอดสุทธิ = เงินดาวน์ที่รับวันนี้)');
+    // ยอดชำระวันนี้ด้านบน = ดาวน์+อุปกรณ์เสริม · ที่นี่แตก เงินสด/เงินโอน + ค่างวด (FIX-097)
     if ((data.downCash ?? 0) > 0) b.justify('  เงินสด:', fmtTHB(data.downCash!), W);
     if ((data.downTransfer ?? 0) > 0) b.justify('  เงินโอน:', fmtTHB(data.downTransfer!), W);
     b.justify(`ผ่อน ${data.installmentMonths} เดือน:`, `${fmtTHB(data.monthlyAmount ?? 0)} / เดือน`, W);

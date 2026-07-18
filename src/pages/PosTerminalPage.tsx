@@ -95,9 +95,8 @@ export function PosTerminalPage() {
   const [installmentMonthly, setInstallmentMonthly] = useState<number>(0);  // ค่างวด/เดือน ที่พนักงานกำหนด
   const [installmentMonthlyTouched, setInstallmentMonthlyTouched] = useState(false);  // พนักงานแก้ค่างวดเองแล้ว (กัน auto ทับ)
   const [downAmount, setDownAmount] = useState<number>(0);
-  const [splitDown, setSplitDown] = useState<boolean>(false);
-  const [downCash, setDownCash] = useState<number>(0);
-  const [downTransfer, setDownTransfer] = useState<number>(0);
+  // ยอดรับวันนี้ (ดาวน์ + อุปกรณ์เสริม) ลูกค้าจ่ายเป็นเงินโอนเท่าไหร่ · ที่เหลือ = เงินสด (FIX-097)
+  const [payTransfer, setPayTransfer] = useState<number>(0);
 
   // ─── รับชำระค่างวด (เงินสด) — ออกบิลไม่ตัดสต็อก (FIX-085) ────────────
   const [collectOpen, setCollectOpen] = useState(false);
@@ -253,6 +252,9 @@ export function PosTerminalPage() {
   // บิลผ่อน: บรรทัดที่ "จ่ายสดวันนี้" (อุปกรณ์เสริม) = ไม่รวมยอดผ่อน · ติ๊กต่อบรรทัดได้ (FIX-090/094)
   const addOnToday = cart.filter((l) => l.payToday).reduce((s, l) => s + l.sellPrice * l.quantity, 0);
   const payToday = downAmount + addOnToday;
+  // แยกยอดรับวันนี้: โอนเท่าที่กรอก (ไม่เกินยอดรวม) · ที่เหลือ = เงินสด (FIX-097)
+  const payTransferClamped = Math.min(Math.max(0, payTransfer), payToday);
+  const payCash = Math.max(0, payToday - payTransferClamped);
   const discountExceedsSubtotal = discount > subtotal;
 
   // Add an IMEI from the picker modal to the cart
@@ -328,8 +330,9 @@ export function PosTerminalPage() {
           installmentMonths,
           installmentMonthlyAmount: installmentMonthly > 0 ? installmentMonthly : undefined,
           downPaymentAmount: downAmount,
-          downPaymentCashAmount: splitDown ? downCash : undefined,
-          downPaymentTransferAmount: splitDown ? downTransfer : undefined,
+          // ยอดรับวันนี้แยก เงินสด/เงินโอน (ส่งทุกครั้งในบิลผ่อน) — FIX-097
+          downPaymentCashAmount: isInstallment ? payCash : undefined,
+          downPaymentTransferAmount: isInstallment ? payTransferClamped : undefined,
         } : {}),
       });
     },
@@ -351,9 +354,7 @@ export function PosTerminalPage() {
       setPaymentRef('');
       setNote('');
       setDownAmount(0);
-      setSplitDown(false);
-      setDownCash(0);
-      setDownTransfer(0);
+      setPayTransfer(0);
       // ผ่อน — reset ให้บิลถัดไปเริ่มใหม่ (กันค่างวด/เดือนของลูกค้าคนก่อนค้างมา)
       setInstallmentMonths(6);
       setInstallmentMonthly(0);
@@ -408,7 +409,7 @@ export function PosTerminalPage() {
   const needSlip =
     paymentMethod === 'TRANSFER'
     || (paymentMethod === 'MIXED' && mixedSplit.transfer > 0)
-    || (paymentMethod === 'INSTALLMENT' && splitDown && downTransfer > 0);
+    || (paymentMethod === 'INSTALLMENT' && payTransferClamped > 0);
   const slipMissing = needSlip && slips.length === 0;
   const hasAnySlip = slips.length > 0;
 
@@ -922,9 +923,7 @@ export function PosTerminalPage() {
           monthly={installmentMonthly} setMonthly={setInstallmentMonthly}
           monthlyTouched={installmentMonthlyTouched} setMonthlyTouched={setInstallmentMonthlyTouched}
           downAmount={downAmount} setDownAmount={setDownAmount}
-          splitDown={splitDown} setSplitDown={setSplitDown}
-          downCash={downCash} setDownCash={setDownCash}
-          downTransfer={downTransfer} setDownTransfer={setDownTransfer}
+          payTransfer={payTransfer} setPayTransfer={setPayTransfer}
         />
       )}
 
@@ -1078,17 +1077,21 @@ export function PosTerminalPage() {
                     <div className="rounded-md bg-slate-900 px-4 py-6 text-right text-4xl font-bold text-amber-300">
                       {formatTHB(payToday)}
                     </div>
+                    {/* แยกเงินสด/เงินโอน ของยอดรับวันนี้ (FIX-097) */}
+                    <div className="flex justify-between text-xs">
+                      <span className="text-slate-500">💵 เงินสด</span>
+                      <span className="font-semibold text-slate-700">{formatTHB(payCash)}</span>
+                    </div>
+                    {payTransferClamped > 0 && (
+                      <div className="flex justify-between text-xs">
+                        <span className="text-slate-500">📲 เงินโอน</span>
+                        <span className="font-semibold text-slate-700">{formatTHB(payTransferClamped)}</span>
+                      </div>
+                    )}
                     {addOnToday > 0 && (
-                      <>
-                        <div className="flex justify-between text-xs text-slate-500">
-                          <span>เงินดาวน์</span>
-                          <span>{formatTHB(downAmount)}</span>
-                        </div>
-                        <div className="flex justify-between text-xs text-slate-500">
-                          <span>อุปกรณ์เสริม (จ่ายวันนี้)</span>
-                          <span>{formatTHB(addOnToday)}</span>
-                        </div>
-                      </>
+                      <div className="flex justify-between text-[11px] text-slate-400">
+                        <span>(ดาวน์ {formatTHB(downAmount)} + อุปกรณ์เสริม {formatTHB(addOnToday)})</span>
+                      </div>
                     )}
                     <div className="flex justify-between text-xs text-slate-500">
                       <span>ยอดรวมบิล (บันทึกในระบบ)</span>
@@ -1207,22 +1210,20 @@ interface InstallmentPanelProps {
   monthly: number; setMonthly: (n: number) => void;   // ค่างวด/เดือน — ส่งเข้า checkout เพื่อใช้ใน LINE/บิล
   monthlyTouched: boolean; setMonthlyTouched: (b: boolean) => void;  // state อยู่ที่ parent (reset ได้หลังปิดบิล)
   downAmount: number; setDownAmount: (n: number) => void;
-  splitDown: boolean; setSplitDown: (b: boolean) => void;
-  downCash: number; setDownCash: (n: number) => void;
-  downTransfer: number; setDownTransfer: (n: number) => void;
+  /** ยอดรับวันนี้จ่ายเป็นเงินโอนเท่าไหร่ · ที่เหลือ = เงินสด (FIX-097) */
+  payTransfer: number; setPayTransfer: (n: number) => void;
 }
 
 function InstallmentPanel({
   grandTotalTarget, addOnToday = 0, months, setMonths, monthly, setMonthly, monthlyTouched, setMonthlyTouched,
-  downAmount, setDownAmount, splitDown, setSplitDown,
-  downCash, setDownCash, downTransfer, setDownTransfer,
+  downAmount, setDownAmount, payTransfer, setPayTransfer,
 }: InstallmentPanelProps) {
   // ยอดผ่อนคงเหลือ = ยอดบิล − ดาวน์ − อุปกรณ์เสริมที่จ่ายสดวันนี้ (หัวชาร์จ/เคส ไม่รวมยอดผ่อน) FIX-090
   const remaining = Math.max(0, grandTotalTarget - downAmount - addOnToday);
   const payToday = downAmount + addOnToday;
-  const splitSum = downCash + downTransfer;
-  // แบ่งจ่าย (สด+โอน) ต้องเท่ากับยอดรับวันนี้ทั้งหมด (ดาวน์ + อุปกรณ์เสริม)
-  const splitMatches = !splitDown || Math.abs(splitSum - payToday) < 0.01;
+  // ยอดรับวันนี้แยก เงินสด/เงินโอน — โอนไม่เกินยอดรวม · ที่เหลือ = เงินสด (FIX-097)
+  const transferPart = Math.min(Math.max(0, payTransfer), payToday);
+  const cashPart = Math.max(0, payToday - transferPart);
 
   // ค่างวด/เดือน — พนักงานกรอกเองได้ (ยืดหยุ่น รองรับดอกเบี้ยบริษัทผ่อน) แล้วคูณกับจำนวนเดือน
   // ค่าตั้งต้น = เงินต้นคงเหลือ ÷ เดือน (ปัดขึ้น) จนกว่าผู้ใช้จะแก้เอง · state+touched อยู่ที่ parent (reset หลังปิดบิล)
@@ -1325,50 +1326,43 @@ function InstallmentPanel({
           </div>
         </div>
 
-        {/* Mixed down payment toggle */}
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={splitDown}
-                 onChange={(e) => setSplitDown(e.target.checked)} />
-          <span>แบ่งจ่ายยอดรับวันนี้ (เงินสด + โอน){addOnToday > 0 ? ' — รวมค่าอุปกรณ์เสริมด้วย' : ''}</span>
-        </label>
-
-        {splitDown && (
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="mb-1 block text-xs font-medium">💵 ดาวน์เป็นเงินสด</label>
-                <input
-                  type="number" min={0} step="100"
-                  className="input"
-                  value={downCash}
-                  onChange={(e) => setDownCash(Math.max(0, Number(e.target.value) || 0))}
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium">📲 ดาวน์ผ่านการโอน</label>
-                <input
-                  type="number" min={0} step="100"
-                  className="input"
-                  value={downTransfer}
-                  onChange={(e) => setDownTransfer(Math.max(0, Number(e.target.value) || 0))}
-                />
-              </div>
+        {/* ยอดที่ต้องชำระวันนี้ (ยอดเดียว) + แยกเงินสด/เงินโอน (FIX-097) */}
+        <div className="rounded-md border-2 border-amber-300 bg-amber-50/70 p-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-semibold text-amber-900">ยอดที่ต้องชำระวันนี้</span>
+            <span className="text-lg font-bold text-amber-900">{formatTHB(payToday)}</span>
+          </div>
+          {addOnToday > 0 && (
+            <div className="mt-0.5 text-[11px] text-amber-700">
+              = เงินดาวน์ {formatTHB(downAmount)} + อุปกรณ์เสริม {formatTHB(addOnToday)}
             </div>
-            <div className={`mt-2 rounded px-3 py-2 text-sm ${
-              splitMatches
-                ? 'bg-emerald-100 text-emerald-800'
-                : 'bg-red-100 text-red-800'
-            }`}>
-              รวมแบ่ง: {formatTHB(splitSum)} / ต้องการ: {formatTHB(payToday)}
-              {addOnToday > 0 && <span className="text-xs"> (ดาวน์ {formatTHB(downAmount)} + อุปกรณ์เสริม {formatTHB(addOnToday)})</span>}
-              {splitMatches ? ' ✓' : ' — ⚠️ ตัวเลขไม่ตรง'}
+          )}
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-medium">📲 เงินโอน (บาท)</label>
+              <input
+                type="number" min={0} max={payToday} step="100" inputMode="numeric"
+                className="input"
+                value={payTransfer || ''}
+                placeholder="0"
+                onChange={(e) => setPayTransfer(Math.max(0, Number(e.target.value) || 0))}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium">💵 เงินสด (บาท)</label>
+              <div className="input flex items-center bg-slate-50 font-semibold text-slate-700">
+                {formatTHB(cashPart)}
+              </div>
             </div>
           </div>
-        )}
+          <p className="mt-1 text-[11px] text-slate-500">
+            กรอกยอดโอน · ที่เหลือระบบคิดเป็นเงินสดให้อัตโนมัติ (รวม = {formatTHB(payToday)})
+          </p>
+        </div>
 
         <div className="rounded-md bg-purple-50 px-3 py-2 text-xs text-purple-800">
           💡 ระบบจะบันทึก: <strong>รับวันนี้ {formatTHB(payToday)}</strong>
-          {addOnToday > 0 ? <> (ดาวน์ {formatTHB(downAmount)} + อุปกรณ์เสริม {formatTHB(addOnToday)})</> : ' (เงินดาวน์)'} เป็นยอดที่จ่ายแล้ว
+          {' '}(💵 สด {formatTHB(cashPart)}{transferPart > 0 ? ` · 📲 โอน ${formatTHB(transferPart)}` : ''})
           • <strong>{formatTHB(remaining)}</strong> ที่เหลือคือยอดผ่อน
         </div>
       </div>
