@@ -6,6 +6,7 @@ import { posApi } from '@/api/pos';
 import { filesApi } from '@/api/files';
 import { extractErrorMessage } from '@/api/client';
 import { formatTHB } from '@/lib/format';
+import { hasRealImei } from '@/lib/escpos/ddmobileReceipt';
 import { CustomerPickerModal } from '@/components/CustomerPickerModal';
 import { ImeiPickerModal } from '@/components/ImeiPickerModal';
 import { DeviceLookupModal } from '@/components/DeviceLookupModal';
@@ -198,7 +199,8 @@ export function PosTerminalPage() {
           sellPrice: item.sellPrice,
           quantity: 1,
           serialized: true,
-          payToday: false,   // เครื่อง (serialized) = ผ่อน · ติ๊กสลับได้ทีหลัง (FIX-094)
+          // default ฉลาด (FIX-096): มี IMEI จริง = เครื่อง→ผ่อน · ไม่มี IMEI = อุปกรณ์เสริม Serial→จ่ายวันนี้
+          payToday: !hasRealImei(item.imei),
         }];
       }
       // Bulk: merge if same variantId
@@ -271,7 +273,8 @@ export function PosTerminalPage() {
       sellPrice: item.sellingPrice,
       quantity: 1,
       serialized: true,
-      payToday: false,   // เครื่อง (serialized) = ผ่อน · ติ๊กสลับได้ทีหลัง (FIX-094)
+      // default ฉลาด (FIX-096): มี IMEI จริง = เครื่อง→ผ่อน · ไม่มี IMEI = อุปกรณ์เสริม Serial→จ่ายวันนี้
+      payToday: !hasRealImei(item.imei),
     }]);
     toast.success(`เพิ่มแล้ว: ${item.sku}`, { duration: 1500 });
   }
