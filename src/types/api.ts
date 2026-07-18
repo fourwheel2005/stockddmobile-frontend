@@ -640,6 +640,9 @@ export interface CheckoutLine {
   quantity: number;
   labelPrice: number;
   sellPrice: number;
+  /** บิลผ่อน: บรรทัดนี้จ่ายสดวันนี้ (อุปกรณ์เสริม) แทนรวมยอดผ่อน — FIX-094
+   *  ไม่ส่ง = backend fallback เป็น "ไม่มี serial = จ่ายวันนี้" (เข้ากันได้กับ FIX-090) */
+  payToday?: boolean;
 }
 
 export type ShippingPartner =

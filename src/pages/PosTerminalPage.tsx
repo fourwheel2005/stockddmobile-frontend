@@ -51,6 +51,9 @@ interface CartLine {
   sellPrice: number;
   quantity: number;
   serialized: boolean;
+  /** บิลผ่อน: บรรทัดนี้ "จ่ายสดวันนี้" (อุปกรณ์เสริม) แทนที่จะรวมยอดผ่อน — FIX-090/094
+   *  default: อุปกรณ์เสริม (bulk) = true · เครื่อง (serialized) = false · ติ๊กสลับได้ต่อบรรทัด */
+  payToday: boolean;
 }
 
 interface PaymentOption {
@@ -195,6 +198,7 @@ export function PosTerminalPage() {
           sellPrice: item.sellPrice,
           quantity: 1,
           serialized: true,
+          payToday: false,   // เครื่อง (serialized) = ผ่อน · ติ๊กสลับได้ทีหลัง (FIX-094)
         }];
       }
       // Bulk: merge if same variantId
@@ -220,6 +224,7 @@ export function PosTerminalPage() {
         sellPrice: item.sellPrice,
         quantity: 1,
         serialized: false,
+        payToday: true,   // อุปกรณ์เสริม (นับจำนวน) = จ่ายวันนี้ (FIX-094)
       }];
     });
     toast.success(`เพิ่มแล้ว: ${item.sku}`, { duration: 1500 });
@@ -243,8 +248,8 @@ export function PosTerminalPage() {
   const taxBase = Math.max(0, subtotal - discount);
   const vatAmount = Math.round(taxBase * (Number(vatRate) || 0)) / 100;
   const grandTotal = Math.max(0, taxBase + vatAmount + (Number(shippingFee) || 0));
-  // บิลผ่อน: อุปกรณ์เสริม (bulk ไม่มี serial เช่น หัวชาร์จ/เคส) = จ่ายสดวันนี้ ไม่รวมยอดผ่อน (FIX-090)
-  const addOnToday = cart.filter((l) => !l.serialized).reduce((s, l) => s + l.sellPrice * l.quantity, 0);
+  // บิลผ่อน: บรรทัดที่ "จ่ายสดวันนี้" (อุปกรณ์เสริม) = ไม่รวมยอดผ่อน · ติ๊กต่อบรรทัดได้ (FIX-090/094)
+  const addOnToday = cart.filter((l) => l.payToday).reduce((s, l) => s + l.sellPrice * l.quantity, 0);
   const payToday = downAmount + addOnToday;
   const discountExceedsSubtotal = discount > subtotal;
 
@@ -266,6 +271,7 @@ export function PosTerminalPage() {
       sellPrice: item.sellingPrice,
       quantity: 1,
       serialized: true,
+      payToday: false,   // เครื่อง (serialized) = ผ่อน · ติ๊กสลับได้ทีหลัง (FIX-094)
     }]);
     toast.success(`เพิ่มแล้ว: ${item.sku}`, { duration: 1500 });
   }
@@ -288,6 +294,8 @@ export function PosTerminalPage() {
           quantity: l.quantity,
           labelPrice: l.labelPrice,
           sellPrice: l.sellPrice,
+          // บิลผ่อน: บรรทัดที่ติ๊ก "จ่ายวันนี้" (อุปกรณ์เสริม) — backend หักจากยอดผ่อน (FIX-094)
+          payToday: isInstallment ? l.payToday : undefined,
         })),
         paymentMethod,
         paymentReference: paymentRef || undefined,
@@ -952,6 +960,18 @@ export function PosTerminalPage() {
                     <div className="text-xs text-slate-500 font-mono">{l.sku}</div>
                     {l.imei && <div className="text-xs text-brand-700">IMEI: {l.imei}</div>}
                     {l.detail && <div className="text-xs text-slate-500">{l.detail}</div>}
+                    {/* บิลผ่อน: เลือกต่อบรรทัด ว่า "ผ่อน" หรือ "จ่ายวันนี้" (อุปกรณ์เสริม) — FIX-094 */}
+                    {paymentMethod === 'INSTALLMENT' && (
+                      <button type="button"
+                        onClick={() => updateLine(l.key, { payToday: !l.payToday })}
+                        className={`mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                          l.payToday
+                            ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
+                            : 'bg-purple-100 text-purple-800 hover:bg-purple-200'}`}
+                        title="กดสลับ: ผ่อน ↔ จ่ายวันนี้">
+                        {l.payToday ? '💵 จ่ายวันนี้' : '💳 ผ่อน'}
+                      </button>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-right text-slate-500">{formatTHB(l.labelPrice)}</td>
                   <td className="px-4 py-3 text-right">
