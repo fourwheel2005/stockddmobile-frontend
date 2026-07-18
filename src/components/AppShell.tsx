@@ -3,6 +3,7 @@ import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { authApi } from '@/api/auth';
 import { useStockSocket } from '@/hooks/useStockSocket';
+import { useVersionCheck } from '@/hooks/useVersionCheck';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { WsStatusIndicator } from '@/components/WsStatusIndicator';
 import { CashDrawerIndicator } from '@/components/CashDrawerIndicator';
@@ -64,6 +65,7 @@ export function AppShell() {
 
   useStockSocket();
   useKeyboardShortcuts();
+  useVersionCheck();   // เตือนเมื่อมี deploy ใหม่ — กันแท็บรันโค้ดเก่าค้าง (FIX-095)
 
   // ปิด drawer อัตโนมัติเมื่อเปลี่ยนหน้า
   useEffect(() => { setMobileOpen(false); }, [location.pathname]);

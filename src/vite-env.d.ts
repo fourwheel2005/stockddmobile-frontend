@@ -8,3 +8,6 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+/** build id ฝังตอน build (FIX-095) — เทียบกับ /version.json เพื่อตรวจเวอร์ชันใหม่ */
+declare const __BUILD_ID__: string;
