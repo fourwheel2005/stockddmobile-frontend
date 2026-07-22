@@ -16,7 +16,8 @@ export function ProtectedRoute({ roles }: Props) {
   }
 
   if (roles && roles.length > 0 && (!userRole || !roles.includes(userRole))) {
-    return <Navigate to="/" replace />;
+    // STAFF ไม่มีสิทธิ์หน้า Dashboard แล้ว (FIX-102) → ส่งกลับหน้าขาย ไม่งั้นจะเด้งวน
+    return <Navigate to={userRole === 'STAFF' ? '/pos' : '/'} replace />;
   }
 
   return <Outlet />;

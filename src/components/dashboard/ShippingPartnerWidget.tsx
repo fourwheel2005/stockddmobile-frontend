@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Truck, RefreshCw } from 'lucide-react';
 import { posApi } from '@/api/pos';
 import { formatTHB } from '@/lib/format';
+import { shopDayKey } from '@/lib/datetime';
 import type { ShippingPartner } from '@/types/api';
 
 interface Props {
@@ -22,7 +23,7 @@ const PARTNER_LABEL: Record<ShippingPartner, { label: string; icon: string }> = 
 
 type Range = 'today' | '7d' | '30d';
 
-function toIso(d: Date) { return d.toISOString().slice(0, 10); }
+const toIso = shopDayKey;   // วันของร้าน ไม่ใช่วัน UTC
 function rangeToDates(r: Range): { from: string; to: string } {
   const to = new Date();
   const from = new Date();

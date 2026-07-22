@@ -7,6 +7,7 @@ import {
 import { cashRegisterApi } from '@/api/cashRegister';
 import { formatTHB, formatDateTime } from '@/lib/format';
 import { useBranchStore } from '@/stores/branchStore';
+import { useAuthStore } from '@/stores/authStore';
 import { OpenSessionModal } from '@/components/OpenSessionModal';
 import { CloseSessionModal } from '@/components/CloseSessionModal';
 import { CashMovementModal } from '@/components/CashMovementModal';
@@ -51,9 +52,11 @@ export function CashRegisterPage() {
     refetchInterval: 30_000,
   });
 
+  const canSeeOwnerLedger = useAuthStore((s) => s.hasRole('ADMIN', 'MANAGER'));
   const ledgerQuery = useQuery({
     queryKey: ['owner-ledger', 'today'],
     queryFn: () => cashRegisterApi.ownerLedger(),
+    enabled: canSeeOwnerLedger,   // STAFF เรียกแล้วจะได้ 403 (backend ปิด) — อย่ายิงตั้งแต่แรก
   });
 
   const session = sessionQuery.data;
@@ -191,7 +194,8 @@ export function CashRegisterPage() {
         </>
       )}
 
-      {/* Owner ledger */}
+      {/* Owner ledger — เงินเจ้าของ: STAFF ไม่เห็น (FIX-102) */}
+      {canSeeOwnerLedger && (
       <div className="card">
         <div className="card-header flex items-center gap-2">
           <Users className="h-5 w-5 text-amber-600" />
@@ -232,6 +236,7 @@ export function CashRegisterPage() {
           )}
         </div>
       </div>
+      )}
 
       {showOpen && <OpenSessionModal onClose={() => setShowOpen(false)} />}
       {showClose && session && <CloseSessionModal session={session} onClose={() => setShowClose(false)} />}

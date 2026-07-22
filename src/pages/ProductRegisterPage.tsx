@@ -19,6 +19,7 @@ import { filesApi } from '@/api/files';
 import { extractErrorMessage } from '@/api/client';
 import { formatTHB } from '@/lib/format';
 import { ACQ_INFO, ACQ_ORDER } from '@/lib/acquisition';
+import { shopToday } from '@/lib/datetime';
 import type { AcquisitionType, ProductWizardRequest } from '@/types/api';
 import { AccessorySerialList } from '@/components/products/AccessorySerialList';
 import { MultiImageUpload, ImageEditor } from '@/components/MultiImageUpload';
@@ -117,9 +118,7 @@ const EMPTY_ITEM: ItemRow = {
   downPayment: '', installmentTerms: [], installmentPromo: '',
 };
 
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
+const todayIso = shopToday;
 
 /* ─── ร่างอัตโนมัติ (FIX-088) — กันข้อมูลหายตอน refresh/เผลอปิดหน้า ─────── */
 const DRAFT_KEY = 'dd-register-draft-v1';

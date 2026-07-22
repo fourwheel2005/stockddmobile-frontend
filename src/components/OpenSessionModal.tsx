@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { X, DoorOpen, Banknote } from 'lucide-react';
 import { cashRegisterApi } from '@/api/cashRegister';
 import { extractErrorMessage } from '@/api/client';
 import { formatTHB } from '@/lib/format';
+import { parseServerDateTime } from '@/lib/datetime';
 import { useModalChrome, backdropCloseHandler } from '@/hooks/useModalChrome';
 import { useBranchStore } from '@/stores/branchStore';
 
@@ -15,26 +16,38 @@ interface Props {
 
 const QUICK_PRESETS = [500, 1000, 2000, 5000, 10000];
 
+/** ใช้เมื่อยังโหลดค่าจาก backend ไม่เสร็จ — ต้องตรงกับ app.cash.default-opening-float */
+const DEFAULT_OPENING_FLOAT = 5000;
+
 /**
  * Modal เปิดเก๊ะวันใหม่ — กรอกเงินทอนตั้งต้น + หมายเหตุ.
  * เด้งอัตโนมัติเมื่อ login วันแรกที่ยังไม่มี active session.
  */
 export function OpenSessionModal({ onOpened, onClose }: Props) {
   const qc = useQueryClient();
-  const [openingFloat, setOpeningFloat] = useState<number>(1000);
+  // เงินทอนตั้งต้นมาตรฐานของร้าน — ตั้งที่ backend (app.cash.default-opening-float) เพื่อให้
+  // เปลี่ยนได้โดยไม่ต้อง deploy หน้าจอ · โหลดไม่ทัน/ล้มเหลว → fallback ค่าเดียวกัน (FIX-100)
+  const { data: defaults } = useQuery({
+    queryKey: ['cash-register-defaults'],
+    queryFn: () => cashRegisterApi.defaults(),
+    staleTime: 60 * 60 * 1000,
+  });
+  const [openingFloat, setOpeningFloat] = useState<number | null>(null);
   const [note, setNote] = useState('');
+  const effectiveFloat = openingFloat ?? Number(defaults?.defaultOpeningFloat ?? DEFAULT_OPENING_FLOAT);
 
   useModalChrome(onClose);
 
   const open = useMutation({
     mutationFn: () => cashRegisterApi.open({
-      openingFloat, note: note || undefined,
+      openingFloat: effectiveFloat, note: note || undefined,
       branchId: useBranchStore.getState().activeBranchId ?? undefined,  // เปิดกะของสาขาที่เลือก (Phase 2C)
     }),
     onSuccess: (s) => {
       // P4 — backend idempotent: ถ้า session มีอยู่แล้ว backend คืนของเดิม
       // → message ปรับตาม openedAt (ถ้า > 1 นาทีก่อน = ของเดิม)
-      const isRecovered = Date.now() - new Date(s.openedAt).getTime() > 60_000;
+      const openedAt = parseServerDateTime(s.openedAt);
+      const isRecovered = !!openedAt && Date.now() - openedAt.getTime() > 60_000;
       if (isRecovered) {
         toast.success(`พบ session เดิมที่เปิดอยู่ — ${s.sessionNo} (กู้คืนแล้ว)`,
                       { duration: 4000, icon: '🔄' });
@@ -66,6 +79,10 @@ export function OpenSessionModal({ onOpened, onClose }: Props) {
         </div>
 
         <div className="space-y-4 p-5">
+          <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800">
+            ✅ ตั้งค่าไว้ให้แล้ว <strong>{formatTHB(effectiveFloat)} ทุกวัน</strong> — กด "เปิดเก๊ะ" ได้เลย
+            (แก้ตัวเลขได้ถ้าวันไหนใส่ไม่เท่าปกติ)
+          </div>
           <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
             💡 <strong>เงินทอนตั้งต้น</strong> = เงินสดที่ใส่ในเก๊ะตอนเช้าเพื่อทอน
             ระบบจะใช้คำนวณ "เงินที่ควรเป็น" ตอนปิดเก๊ะ
@@ -79,7 +96,7 @@ export function OpenSessionModal({ onOpened, onClose }: Props) {
             <input
               type="number" min={0} step={50}
               className="input text-right text-2xl font-bold"
-              value={openingFloat}
+              value={effectiveFloat}
               onChange={(e) => setOpeningFloat(Math.max(0, Number(e.target.value) || 0))}
               autoFocus
             />
@@ -90,7 +107,7 @@ export function OpenSessionModal({ onOpened, onClose }: Props) {
                   key={v}
                   onClick={() => setOpeningFloat(v)}
                   className={`rounded border px-2 py-1 text-xs ${
-                    openingFloat === v
+                    effectiveFloat === v
                       ? 'border-emerald-500 bg-emerald-50 font-semibold text-emerald-700'
                       : 'border-slate-200 hover:border-slate-300'
                   }`}>

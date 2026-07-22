@@ -4,6 +4,7 @@ import { Search, X, Smartphone } from 'lucide-react';
 import { inventoryApi } from '@/api/inventory';
 import { extractErrorMessage } from '@/api/client';
 import { formatTHB } from '@/lib/format';
+import { formatInShopZone } from '@/lib/datetime';
 import type { SerializedItemResponse } from '@/types/api';
 
 const CONDITION_TH: Record<string, string> = {
@@ -89,7 +90,7 @@ export function DeviceLookupModal({ onClose }: { onClose: () => void }) {
                 {device.deviceStorage && <Row label="ความจุ" value={device.deviceStorage} />}
                 {device.modelNumber && <Row label="เลขรุ่น" value={device.modelNumber} mono />}
                 {device.warrantyTerms && <Row label="ประกัน" value={device.warrantyTerms} />}
-                {device.warrantyExpire && <Row label="ประกันถึง" value={new Date(device.warrantyExpire).toLocaleDateString('th-TH')} />}
+                {device.warrantyExpire && <Row label="ประกันถึง" value={formatInShopZone(device.warrantyExpire, { year: 'numeric', month: '2-digit', day: '2-digit' })} />}
                 <Row label="IMEI" value={device.imei ?? '-'} mono />
                 <Row label="Serial" value={device.serialNumber} mono />
                 {device.stockCode && <Row label="รหัสสินค้า" value={device.stockCode} mono />}

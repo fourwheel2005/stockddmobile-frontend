@@ -38,14 +38,21 @@ export const posApi = {
   getOrder: (id: string) =>
     api.get<SalesOrderResponse>(`/pos/orders/${id}`).then((r) => r.data),
 
-  refund: (id: string, reason?: string) =>
+  /** ยกเลิก/คืนเงินบิลที่ขายไปแล้ว — ต้องมีรหัสความปลอดภัยของร้านทุก role (FIX-103) */
+  refund: (id: string, securityCode: string, reason?: string) =>
     api.post<SalesOrderResponse>(`/pos/orders/${id}/refund`,
-      null, { params: reason ? { reason } : {} }).then((r) => r.data),
+      null, {
+        params: reason ? { reason } : {},
+        headers: { 'X-Security-Code': securityCode },
+      }).then((r) => r.data),
 
   /** รับเครื่องคืนจากลูกค้าผ่อน (ผ่อนไม่ไหว) — เครื่องเข้าสต็อก + คืนเงินตามที่ระบุ (0 = ไม่คืน) */
-  returnDevice: (id: string, refundAmount: number, reason?: string) =>
+  returnDevice: (id: string, refundAmount: number, securityCode: string, reason?: string) =>
     api.post<SalesOrderResponse>(`/pos/orders/${id}/return-device`,
-      null, { params: { refundAmount, ...(reason ? { reason } : {}) } }).then((r) => r.data),
+      null, {
+        params: { refundAmount, ...(reason ? { reason } : {}) },
+        headers: { 'X-Security-Code': securityCode },
+      }).then((r) => r.data),
 
   inStockItems: (params: { variantId?: string; q?: string; page?: number; size?: number } = {}) =>
     api.get<PageResponse<InStockItem>>('/pos/in-stock-items', { params }).then((r) => r.data),

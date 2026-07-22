@@ -1,4 +1,5 @@
 import { EscPosBuilder } from './EscPosBuilder';
+import { formatShopDateTimeCompact } from '../datetime';
 
 /** ความกว้างกระดาษ 80mm font A */
 const W = 48;
@@ -19,7 +20,7 @@ export interface ReceiptData {
   orderChannel?: 'WALK_IN' | 'ONLINE' | null;
   items: Array<{
     seq: number;
-    sku: string;
+    sku?: string | null;      // null = รายการพิมพ์เอง (ไม่มี SKU) — FIX-099
     productName: string;
     imei?: string | null;
     serialNumber?: string | null;
@@ -83,11 +84,7 @@ function fmtTHB(n: number | null | undefined): string {
   return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function fmtDateTime(iso: string): string {
-  const d = new Date(iso);
-  const pad = (n: number) => n.toString().padStart(2, '0');
-  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
+const fmtDateTime = formatShopDateTimeCompact;
 
 /**
  * สร้าง bytes สำหรับใบเสร็จ DDMobile.

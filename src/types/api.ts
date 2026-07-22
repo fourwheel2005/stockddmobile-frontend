@@ -635,7 +635,12 @@ export interface CartScanResponse {
 }
 
 export interface CheckoutLine {
-  variantId: string;
+  /** เว้นว่าง = รายการพิมพ์เอง (ของที่ไม่ได้ลงสต็อก) → ต้องส่ง customName แทน — FIX-099 */
+  variantId?: string;
+  /** ชื่อสินค้าที่พนักงานพิมพ์เอง (ใช้คู่กับ variantId ว่าง) */
+  customName?: string;
+  /** ทุนต่อชิ้นของรายการพิมพ์เอง กรอกเป็นรหัสตัวอักษร (เช่น SRR = 200) — เว้นว่างได้ */
+  unitCostCode?: string;
   serialItemId?: string;
   quantity: number;
   labelPrice: number;
@@ -717,7 +722,8 @@ export interface CashSessionResponse {
 export interface OpenSessionRequest {
   registerId?: string;
   branchId?: string;       // เปิดกะของสาขาไหน (Phase 2C)
-  openingFloat: number;
+  /** เว้นว่าง = ใช้เงินทอนตั้งต้นมาตรฐานของร้าน (FIX-100) */
+  openingFloat?: number;
   note?: string;
 }
 
@@ -792,9 +798,10 @@ export interface CheckoutRequest {
 
 export interface SalesOrderItemResponse {
   id: string;
-  variantId: string;
-  sku: string;
+  variantId: string | null;      // null = รายการพิมพ์เอง (FIX-099)
+  sku: string | null;
   productName: string;
+  custom?: boolean;              // true = รายการพิมพ์เอง ไม่ผูกสต็อก
   imei: string | null;
   serialNumber: string | null;   // แสดง SN เมื่อไม่มี IMEI (iPad WiFi)
   color: string | null;
@@ -879,8 +886,8 @@ export interface DailySalesPoint {
 }
 
 export interface TopProductRow {
-  variantId: string;
-  sku: string;
+  variantId: string | null;   // null = รายการพิมพ์เอง (จัดกลุ่มตามชื่อ) — FIX-099
+  sku: string | null;
   productName: string;
   color: string | null;
   storage: string | null;

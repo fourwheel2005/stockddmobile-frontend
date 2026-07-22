@@ -73,6 +73,31 @@ describe('buildDDMobileReceipt', () => {
     expect(last3).toEqual([0x1d, 0x56, 0]);
   });
 
+  it('prints the issue time in Bangkok wall clock for a zone-less API timestamp', () => {
+    // FIX-098 — backend ส่ง LocalDateTime (UTC) แบบไม่มี offset; ใบเสร็จเคยพิมพ์ 03:35
+    const bytes = buildDDMobileReceipt(makeReceipt({ issuedAt: '2026-07-22T03:35:12' }));
+    const str = String.fromCharCode(...bytes);
+    expect(str).toContain('22/07/2026 10:35');
+    expect(str).not.toContain('22/07/2026 03:35');
+  });
+
+  it('prints the same time whether or not the timestamp carries an offset', () => {
+    const zoneless = buildDDMobileReceipt(makeReceipt({ issuedAt: '2026-07-22T03:35:12' }));
+    const zoned = buildDDMobileReceipt(makeReceipt({ issuedAt: '2026-07-22T03:35:12Z' }));
+    expect(String.fromCharCode(...zoned)).toBe(String.fromCharCode(...zoneless));
+  });
+
+  it('prints a custom (off-stock) line without an empty SKU row', () => {
+    // FIX-099 — รายการพิมพ์เองไม่มี SKU/IMEI
+    const bytes = buildDDMobileReceipt(makeReceipt({
+      items: [{ seq: 1, sku: null, productName: 'สายชาร์จ Type-C', quantity: 2, sellPrice: 150, lineTotal: 300 }],
+      subtotal: 300, grandTotal: 300, paidAmount: 300,
+    }));
+    const str = String.fromCharCode(...bytes);
+    expect(str).not.toContain('SKU:');
+    expect(str).toContain('300.00');
+  });
+
   it('marks duplicate header', () => {
     const bytes = buildDDMobileReceipt(makeReceipt(), { duplicate: true });
     const str = String.fromCharCode(...bytes);

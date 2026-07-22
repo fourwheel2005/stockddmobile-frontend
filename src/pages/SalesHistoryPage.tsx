@@ -12,8 +12,10 @@ import { useBranchStore } from '@/stores/branchStore';
 import { ReceiptPrintView } from '@/components/ReceiptPrintView';
 import { RefundMethodModal } from '@/components/RefundMethodModal';
 import { ReturnDeviceModal } from '@/components/ReturnDeviceModal';
+import { SecurityCodeModal } from '@/components/SecurityCodeModal';
 import { usePrinter } from '@/hooks/usePrinter';
 import { formatTHB, formatDateTime } from '@/lib/format';
+import { shopDayKey } from '@/lib/datetime';
 import type { FinancePayoutStatus, RepairStatus, RepairTicket, SalesOrderResponse, SalesOrderStatus } from '@/types/api';
 import { FINANCE_PARTNER_LABEL } from '@/types/api';
 
@@ -26,11 +28,8 @@ const REPAIR_STATUS: Record<RepairStatus, { label: string; cls: string }> = {
   CANCELLED:   { label: 'ยกเลิก',        cls: 'badge-red' },
 };
 
-/** วันที่ (local) แบบ YYYY-MM-DD สำหรับเทียบกับวันที่เลือกจากปฏิทิน */
-function localDay(iso: string): string {
-  const d = new Date(iso);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
+/** วันทำการของร้าน (Asia/Bangkok) แบบ YYYY-MM-DD สำหรับเทียบกับวันที่เลือกจากปฏิทิน */
+const localDay = shopDayKey;
 
 function repairMatches(r: RepairTicket, q: string): boolean {
   const s = q.toLowerCase();
@@ -80,7 +79,8 @@ const STATUS_LABEL: Record<SalesOrderStatus, string> = {
 
 export function SalesHistoryPage() {
   const qc = useQueryClient();
-  const canRefund = useAuthStore((s) => s.hasRole('ADMIN', 'MANAGER'));
+  // ทุก role กดได้ แต่ต้องผ่านรหัสความปลอดภัยของร้านเสมอ (FIX-103) — backend บังคับซ้ำอีกชั้น
+  const canRefund = useAuthStore((s) => s.hasRole('ADMIN', 'MANAGER', 'STAFF'));
   const [page, setPage] = useState(0);
   const [status, setStatus] = useState<SalesOrderStatus | ''>('');
   const [day, setDay] = useState<string | null>(null);   // วันที่เลือกจากปฏิทิน (YYYY-MM-DD)
@@ -89,6 +89,11 @@ export function SalesHistoryPage() {
   const [printOrder, setPrintOrder] = useState<SalesOrderResponse | null>(null);
   const [refundOrder, setRefundOrder] = useState<SalesOrderResponse | null>(null);
   const [returnOrder, setReturnOrder] = useState<SalesOrderResponse | null>(null);
+  // ขั้นยืนยันด้วยรหัสความปลอดภัย — เก็บสิ่งที่จะทำไว้ระหว่างรอรหัส (FIX-103)
+  const [pendingRefund, setPendingRefund] =
+    useState<{ order: SalesOrderResponse; reason: string } | null>(null);
+  const [pendingReturn, setPendingReturn] =
+    useState<{ order: SalesOrderResponse; refundAmount: number; reason: string } | null>(null);
 
   // debounce คำค้น (เลขบิล/ลูกค้า)
   useEffect(() => {
@@ -127,7 +132,8 @@ export function SalesHistoryPage() {
   ].sort((a, b) => b.date.localeCompare(a.date));
 
   const refund = useMutation({
-    mutationFn: ({ id, reason }: { id: string; reason: string }) => posApi.refund(id, reason),
+    mutationFn: ({ id, reason, securityCode }: { id: string; reason: string; securityCode: string }) =>
+      posApi.refund(id, securityCode, reason),
     onSuccess: (order) => {
       toast.success(`คืนเงินบิล ${order.billNo} สำเร็จ`);
       qc.invalidateQueries({ queryKey: ['sales-orders'] });
@@ -143,8 +149,9 @@ export function SalesHistoryPage() {
   };
 
   const returnDevice = useMutation({
-    mutationFn: ({ id, refundAmount, reason }: { id: string; refundAmount: number; reason: string }) =>
-      posApi.returnDevice(id, refundAmount, reason),
+    mutationFn: ({ id, refundAmount, reason, securityCode }:
+                 { id: string; refundAmount: number; reason: string; securityCode: string }) =>
+      posApi.returnDevice(id, refundAmount, securityCode, reason),
     onSuccess: (order) => {
       toast.success(`รับเครื่องคืนบิล ${order.billNo} สำเร็จ — เครื่องเข้าสต็อกแล้ว`);
       qc.invalidateQueries({ queryKey: ['sales-orders'] });
@@ -339,9 +346,24 @@ export function SalesHistoryPage() {
           loading={refund.isPending}
           onClose={() => setRefundOrder(null)}
           onConfirm={(reason) => {
-            refund.mutate({ id: refundOrder.id, reason }, {
-              onSettled: () => setRefundOrder(null),
-            });
+            // ขั้นที่ 2 — ต้องผ่านรหัสความปลอดภัยของร้านก่อนเสมอ (FIX-103)
+            setPendingRefund({ order: refundOrder, reason });
+            setRefundOrder(null);
+          }}
+        />
+      )}
+
+      {pendingRefund && (
+        <SecurityCodeModal
+          action={`ยกเลิก/คืนเงินบิล ${pendingRefund.order.billNo}`}
+          warning="เครื่องจะกลับเข้าสต็อกและยอดขายบิลนี้ถูกตัดออก — ย้อนกลับไม่ได้"
+          pending={refund.isPending}
+          onClose={() => setPendingRefund(null)}
+          onConfirm={(securityCode) => {
+            refund.mutate(
+              { id: pendingRefund.order.id, reason: pendingRefund.reason, securityCode },
+              { onSuccess: () => setPendingRefund(null) },
+            );
           }}
         />
       )}
@@ -352,9 +374,28 @@ export function SalesHistoryPage() {
           loading={returnDevice.isPending}
           onClose={() => setReturnOrder(null)}
           onConfirm={(refundAmount, reason) => {
-            returnDevice.mutate({ id: returnOrder.id, refundAmount, reason }, {
-              onSettled: () => setReturnOrder(null),
-            });
+            setPendingReturn({ order: returnOrder, refundAmount, reason });
+            setReturnOrder(null);
+          }}
+        />
+      )}
+
+      {pendingReturn && (
+        <SecurityCodeModal
+          action={`รับเครื่องคืนบิล ${pendingReturn.order.billNo}`}
+          warning="เครื่องจะกลับเข้าสต็อกและยอดที่ชำระถูกปรับ — ย้อนกลับไม่ได้"
+          pending={returnDevice.isPending}
+          onClose={() => setPendingReturn(null)}
+          onConfirm={(securityCode) => {
+            returnDevice.mutate(
+              {
+                id: pendingReturn.order.id,
+                refundAmount: pendingReturn.refundAmount,
+                reason: pendingReturn.reason,
+                securityCode,
+              },
+              { onSuccess: () => setPendingReturn(null) },
+            );
           }}
         />
       )}

@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, CalendarDays, X } from 'lucide-react';
 import { posApi } from '@/api/pos';
 import { formatTHB } from '@/lib/format';
+import { formatInShopZone, shopDayKey } from '@/lib/datetime';
 
 const WEEKDAYS = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
 const MONTHS_TH = [
@@ -25,17 +26,18 @@ interface Props {
  * แก้ปัญหา dd/mm/yyyy พิมพ์ยาก → เห็นภาพรวมทั้งเดือน คลิกวันที่มีของได้เลย.
  */
 export function SalesCalendar({ selected, onSelect }: Props) {
-  const today = new Date();
+  // "วันนี้" อิงโซนร้าน ไม่ใช่นาฬิกาเครื่อง — กันไฮไลต์วันผิดบนแท็บเล็ตที่ตั้งโซนพลาด
+  const todayStr = shopDayKey(new Date());
+  const [todayYear, todayMonth] = todayStr.split('-').map(Number);
   const [open, setOpen] = useState(false);
   const [ym, setYm] = useState(() => {
     if (selected) { const [y, m] = selected.split('-').map(Number); return { y, m: m - 1 }; }
-    return { y: today.getFullYear(), m: today.getMonth() };
+    return { y: todayYear, m: todayMonth - 1 };
   });
 
   const lastDay = new Date(ym.y, ym.m + 1, 0).getDate();
   const first = iso(ym.y, ym.m, 1);
   const last = iso(ym.y, ym.m, lastDay);
-  const todayStr = iso(today.getFullYear(), today.getMonth(), today.getDate());
 
   const { data } = useQuery({
     queryKey: ['sales-calendar', first, last],
@@ -61,7 +63,7 @@ export function SalesCalendar({ selected, onSelect }: Props) {
   };
 
   const buttonLabel = selected
-    ? new Date(selected).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })
+    ? formatInShopZone(selected, { day: 'numeric', month: 'short', year: 'numeric' })
     : 'ปฏิทินยอดขาย';
 
   return (

@@ -23,8 +23,13 @@ export function CloseSessionModal({ session, onClose, onClosed }: Props) {
 
   useModalChrome(onClose);
 
-  // ระบบคำนวณ expected = sum(movements)
+  // "เงินสดที่ควรมีในลิ้นชัก" = ผลรวม movement ที่กระทบเงินสดเท่านั้น
+  // (โอน/บัตร/QR ถูกบันทึกด้วย amount = 0 อยู่แล้ว จึงไม่ปนเข้ามา — ดู CashMovementType)
   const expected = (session.movements ?? []).reduce((s, m) => s + Number(m.amount || 0), 0);
+  const nonCashTotal = Number(session.breakdown?.transferTotal ?? 0)
+    + Number(session.breakdown?.cardTotal ?? 0)
+    + Number(session.breakdown?.qrTotal ?? 0);
+  const counted = actual > 0;
   const variance = actual - expected;
   const VARIANCE_THRESHOLD = 50;
   const willAlert = Math.abs(variance) > VARIANCE_THRESHOLD;
@@ -66,35 +71,46 @@ export function CloseSessionModal({ session, onClose, onClosed }: Props) {
           {/* V31 — Breakdown สด/โอน/บัตร/QR ตอบ requirement "เย็นนี้สรุปยอด" */}
           <PaymentBreakdownCard breakdown={session.breakdown ?? null} />
 
+          {/* ตัวเลขเดียวที่ต้องเทียบตอนปิดร้าน — เงินสดในลิ้นชักเท่านั้น */}
+          <div className="rounded-lg border-2 border-brand-200 bg-brand-50 p-4 text-center">
+            <div className="text-sm font-medium text-brand-800">เงินสดที่ควรมีในเก๊ะตอนนี้</div>
+            <div className="my-1 text-4xl font-extrabold text-brand-700">{formatTHB(expected)}</div>
+            <div className="text-xs text-brand-700/80">
+              เงินทอนตั้งต้น {formatTHB(session.openingFloat)} + ขายที่รับเป็นเงินสด − เงินที่จ่ายออกจากเก๊ะ
+            </div>
+            {nonCashTotal > 0 && (
+              <div className="mt-2 rounded bg-white/70 px-2 py-1 text-xs text-slate-600">
+                ยอดโอน/บัตร/QR {formatTHB(nonCashTotal)} <strong>ไม่ต้องนับ</strong> — เข้าบัญชี ไม่ได้อยู่ในลิ้นชัก
+              </div>
+            )}
+          </div>
+
           <div className="rounded-md bg-slate-50 p-3 text-sm">
             <div className="text-xs text-slate-500">Session</div>
             <div className="font-mono text-sm font-semibold">{session.sessionNo}</div>
-            <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
-              <div>
-                <div className="text-slate-500">เงินทอนตั้งต้น</div>
-                <div className="font-semibold">{formatTHB(session.openingFloat)}</div>
-              </div>
-              <div>
-                <div className="text-slate-500">ระบบคาด (expected)</div>
-                <div className="font-bold text-brand-700">{formatTHB(expected)}</div>
-              </div>
-            </div>
           </div>
 
           <div>
             <label className="mb-1 block text-sm font-medium">
-              💵 นับเงินสดจริงในเก๊ะ (บาท)
+              💵 นับเงินสดจริงในเก๊ะ แล้วกรอกตัวเลขเดียว (บาท)
             </label>
             <input
               type="number" min={0} step={1}
               className="input text-right text-2xl font-bold"
-              value={actual}
+              value={actual || ''}
+              placeholder="0"
               onChange={(e) => setActual(Math.max(0, Number(e.target.value) || 0))}
               autoFocus
             />
+            <button
+              type="button"
+              className="mt-2 w-full rounded border border-emerald-300 bg-emerald-50 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-100"
+              onClick={() => setActual(expected)}>
+              ✅ ตรงตามระบบ — {formatTHB(expected)}
+            </button>
           </div>
 
-          {actual > 0 && (
+          {counted && (
             <div className={`rounded-md p-3 ${
               willAlert
                 ? 'bg-red-50 border border-red-200 text-red-800'

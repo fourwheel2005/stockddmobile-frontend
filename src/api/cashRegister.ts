@@ -13,6 +13,10 @@ export const cashRegisterApi = {
     api.get<CashSessionResponse | ''>('/cash-register/current', { params: branchId ? { branchId } : {} })
        .then((r) => (r.status === 204 ? null : (r.data as CashSessionResponse))),
 
+  /** ค่าตั้งต้นของร้าน (เงินทอนตั้งต้นมาตรฐาน) — FIX-100 */
+  defaults: () =>
+    api.get<{ defaultOpeningFloat: number }>('/cash-register/defaults').then((r) => r.data),
+
   get: (id: string) =>
     api.get<CashSessionResponse>(`/cash-register/${id}`).then((r) => r.data),
 

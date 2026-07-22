@@ -11,32 +11,41 @@ import { BranchSelector } from '@/components/BranchSelector';
 import {
   LayoutDashboard, Boxes, Package, ArrowUpFromLine,
   History, BellRing, LogOut, SlidersHorizontal, ScanLine, Users, Layers, Receipt,
-  BarChart3, ShieldCheck, Tag, Wrench, Menu, X, Wallet, Landmark, Building2, ArrowLeftRight,
+  BarChart3, ShieldCheck, Tag, Wrench, Menu, X, Wallet, Landmark, Building2, ArrowLeftRight, UserCog,
 } from 'lucide-react';
 
+/**
+ * สิทธิ์เมนู (FIX-102) — STAFF = "ขายหน้าร้านอย่างเดียว"
+ * เห็นได้เฉพาะ POS / เก๊ะเงินสด / งานซ่อม / ประวัติบิลขาย (เฉพาะบิลตัวเอง)
+ * เมนูที่เหลือทั้งหมดเป็นของ ADMIN/MANAGER — backend ก็ปิดซ้ำอีกชั้น (deny-by-default)
+ */
+const ALL_ROLES = ['ADMIN', 'MANAGER', 'STAFF'] as const;
+const BACK_OFFICE = ['ADMIN', 'MANAGER'] as const;
+
 const navItems = [
-  { to: '/',             label: 'Dashboard',     icon: LayoutDashboard },
-  { to: '/pos',          label: 'POS ขายหน้าร้าน', icon: ScanLine },
-  { to: '/cash-register', label: 'เก๊ะเงินสด',      icon: Wallet },
-  { to: '/repairs',      label: 'งานซ่อม',        icon: Wrench },
-  { to: '/inventory',    label: 'คลังสต็อก',     icon: Boxes },
-  { to: '/products',     label: 'สินค้า + คลัง', icon: Package },
-  { to: '/outbound',     label: 'จ่ายสินค้า',     icon: ArrowUpFromLine },
-  { to: '/warranty',     label: 'เช็คประกัน',     icon: ShieldCheck },
-  { to: '/labels',       label: 'พิมพ์ Label',    icon: Tag },
-  { to: '/customers',    label: 'ลูกค้า',        icon: Users },
-  { to: '/adjustment',   label: 'ปรับสต็อก',     icon: SlidersHorizontal, roles: ['ADMIN', 'MANAGER'] as const },
-  { to: '/lots',         label: 'ล็อตนำเข้า',    icon: Layers,            roles: ['ADMIN', 'MANAGER'] as const },
-  { to: '/sales',        label: 'ประวัติบิลขาย',  icon: Receipt },
+  { to: '/',             label: 'Dashboard',     icon: LayoutDashboard,   roles: BACK_OFFICE },
+  { to: '/pos',          label: 'POS ขายหน้าร้าน', icon: ScanLine,          roles: ALL_ROLES },
+  { to: '/cash-register', label: 'เก๊ะเงินสด',      icon: Wallet,            roles: ALL_ROLES },
+  { to: '/repairs',      label: 'งานซ่อม',        icon: Wrench,            roles: ALL_ROLES },
+  { to: '/inventory',    label: 'คลังสต็อก',     icon: Boxes,             roles: BACK_OFFICE },
+  { to: '/products',     label: 'สินค้า + คลัง', icon: Package,           roles: BACK_OFFICE },
+  { to: '/outbound',     label: 'จ่ายสินค้า',     icon: ArrowUpFromLine,   roles: BACK_OFFICE },
+  { to: '/warranty',     label: 'เช็คประกัน',     icon: ShieldCheck,       roles: BACK_OFFICE },
+  { to: '/labels',       label: 'พิมพ์ Label',    icon: Tag,               roles: BACK_OFFICE },
+  { to: '/customers',    label: 'ลูกค้า',        icon: Users,             roles: BACK_OFFICE },
+  { to: '/adjustment',   label: 'ปรับสต็อก',     icon: SlidersHorizontal, roles: BACK_OFFICE },
+  { to: '/lots',         label: 'ล็อตนำเข้า',    icon: Layers,            roles: BACK_OFFICE },
+  { to: '/sales',        label: 'ประวัติบิลขาย',  icon: Receipt,           roles: ALL_ROLES },
   // ─── ซ่อนชั่วคราว — ยังไม่ใช้ในตอนนี้ (V31 finance partner tracking) ───
   // เก็บ route /finance-pending ไว้ + backend ทำงานตามปกติ
   // ถ้าอยากเปิดกลับ — uncomment บรรทัดถัดไป
   // { to: '/finance-pending', label: 'ไฟแนนซ์ค้างจ่าย', icon: Landmark, roles: ['ADMIN', 'MANAGER'] as const },
-  { to: '/transactions', label: 'ประวัติสต็อก',  icon: History,           roles: ['ADMIN', 'MANAGER'] as const },
-  { to: '/reports',      label: 'รายงาน',        icon: BarChart3,         roles: ['ADMIN', 'MANAGER'] as const },
-  { to: '/alerts',       label: 'แจ้งเตือน',     icon: BellRing,          roles: ['ADMIN', 'MANAGER'] as const },
-  { to: '/transfers',    label: 'โอนสาขา',       icon: ArrowLeftRight },
-  { to: '/branches',     label: 'สาขา',          icon: Building2,         roles: ['ADMIN', 'MANAGER'] as const },
+  { to: '/transactions', label: 'ประวัติสต็อก',  icon: History,           roles: BACK_OFFICE },
+  { to: '/reports',      label: 'รายงาน',        icon: BarChart3,         roles: BACK_OFFICE },
+  { to: '/alerts',       label: 'แจ้งเตือน',     icon: BellRing,          roles: BACK_OFFICE },
+  { to: '/transfers',    label: 'โอนสาขา',       icon: ArrowLeftRight,    roles: BACK_OFFICE },
+  { to: '/branches',     label: 'สาขา',          icon: Building2,         roles: BACK_OFFICE },
+  { to: '/users',        label: 'จัดการพนักงาน',  icon: UserCog,           roles: ['ADMIN'] as const },
 ];
 
 function Wordmark() {

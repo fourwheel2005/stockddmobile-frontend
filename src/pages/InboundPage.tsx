@@ -9,6 +9,7 @@ import { inventoryApi } from '@/api/inventory';
 import { lotsApi } from '@/api/lots';
 import { extractErrorMessage } from '@/api/client';
 import { formatNumber, formatTHB } from '@/lib/format';
+import { shopToday } from '@/lib/datetime';
 import { ACQ_INFO, ACQ_ORDER } from '@/lib/acquisition';
 import type { AcquisitionType } from '@/types/api';
 
@@ -34,9 +35,7 @@ const EMPTY_SERIAL_ROW = {
   condition: 'NEW' as const, batteryHealth: '' as const, acquisitionType: 'PURCHASE' as const,
 };
 
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
+const todayIso = shopToday;
 
 function defaultLotNo(): string {
   // LOT-yyyyMMdd-HHmmss → unique + human-readable

@@ -1,5 +1,6 @@
 import { EscPosBuilder } from './EscPosBuilder';
 import type { RepairTicket } from '@/types/api';
+import { formatInShopZone, parseServerDateTime } from '../datetime';
 
 export type RepairSlipMode = 'INTAKE' | 'RECEIPT';
 
@@ -11,9 +12,10 @@ function baht(n: number | null | undefined): string {
   return (Number(n) || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' บาท';
 }
 function fmtDate(iso: string | null | undefined): string {
-  if (!iso) return '-';
-  const d = new Date(iso);
-  return d.toLocaleDateString('th-TH') + ' ' + d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+  const d = parseServerDateTime(iso);
+  if (!d) return '-';
+  return formatInShopZone(iso, { year: 'numeric', month: '2-digit', day: '2-digit' })
+    + ' ' + formatInShopZone(iso, { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
 /**

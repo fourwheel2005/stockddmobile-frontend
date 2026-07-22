@@ -6,6 +6,7 @@ import { Search, Plus, X, UserCircle2, UserPlus, Users } from 'lucide-react';
 import { customersApi } from '@/api/customers';
 import { extractErrorMessage } from '@/api/client';
 import { useModalChrome, backdropCloseHandler } from '@/hooks/useModalChrome';
+import { useAuthStore } from '@/stores/authStore';
 import type { Customer, CustomerRequest } from '@/types/api';
 
 interface Props {
@@ -16,6 +17,7 @@ interface Props {
 export function CustomerPickerModal({ onSelect, onClose }: Props) {
   const [q, setQ] = useState('');
   const [showCreate, setShowCreate] = useState(false);
+  const canCreateCustomer = useAuthStore((s) => s.hasRole('ADMIN', 'MANAGER'));
 
   useModalChrome(onClose);
 
@@ -68,10 +70,13 @@ export function CustomerPickerModal({ onSelect, onClose }: Props) {
                 onChange={(e) => setQ(e.target.value)}
               />
             </div>
-            <button className="btn-primary shrink-0" onClick={() => setShowCreate(true)}>
-              <UserPlus className="h-4 w-4" />
-              เพิ่มลูกค้าใหม่
-            </button>
+            {/* STAFF สร้างลูกค้าไม่ได้ (FIX-102) — ขายให้ walk-in โดยพิมพ์ชื่อในบิลแทน */}
+            {canCreateCustomer && (
+              <button className="btn-primary shrink-0" onClick={() => setShowCreate(true)}>
+                <UserPlus className="h-4 w-4" />
+                เพิ่มลูกค้าใหม่
+              </button>
+            )}
           </div>
 
           {/* Walk-in option */}
@@ -97,11 +102,13 @@ export function CustomerPickerModal({ onSelect, onClose }: Props) {
                 <p className="text-sm font-medium text-slate-500">
                   {q ? `ไม่พบลูกค้าที่ตรงกับ "${q}"` : 'ยังไม่มีลูกค้าในระบบ'}
                 </p>
-                <button
-                  onClick={() => setShowCreate(true)}
-                  className="mt-1 text-sm font-medium text-brand-600 hover:underline">
-                  + เพิ่มลูกค้าใหม่
-                </button>
+                {canCreateCustomer && (
+                  <button
+                    onClick={() => setShowCreate(true)}
+                    className="mt-1 text-sm font-medium text-brand-600 hover:underline">
+                    + เพิ่มลูกค้าใหม่
+                  </button>
+                )}
               </div>
             )}
 

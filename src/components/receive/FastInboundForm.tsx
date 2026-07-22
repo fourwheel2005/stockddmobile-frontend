@@ -8,6 +8,7 @@ import { inventoryApi } from '@/api/inventory';
 import { lotsApi } from '@/api/lots';
 import { extractErrorMessage } from '@/api/client';
 import { formatTHB } from '@/lib/format';
+import { shopToday } from '@/lib/datetime';
 import { ACQ_INFO, ACQ_ORDER } from '@/lib/acquisition';
 import type { AcquisitionType, VariantResponse } from '@/types/api';
 
@@ -102,7 +103,7 @@ export function FastInboundForm({ variant, isSerialized, onBack, onDone }: Props
         }
         return lotsApi.inbound({
           lotNo: '',
-          importDate: new Date().toISOString().slice(0, 10),
+          importDate: shopToday(),
           note: [note, supplierRef && `ผู้ขาย: ${supplierRef}`, invoiceNo && `INV: ${invoiceNo}`]
             .filter(Boolean).join(' · ') || undefined,
           items: validItems,

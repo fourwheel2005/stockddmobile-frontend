@@ -7,6 +7,7 @@ import {
 import { BarChart3, TrendingUp, Wallet, Boxes, Trophy } from 'lucide-react';
 import { reportsApi } from '@/api/reports';
 import { formatTHB, formatNumber } from '@/lib/format';
+import { shopDayKey } from '@/lib/datetime';
 import type { PaymentMethod } from '@/types/api';
 
 const PIE_COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#a855f7'];
@@ -20,9 +21,8 @@ const PAYMENT_LABEL_TH: Record<PaymentMethod, string> = {
   MIXED: 'ผสม',
 };
 
-function isoDate(d: Date) {
-  return d.toISOString().slice(0, 10);
-}
+/** วันของร้าน (Asia/Bangkok) — ห้ามใช้ toISOString() ที่ให้วัน UTC (คลาด 1 วันก่อน 07:00 น.) */
+const isoDate = shopDayKey;
 
 const PRESETS: Array<{ label: string; days: number }> = [
   { label: '7 วันล่าสุด',  days: 7 },

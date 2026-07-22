@@ -18,12 +18,14 @@ import type {
   PaymentMethod, PaymentSplit, RepairTicket, SalesOrderResponse, ShippingPartner,
 } from '@/types/api';
 import { PaymentSplitEditor, validateSplit } from '@/components/pos/PaymentSplitEditor';
+import { CustomItemForm, type CustomItemDraft } from '@/components/pos/CustomItemForm';
 import { MultiSlipUpload, type SlipEntry } from '@/components/pos/MultiSlipUpload';
 import { cashRegisterApi } from '@/api/cashRegister';
 import { OpenSessionModal } from '@/components/OpenSessionModal';
 import { PrinterStatusBadge } from '@/components/PrinterStatusBadge';
 import { PrinterSettingsModal } from '@/components/PrinterSettingsModal';
 import { useBranchStore } from '@/stores/branchStore';
+import { useAuthStore } from '@/stores/authStore';
 import { QuickReprintModal } from '@/components/QuickReprintModal';
 import { OwnerShippingModal } from '@/components/OwnerShippingModal';
 import { usePrinter } from '@/hooks/usePrinter';
@@ -42,7 +44,11 @@ const SHIPPING_PARTNER_OPTIONS: { value: ShippingPartner; label: string; icon: s
 
 interface CartLine {
   key: string;
-  variantId: string;
+  /** ว่าง = รายการพิมพ์เอง (ไม่ผูกสต็อก) — FIX-099 */
+  variantId?: string;
+  /** true = พิมพ์เอง · ทุนเก็บเป็นรหัสตัวอักษรใน unitCostCode */
+  custom?: boolean;
+  unitCostCode?: string;
   serialItemId?: string;
   sku: string;
   productName: string;
@@ -134,6 +140,8 @@ export function PosTerminalPage() {
   const [showPrinterSettings, setShowPrinterSettings] = useState(false);
   const [showQuickReprint, setShowQuickReprint] = useState(false);
   const printer = usePrinter();
+  /** STAFF = ขายอย่างเดียว → ซ่อนปุ่มที่แตะข้อมูล/เงินหลังร้าน (FIX-102) */
+  const canSeeBackOffice = useAuthStore((s) => s.hasRole('ADMIN', 'MANAGER'));
 
   // ─── Cash session check (block checkout if no session) — ของสาขาที่ขาย ──
   const activeBranchId = useBranchStore((s) => s.activeBranchId);
@@ -239,6 +247,24 @@ export function PosTerminalPage() {
     inputRef.current?.focus();
   };
 
+  /** เพิ่มรายการที่พิมพ์เอง (ไม่ตัดสต็อก) — FIX-099 */
+  function addCustomItemToCart(draft: CustomItemDraft) {
+    setCart((prev) => [...prev, {
+      key: `custom-${Date.now()}-${prev.length}`,
+      custom: true,
+      unitCostCode: draft.unitCostCode || undefined,
+      sku: '—',
+      productName: draft.name,
+      detail: 'ไม่ตัดสต็อก',
+      labelPrice: draft.sellPrice,
+      sellPrice: draft.sellPrice,
+      quantity: draft.quantity,
+      serialized: false,
+      payToday: true,   // ของชิ้นเล็กจ่ายสดวันนี้เสมอ ไม่รวมยอดผ่อน
+    }]);
+    toast.success(`เพิ่มแล้ว: ${draft.name}`, { duration: 1500 });
+  }
+
   const updateLine = (key: string, patch: Partial<CartLine>) => {
     setCart((prev) => prev.map((l) => l.key === key ? { ...l, ...patch } : l));
   };
@@ -294,7 +320,10 @@ export function PosTerminalPage() {
         customerId: customer?.id,
         branchId: useBranchStore.getState().activeBranchId ?? undefined,  // ขายที่สาขาที่เลือก (Phase 2C)
         items: cart.map((l) => ({
-          variantId: l.variantId,
+          variantId: l.custom ? undefined : l.variantId,
+          // รายการพิมพ์เอง: ส่งชื่อ + รหัสทุน แทน variant (backend ถอดรหัสทุนเอง) — FIX-099
+          customName: l.custom ? l.productName : undefined,
+          unitCostCode: l.custom ? (l.unitCostCode || undefined) : undefined,
           serialItemId: l.serialItemId,
           quantity: l.quantity,
           labelPrice: l.labelPrice,
@@ -484,9 +513,12 @@ export function PosTerminalPage() {
           <button className="btn-secondary" onClick={() => setShowImeiPicker(true)}>
             <ListChecks className="h-4 w-4" /> เลือก IMEI จากรายการ
           </button>
-          <button className="btn-secondary" onClick={() => setShowLookup(true)}>
-            <Search className="h-4 w-4" /> เช็ครายละเอียด
-          </button>
+          {/* ข้อมูลเครื่องเชิงลึก — STAFF ไม่เห็น (FIX-102) */}
+          {canSeeBackOffice && (
+            <button className="btn-secondary" onClick={() => setShowLookup(true)}>
+              <Search className="h-4 w-4" /> เช็ครายละเอียด
+            </button>
+          )}
           <button className="btn-secondary text-amber-700" onClick={() => setShowRepair(true)}>
             <Wrench className="h-4 w-4" /> ส่งซ่อม / เคลม
           </button>
@@ -863,11 +895,13 @@ export function PosTerminalPage() {
             );
           })()}
 
-          {/* จ่ายค่าส่งตา/ยาย แบบไม่ต้องมีบิล (ออกไปจ่ายข้างนอกแล้วกรอก) */}
+          {/* จ่ายค่าส่งตา/ยาย แบบไม่ต้องมีบิล (ออกไปจ่ายข้างนอกแล้วกรอก) — เงินเจ้าของ STAFF ไม่ยุ่ง */}
+          {canSeeBackOffice && (
           <button type="button" onClick={() => setShowOwnerShip(true)}
                   className="flex w-full items-center justify-center gap-1.5 rounded-md border border-dashed border-orange-300 bg-orange-50/50 px-3 py-2 text-xs font-medium text-orange-700 transition hover:bg-orange-100">
             <Plus className="h-3.5 w-3.5" /> จ่ายค่าส่ง (ตา/ยาย) แบบไม่มีบิล — ออกไปจ่ายข้างนอก
           </button>
+          )}
 
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-600">
@@ -927,6 +961,9 @@ export function PosTerminalPage() {
         />
       )}
 
+      {/* ขายของที่ไม่ได้ลงสต็อก — พิมพ์ชื่อ/ราคาเอง (FIX-099) */}
+      <CustomItemForm onAdd={addCustomItemToCart} />
+
       {/* Cart */}
       <div className="card">
         <div className="card-header flex items-center gap-2">
@@ -959,7 +996,14 @@ export function PosTerminalPage() {
                   <td className="px-4 py-3 text-slate-500">{idx + 1}</td>
                   <td className="px-4 py-3">
                     <div className="font-medium">{l.productName}</div>
-                    <div className="text-xs text-slate-500 font-mono">{l.sku}</div>
+                    {l.custom ? (
+                      <div className="text-xs text-amber-700">
+                        พิมพ์เอง · ไม่ตัดสต็อก
+                        {l.unitCostCode && <span className="ml-1 font-mono">(ทุน {l.unitCostCode})</span>}
+                      </div>
+                    ) : (
+                      <div className="text-xs text-slate-500 font-mono">{l.sku}</div>
+                    )}
                     {l.imei && <div className="text-xs text-brand-700">IMEI: {l.imei}</div>}
                     {l.detail && <div className="text-xs text-slate-500">{l.detail}</div>}
                     {/* บิลผ่อน: เลือกต่อบรรทัด ว่า "ผ่อน" หรือ "จ่ายวันนี้" (อุปกรณ์เสริม) — FIX-094 */}
