@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { Wrench, Printer, Play, CheckCircle2, HandCoins, Ban, X, Pencil, ReceiptText } from 'lucide-react';
 import { repairApi } from '@/api/repair';
 import { extractErrorMessage } from '@/api/client';
 import { formatTHB, formatDateTime } from '@/lib/format';
+import { shopDayKey, formatInShopZone } from '@/lib/datetime';
 import { RepairBillPrintView } from '@/components/RepairBillPrintView';
 import { printOrchestrator } from '@/lib/printer/PrintOrchestrator';
 import { buildRepairSlip, type RepairSlipMode } from '@/lib/escpos/repairEscpos';
@@ -53,6 +54,21 @@ export function RepairListPage() {
     queryKey: ['repair-tickets', statusFilter],
     queryFn: () => repairApi.list({ status: statusFilter || undefined, size: 100 }),
   });
+
+  // จัดกลุ่มงานซ่อมเป็น "รายวัน" ตามวันรับเข้า (โซนร้าน) — list เรียงใหม่→เก่าจาก backend อยู่แล้ว
+  const dayGroups = useMemo(() => {
+    const groups: Array<{ key: string; tickets: RepairTicket[]; count: number; total: number }> = [];
+    const byKey = new Map<string, (typeof groups)[number]>();
+    for (const t of data?.content ?? []) {
+      const key = shopDayKey(t.receivedAt);
+      let g = byKey.get(key);
+      if (!g) { g = { key, tickets: [], count: 0, total: 0 }; byKey.set(key, g); groups.push(g); }
+      g.tickets.push(t);
+      g.count += 1;
+      g.total += t.repairCost ?? 0;
+    }
+    return groups;
+  }, [data]);
 
   const update = useMutation({
     mutationFn: ({ id, body }: { id: string; body: Parameters<typeof repairApi.updateStatus>[1] }) =>
@@ -140,7 +156,19 @@ export function RepairListPage() {
               {isLoading && (
                 <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-400">กำลังโหลด...</td></tr>
               )}
-              {data?.content.map((t) => (
+              {dayGroups.map((g) => (
+                <Fragment key={g.key}>
+                  <tr className="bg-slate-100/70">
+                    <td colSpan={6} className="px-4 py-1.5">
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                        <span className="font-semibold text-slate-700">
+                          📅 {formatInShopZone(g.key, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
+                        </span>
+                        <span className="text-slate-500">{g.count} งาน · รวมค่าซ่อม {formatTHB(g.total)}</span>
+                      </div>
+                    </td>
+                  </tr>
+                  {g.tickets.map((t) => (
                 <tr key={t.id} className="hover:bg-slate-50">
                   <td className="px-4 py-3">
                     <div className="font-mono text-xs font-semibold">{t.ticketNo}</div>
@@ -202,6 +230,8 @@ export function RepairListPage() {
                     </div>
                   </td>
                 </tr>
+                  ))}
+                </Fragment>
               ))}
               {data && data.content.length === 0 && (
                 <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-400">ไม่มีงานซ่อมในสถานะนี้</td></tr>

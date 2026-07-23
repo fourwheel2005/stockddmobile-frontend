@@ -18,6 +18,10 @@ export const repairApi = {
   get: (id: string) =>
     api.get<RepairTicket>(`/repair-tickets/${id}`).then((r) => r.data),
 
+  /** ประวัติใบรับซ่อมของเครื่อง (ยิง IMEI/Serial ที่ POS) — FIX-103 */
+  listByDevice: (params: { imei?: string; serial?: string }) =>
+    api.get<RepairTicket[]>('/repair-tickets/by-device', { params }).then((r) => r.data),
+
   updateStatus: (id: string, req: UpdateRepairStatusRequest) =>
     api.patch<RepairTicket>(`/repair-tickets/${id}/status`, req).then((r) => r.data),
 

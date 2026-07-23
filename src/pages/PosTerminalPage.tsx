@@ -10,6 +10,8 @@ import { hasRealImei } from '@/lib/escpos/ddmobileReceipt';
 import { CustomerPickerModal } from '@/components/CustomerPickerModal';
 import { ImeiPickerModal } from '@/components/ImeiPickerModal';
 import { DeviceLookupModal } from '@/components/DeviceLookupModal';
+import { DeviceScanDetailPanel, type ScannedDeviceRef } from '@/components/DeviceScanDetailPanel';
+import { inventoryApi } from '@/api/inventory';
 import { RepairIntakeModal } from '@/components/RepairIntakeModal';
 import { ReceiptPrintView } from '@/components/ReceiptPrintView';
 import { RepairBillPrintView } from '@/components/RepairBillPrintView';
@@ -82,6 +84,8 @@ export function PosTerminalPage() {
   const qc = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
   const [scanQuery, setScanQuery] = useState('');
+  // เครื่องที่เพิ่งสแกน → โชว์การ์ดรายละเอียด (battery + ประวัติซ่อม/อะไหล่ + ใบรับซ่อม) FIX-103
+  const [scannedDevice, setScannedDevice] = useState<ScannedDeviceRef | null>(null);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH');
   const [paymentRef, setPaymentRef] = useState('');
@@ -182,8 +186,24 @@ export function PosTerminalPage() {
 
   const scan = useMutation({
     mutationFn: (q: string) => posApi.scan(q),
-    onSuccess: addToCart,
-    onError: (e) => toast.error(extractErrorMessage(e)),
+    onSuccess: (item) => {
+      addToCart(item);
+      // เครื่อง serialized → เด้งการ์ดรายละเอียด/ประวัติทันที (ยังเพิ่มลงตะกร้าตามปกติ)
+      if (item.serialized && item.serialItemId) {
+        setScannedDevice({ serialItemId: item.serialItemId, imei: item.imei, serialNumber: item.serialNumber });
+      }
+    },
+    onError: async (e, q) => {
+      // เครื่องขายแล้ว/ยิงเข้าตะกร้าไม่ได้ → ยังโชว์รายละเอียด (ไม่เพิ่มลงตะกร้า) กันช่างเช็คประวัติไม่ได้
+      try {
+        const found = await inventoryApi.lookupSerial(q);
+        setScannedDevice({
+          serialItemId: found.id, imei: found.imei, serialNumber: found.serialNumber, lookupOnly: true,
+        });
+      } catch {
+        toast.error(extractErrorMessage(e));
+      }
+    },
   });
 
   function addToCart(item: CartScanResponse) {
@@ -697,6 +717,11 @@ export function PosTerminalPage() {
           </div>
         </div>
       </div>
+
+      {/* ─── รายละเอียด/ประวัติเครื่องที่เพิ่งสแกน (FIX-103) ──────────── */}
+      {scannedDevice && (
+        <DeviceScanDetailPanel device={scannedDevice} onClose={() => setScannedDevice(null)} />
+      )}
 
       {/* ─── Customer info (walk-in หรือ ระบบ) + ช่องทาง ──────────── */}
       <div className="card border-2 border-sky-300">
