@@ -1,9 +1,13 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { X, Wrench, ShieldAlert, Undo2, BatteryMedium, Pencil, Save, Plus, Trash2, ArrowLeftRight } from 'lucide-react';
+import { X, Wrench, ShieldAlert, Undo2, BatteryMedium, Pencil, Save, Plus, Trash2, ArrowLeftRight, QrCode } from 'lucide-react';
 import { inventoryApi } from '@/api/inventory';
 import { extractErrorMessage } from '@/api/client';
+import { useAuthStore } from '@/stores/authStore';
+import { printOrchestrator } from '@/lib/printer/PrintOrchestrator';
+import { buildDeviceLabel } from '@/lib/escpos/deviceLabel';
+import { deviceProductUrl } from '@/lib/storefront';
 import { formatDate, formatTHB } from '@/lib/format';
 import { acqLabel, ACQ_ORDER, ACQ_INFO } from '@/lib/acquisition';
 import { RepairIntakeModal } from '@/components/RepairIntakeModal';
@@ -60,6 +64,19 @@ export function SerialsModal({ variantId, productName, sku, onClose, highlightId
   const [moveFor, setMoveFor] = useState<SerializedItemResponse | null>(null);
   // SKU อื่นของรุ่นเดียวกันที่ย้ายไปได้ (active + ไม่ใช่ตัวปัจจุบัน)
   const moveTargets = (productVariants ?? []).filter((v) => v.id !== variantId && v.active);
+
+  // ปุ่มพิมพ์ป้าย QR แปะเครื่อง — เฉพาะ ADMIN (FIX-104)
+  const isAdmin = useAuthStore((s) => s.hasRole('ADMIN'));
+  const printLabel = async (s: SerializedItemResponse) => {
+    try {
+      printOrchestrator.setBridgeToken(localStorage.getItem('ddmobile.bridge.token'));
+      const bytes = buildDeviceLabel(s, deviceProductUrl(s.id));
+      const { strategy } = await printOrchestrator.print(bytes, { billNo: s.stockCode ?? s.imei ?? s.id });
+      toast.success(strategy === 'PULL_AGENT' ? 'ส่งป้ายเข้าคิวปริ้นแล้ว ☁️' : `พิมพ์ป้ายแล้ว (${strategy})`);
+    } catch (e) {
+      toast.error(extractErrorMessage(e));
+    }
+  };
 
   const { data, isLoading } = useQuery({
     queryKey: ['serials', variantId, statusFilter],
@@ -183,6 +200,13 @@ export function SerialsModal({ variantId, productName, sku, onClose, highlightId
                               onClick={() => setEditing(s)}>
                         <Pencil className="h-4 w-4" />
                       </button>
+                      {isAdmin && (
+                        <button className="rounded p-1.5 text-slate-600 hover:bg-slate-100"
+                                title="พิมพ์ป้าย QR แปะหลังเครื่อง (ลิงก์เว็บ + บาร์โค้ด)"
+                                onClick={() => printLabel(s)}>
+                          <QrCode className="h-4 w-4" />
+                        </button>
+                      )}
                       {s.status === 'IN_STOCK' && (
                         <>
                           {moveTargets.length > 0 && (
