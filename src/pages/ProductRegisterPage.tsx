@@ -23,6 +23,8 @@ import { shopToday } from '@/lib/datetime';
 import type { AcquisitionType, ProductWizardRequest } from '@/types/api';
 import { AccessorySerialList } from '@/components/products/AccessorySerialList';
 import { MultiImageUpload, ImageEditor } from '@/components/MultiImageUpload';
+import { InstallmentPlansEditor } from '@/components/products/InstallmentPlansEditor';
+import { serializePlans, type InstallmentPlan } from '@/lib/installment';
 
 /* ─── ตัวเลือกแนะนำ ─────────────────────────────────────────────────── */
 /** ดึงสินค้าหน้าเดียวพอ (ร้านมีรุ่นหลักสิบ) มาทำ autocomplete เลขรุ่น */
@@ -81,6 +83,8 @@ interface ItemRow {
   downPayment: number | '';
   installmentTerms: { months: string; monthly: string; down?: string }[];
   installmentPromo: string;
+  // มือ1: แผนผ่อนหลายแบบ (ปุ่มเลือก) ต่อรุ่น — ตั้งที่เครื่องแรกของกลุ่มสี/ความจุ
+  installmentPlans: InstallmentPlan[];
 }
 
 interface FormValues {
@@ -115,7 +119,7 @@ const EMPTY_ITEM: ItemRow = {
   condition: 'NEW', batteryHealth: '', deviceColor: '', modelNumber: '',
   deviceStorage: '', deviceNetwork: '', warrantyTerms: '', warrantyExpire: '',
   acquisitionType: 'PURCHASE', purchasePrice: '', sellingPrice: '', imageUrls: [],
-  downPayment: '', installmentTerms: [], installmentPromo: '',
+  downPayment: '', installmentTerms: [], installmentPromo: '', installmentPlans: [],
 };
 
 const todayIso = shopToday;
@@ -508,7 +512,7 @@ export function ProductRegisterPage() {
   const buildPayload = (d: FormValues): ProductWizardRequest | null => {
     const blank = (s?: string) => (s && s.trim()) ? s.trim() : undefined;
 
-    // ผ่อนดาวน์รายเครื่อง → {downPayment, installmentTerms(JSON), installmentPromo}
+    // ผ่อนดาวน์รายเครื่อง (มือ2) → {downPayment, installmentTerms(JSON), installmentPromo}
     const instOf = (it: ItemRow) => {
       const clean = it.installmentTerms
         .map((t) => {
@@ -524,6 +528,17 @@ export function ProductRegisterPage() {
       };
     };
 
+    // ผ่อนดาวน์ มือ1 (ต่อรุ่น) → แผนหลายแบบ + mirror แผนแรกลง field เก่า (back-compat เว็บหน้าร้าน)
+    const planOf = (it: ItemRow) => {
+      const p = serializePlans(it.installmentPlans);
+      return {
+        downPayment: p.downPayment ?? undefined,
+        installmentTerms: p.installmentTerms ?? undefined,
+        installmentPromo: p.installmentPromo ?? undefined,
+        installmentPlans: p.installmentPlans ?? undefined,
+      };
+    };
+
     let validItems: Array<{
       serialNumber: string; stockCode?: string; imei?: string; condition?: Condition;
       batteryHealth?: number; deviceColor?: string; modelNumber?: string;
@@ -531,6 +546,7 @@ export function ProductRegisterPage() {
       acquisitionType?: AcquisitionType; purchasePrice?: number; sellingPrice?: number;
       warrantyTerms?: string; warrantyExpire?: string; imageUrls?: string[];
       downPayment?: number; installmentTerms?: string; installmentPromo?: string;
+      installmentPlans?: string;
     }> | undefined;
     let qty: number | undefined;
 
@@ -561,8 +577,8 @@ export function ProductRegisterPage() {
           warrantyExpire: blank(it.warrantyExpire),
           // รูปรายเครื่อง (FIX-043) — เว็บหน้าร้านดึงไปแสดง
           imageUrls: it.imageUrls?.length ? it.imageUrls : undefined,
-          // ผ่อนดาวน์ (มือ2 → serial · มือ1 → variant spec ด้านล่าง)
-          ...instOf(it),
+          // ผ่อนดาวน์: มือ1 (NEW) → แผนหลายแบบ (ไป variant spec ด้านล่าง) · มือ2 → รายเครื่องนี้ (serial)
+          ...(it.condition === 'NEW' ? planOf(it) : instOf(it)),
         }));
       if (validItems.length === 0) {
         toast.error('ใส่อย่างน้อย 1 ชิ้น (IMEI หรือ Serial)');
@@ -627,6 +643,7 @@ export function ProductRegisterPage() {
               downPayment: first.downPayment,
               installmentTerms: first.installmentTerms,
               installmentPromo: first.installmentPromo,
+              installmentPlans: first.installmentPlans,
             } : {}),
           },
           items,
@@ -1283,9 +1300,12 @@ function ItemCard({
   const missColor = flagMissingSpec && condition === 'NEW' && !(me?.deviceColor ?? '').trim();
   const missStorage = flagMissingSpec && condition === 'NEW' && !(me?.deviceStorage ?? '').trim();
   const setImages = (next: string[]) => setValue(`items.${idx}.imageUrls`, next, { shouldDirty: true });
-  /* ผ่อนดาวน์ (มือ1 = ต่อรุ่น · มือ2 = ต่อเครื่อง) — งวดหลายช่วง */
+  /* ผ่อนดาวน์ มือ2 (ต่อเครื่อง) — งวดหลายช่วง (single plan) */
   const instTerms = (useWatch({ control, name: `items.${idx}.installmentTerms` }) as { months: string; monthly: string; down?: string }[] | undefined) ?? [];
   const setInstTerms = (next: { months: string; monthly: string; down?: string }[]) => setValue(`items.${idx}.installmentTerms`, next, { shouldDirty: true });
+  /* ผ่อนดาวน์ มือ1 (ต่อรุ่น) — แผนหลายแบบ (ปุ่มเลือก) */
+  const plans = (useWatch({ control, name: `items.${idx}.installmentPlans` }) as InstallmentPlan[] | undefined) ?? [];
+  const setPlans = (next: InstallmentPlan[]) => setValue(`items.${idx}.installmentPlans`, next, { shouldDirty: true });
   const uploadImages = async (files: File[]) => {
     const ok = files.filter((f) => {
       if (!f.type.startsWith('image/')) { toast.error(`"${f.name}" ไม่ใช่ไฟล์รูป`); return false; }
@@ -1492,12 +1512,15 @@ function ItemCard({
         <div className="mt-2 rounded-md border border-amber-200 bg-amber-50/60 px-2.5 py-2 text-xs text-amber-800">
           💳 <strong>ผ่อนดาวน์: ใช้ตาม{unitLabel}ที่ {instFirstIdx + 1} อัตโนมัติ</strong> (มือ1 สี/ความจุเดียวกัน ตั้งครั้งเดียวที่เครื่องแรก)
         </div>
+      ) : condition === 'NEW' ? (
+        /* มือ1 · แผนหลายแบบ (ปุ่มเลือก) ต่อรุ่น — ตั้งครั้งเดียวใช้ทั้งสี/ความจุนี้ */
+        <div className="mt-2">
+          <InstallmentPlansEditor value={plans} onChange={setPlans} />
+        </div>
       ) : (
       <div className="mt-2 space-y-2 rounded-md border border-amber-200 bg-amber-50/60 p-2.5">
         <div className="flex items-center gap-2 text-xs font-semibold text-amber-900">
-          💳 ผ่อนดาวน์ <span className="font-normal text-amber-700">
-            {condition === 'NEW' ? '(มือ1 · ตั้งครั้งเดียวใช้ทั้งรุ่น/ความจุ)' : '(มือ2 · รายเครื่องนี้)'} — เว้นว่างได้
-          </span>
+          💳 ผ่อนดาวน์ <span className="font-normal text-amber-700">(มือ2 · รายเครื่องนี้) — เว้นว่างได้</span>
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div>

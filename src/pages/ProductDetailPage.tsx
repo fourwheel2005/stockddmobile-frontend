@@ -18,6 +18,8 @@ import { ACQ_INFO, ACQ_ORDER } from '@/lib/acquisition';
 import {
   WARRANTY_NEW, WARRANTY_OPTIONS, COLOR_OPTIONS, STORAGE_OPTIONS, warrantyNeedsExpire,
 } from '@/lib/deviceOptions';
+import { InstallmentPlansEditor } from '@/components/products/InstallmentPlansEditor';
+import { parsePlans, serializePlans, type InstallmentPlan } from '@/lib/installment';
 import type {
   CreateVariantRequest, VariantResponse, ProductDetail, AcquisitionType, WizardInitialItem,
 } from '@/types/api';
@@ -479,23 +481,16 @@ function AddVariantModal({ productId, serialized, productModelNumber, editVarian
   const [variantImages, setVariantImages] = useState<string[]>(
     editVariant?.imageUrls?.length ? editVariant.imageUrls
       : (editVariant?.imageUrl ? [editVariant.imageUrl] : []));
-  // ผ่อนดาวน์ มือ 1 (ต่อรุ่น+ความจุ) — กรอกที่นี่ เว็บหน้าร้านดึงไปแสดง
-  const [downPayment, setDownPayment] = useState<string>(
-    editVariant?.downPayment != null ? String(editVariant.downPayment) : '');
-  const [instPromo, setInstPromo] = useState<string>(editVariant?.installmentPromo ?? '');
-  const [instTerms, setInstTerms] = useState<{ months: string; monthly: string; down: string }[]>(() => {
-    try {
-      const arr = editVariant?.installmentTerms ? JSON.parse(editVariant.installmentTerms) : [];
-      return Array.isArray(arr) && arr.length
-        ? arr.map((t: { months?: number; monthly?: number; down?: number }) =>
-            ({ months: String(t.months ?? ''), monthly: String(t.monthly ?? ''), down: t.down != null ? String(t.down) : '' }))
-        : [];
-    } catch { return []; }
-  });
-  const addTerm = () => setInstTerms((a) => [...a, { months: '', monthly: '', down: '' }]);
-  const patchTerm = (i: number, patch: Partial<{ months: string; monthly: string; down: string }>) =>
-    setInstTerms((a) => a.map((t, j) => (j === i ? { ...t, ...patch } : t)));
-  const removeTerm = (i: number) => setInstTerms((a) => a.filter((_, j) => j !== i));
+  // ผ่อนดาวน์ มือ 1 (ต่อรุ่น+ความจุ) — แผนหลายแบบ (ปุ่มเลือก) · เว็บหน้าร้านดึงไปแสดง
+  // bridge: ถ้ายังไม่มี installmentPlans แต่มี field เก่า → แปลงเป็น 1 แผนให้อัตโนมัติ
+  const [plans, setPlans] = useState<InstallmentPlan[]>(() => parsePlans(
+    editVariant?.installmentPlans,
+    {
+      downPayment: editVariant?.downPayment,
+      installmentTerms: editVariant?.installmentTerms,
+      installmentPromo: editVariant?.installmentPromo,
+    },
+  ));
   // เพิ่มสีมือถือ: เครื่องรายตัว ข้อมูลครบเท่าหน้ารับสต๊อก (บางเครื่องต่างกันได้)
   const [devices, setDevices] = useState<PhoneDevice[]>([emptyDevice()]);
   const patchDevice = (i: number, patch: Partial<PhoneDevice>) =>
@@ -541,21 +536,16 @@ function AddVariantModal({ productId, serialized, productModelNumber, editVarian
   const create = useMutation({
     mutationFn: async (req: CreateVariantRequest) => {
       if (isEdit) {
-        const cleanTerms = instTerms
-          .map((t) => {
-            const down = t.down.trim() === '' ? undefined : Number(t.down);   // ดาวน์ต่องวด (เว้น = ใช้ดาวน์เริ่มต้น)
-            return { months: Number(t.months), monthly: Number(t.monthly),
-                     ...(down != null && Number.isFinite(down) && down >= 0 ? { down } : {}) };
-          })
-          .filter((t) => Number.isFinite(t.months) && t.months > 0 && Number.isFinite(t.monthly) && t.monthly >= 0);
+        const inst = serializePlans(plans);   // แผนหลายแบบ + mirror แผนแรกลง field เก่า (back-compat)
         return productsApi.updateVariant(productId, editVariant!.id, {
           color: req.color, storage: req.storage, network: req.network, barcode: req.barcode,
           imageUrl: variantImages[0], imageUrls: variantImages,
           costPrice: req.costPrice, sellingPrice: req.sellingPrice,
           reorderPoint: req.reorderPoint, active: editVariant!.active,
-          downPayment: downPayment.trim() === '' ? null : Number(downPayment),
-          installmentTerms: cleanTerms.length ? JSON.stringify(cleanTerms) : null,
-          installmentPromo: instPromo.trim() || null,
+          downPayment: inst.downPayment,
+          installmentTerms: inst.installmentTerms,
+          installmentPromo: inst.installmentPromo,
+          installmentPlans: inst.installmentPlans,
         });
       }
       // เพิ่มสีมือถือ + เครื่องรายตัว → จัดกลุ่มเป็น variant ตามสเปกเว็บ DD
@@ -595,10 +585,13 @@ function AddVariantModal({ productId, serialized, productModelNumber, editVarian
         if (items.some((it) => it.condition === 'NEW' && (!it.deviceColor || !it.deviceStorage)))
           toast('⚠️ มือ 1 บางเครื่องไม่ได้ใส่สี/ความจุ — แนะนำใส่ให้ครบ', { duration: 4000, icon: '📱' });
 
+        // แผนผ่อน มือ1 (ตั้งครั้งเดียว) → แนบทุก variant มือ1 ที่เพิ่มรอบนี้ + mirror แผนแรกลง field เก่า
+        const inst = serializePlans(plans);
         // เพิ่มทีละ variant (sequential — รหัส DD ไม่ชน)
         for (const grp of groups.values()) {
           const first = grp[0];
           const cover = grp.find((x) => x.imageUrls?.length)?.imageUrls;
+          const isNew = first.condition === 'NEW';
           await productsApi.addVariantWithStock(productId, {
             branchId: useBranchStore.getState().activeBranchId ?? undefined,  // รับเข้าสาขาที่เลือก (Phase 2A)
             variant: {
@@ -609,6 +602,13 @@ function AddVariantModal({ productId, serialized, productModelNumber, editVarian
                 sellingPrice: Number(first.sellingPrice) || 0,
                 reorderPoint: Number(req.reorderPoint) || 5,
                 imageUrls: cover,
+                // ผ่อน มือ1 เท่านั้น (มือ2 = per-serial ไม่ผูกกับ preset)
+                ...(isNew ? {
+                  downPayment: inst.downPayment ?? undefined,
+                  installmentTerms: inst.installmentTerms ?? undefined,
+                  installmentPromo: inst.installmentPromo ?? undefined,
+                  installmentPlans: inst.installmentPlans ?? undefined,
+                } : {}),
               },
               items: grp,
             },
@@ -795,47 +795,17 @@ function AddVariantModal({ productId, serialized, productModelNumber, editVarian
           </div>
           )}
 
-          {/* ตารางผ่อน มือ 1 (ต่อรุ่น+ความจุ) — กรอกที่นี่ เว็บหน้าร้านดึงไปแสดง */}
+          {/* แผนผ่อนหลายแบบ มือ 1 (ต่อรุ่น+ความจุ) — ตั้งครั้งเดียวที่รุ่น เว็บหน้าร้านดึงไปแสดงเป็นปุ่มเลือก */}
           {isEdit && (
-          <div className="space-y-2 rounded-md border border-amber-200 bg-amber-50/60 p-3">
-            <div className="flex items-center gap-2 text-sm font-semibold text-amber-900">
-              💳 ตารางผ่อน (มือ 1) <span className="text-xs font-normal text-amber-700">— โชว์บนเว็บหน้าร้าน · เว้นว่างได้ถ้าไม่ผ่อน</span>
+            <InstallmentPlansEditor value={plans} onChange={setPlans} />
+          )}
+          {addingPhone && (
+            <div className="space-y-1">
+              <InstallmentPlansEditor value={plans} onChange={setPlans} />
+              <p className="px-1 text-[11px] text-amber-700">
+                💡 แผนผ่อนนี้ใช้กับ <strong>ทุกสี/ความจุ (มือ1)</strong> ที่เพิ่มรอบนี้ · ปรับรายรุ่นภายหลังได้ที่ปุ่ม “แก้”
+              </p>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">เงินดาวน์ (บาท)</label>
-                <input type="number" min={0} className="input" placeholder="เช่น 6990"
-                       value={downPayment} onChange={(e) => setDownPayment(e.target.value)} />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">โปรโมชัน (ถ้ามี)</label>
-                <input className="input" placeholder="เช่น ฟรีฟิล์ม+เคส"
-                       value={instPromo} onChange={(e) => setInstPromo(e.target.value)} />
-              </div>
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">ค่างวด (เพิ่มได้หลายช่วง)</label>
-              <div className="space-y-2">
-                {instTerms.map((t, i) => (
-                  <div key={i} className="flex flex-wrap items-center gap-2">
-                    <input type="number" min={1} className="input w-20" placeholder="งวด"
-                           value={t.months} onChange={(e) => patchTerm(i, { months: e.target.value })} />
-                    <span className="text-xs text-slate-500">เดือน ×</span>
-                    <input type="number" min={0} className="input w-28" placeholder="บาท/เดือน"
-                           value={t.monthly} onChange={(e) => patchTerm(i, { monthly: e.target.value })} />
-                    <span className="text-xs text-slate-500">· ดาวน์</span>
-                    <input type="number" min={0} className="input w-28" placeholder="เว้น=ค่าเริ่มต้น"
-                           value={t.down} onChange={(e) => patchTerm(i, { down: e.target.value })}
-                           title="เงินดาวน์เฉพาะงวดนี้ · เว้นว่าง = ใช้ดาวน์เริ่มต้นด้านบน" />
-                    <button type="button" className="rounded p-1 text-red-500 hover:bg-red-50"
-                            onClick={() => removeTerm(i)} title="ลบช่วงนี้">✕</button>
-                  </div>
-                ))}
-                <button type="button" onClick={addTerm}
-                        className="text-sm font-medium text-amber-700 hover:text-amber-900">+ เพิ่มงวด</button>
-              </div>
-            </div>
-          </div>
           )}
 
           {/* เครื่องรายตัว — ข้อมูลครบเท่าหน้ารับสต๊อก (แต่ละเครื่องต่างกันได้) */}

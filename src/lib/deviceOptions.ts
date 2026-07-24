@@ -23,6 +23,12 @@ export const COLOR_OPTIONS = [
 
 export const STORAGE_OPTIONS = ['64GB', '128GB', '256GB', '512GB', '1TB'];
 
+/**
+ * เครือข่าย/โซนเครื่อง (network) รายเครื่อง — ใช้ตอนรับเข้าเร็ว + แก้รายเครื่อง.
+ * TH=ศูนย์ไทย · ZP=เอเชีย/ฮ่องกง · LL=อเมริกา · JP=ญี่ปุ่น · DS=สองซิม · Intl=อินเตอร์.
+ */
+export const NETWORK_OPTIONS = ['TH', 'ZP', 'LL', 'JP', 'DS', 'Intl'];
+
 /** ต้องกรอกวันหมดประกันไหม — ประกัน Apple ที่ activate แล้ว นับจากวัน activate */
 export const warrantyNeedsExpire = (terms: string) =>
   terms === WARRANTY_APPLE_ACTIVATED || /activate/i.test(terms);

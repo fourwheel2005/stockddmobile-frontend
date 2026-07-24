@@ -66,9 +66,10 @@ export interface VariantResponse {
   imageUrl: string | null;
   imageUrls?: string[] | null;
   active: boolean;
-  downPayment?: number | null;         // ผ่อนดาวน์ มือ 1 (เว็บหน้าร้านดึงไปแสดง)
+  downPayment?: number | null;         // ผ่อนดาวน์ มือ 1 (แผนแรก · back-compat เว็บหน้าร้าน)
   installmentTerms?: string | null;    // JSON: [{"months":12,"monthly":2190}, ...]
   installmentPromo?: string | null;
+  installmentPlans?: string | null;    // JSON แผนหลายแบบ: [{"label","down","promo","terms":[...]}, ...]
   createdAt: string;
   updatedAt: string;
 }
@@ -110,6 +111,7 @@ export interface CreateVariantRequest {
   downPayment?: number | null;
   installmentTerms?: string | null;
   installmentPromo?: string | null;
+  installmentPlans?: string | null;    // JSON แผนหลายแบบ
 }
 
 // ─── Edit (แก้ที่พิมพ์ผิด หลังสร้าง/รับของ) ────────────────────────────
@@ -127,6 +129,7 @@ export interface UpdateVariantRequest {
   downPayment?: number | null;
   installmentTerms?: string | null;
   installmentPromo?: string | null;
+  installmentPlans?: string | null;    // JSON แผนหลายแบบ
 }
 
 export interface UpdateSerialRequest {
@@ -190,9 +193,10 @@ export interface WizardVariantSpec {
   reorderPoint: number;
   imageUrl?: string;
   imageUrls?: string[];
-  downPayment?: number;          // ผ่อนดาวน์ มือ1 (ต่อรุ่น)
+  downPayment?: number;          // ผ่อนดาวน์ มือ1 (ต่อรุ่น) = แผนแรก (back-compat)
   installmentTerms?: string;     // JSON [{months,monthly}]
   installmentPromo?: string;
+  installmentPlans?: string;     // JSON แผนหลายแบบ [{"label","down","promo","terms":[...]}, ...]
 }
 
 export interface WizardInitialItem {
