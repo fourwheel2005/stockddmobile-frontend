@@ -12,9 +12,28 @@ import type {
   VariantResponse,
 } from '@/types/api';
 
+/** ผลการรวมรุ่นซ้ำ (dedup) — dry-run (applied=false) หรือลงมือจริง (applied=true) — FIX-100 */
+export interface ProductDedupReport {
+  applied: boolean;
+  duplicateGroups: number;
+  productsDeactivated: number;
+  variantsMoved: number;
+  groups: Array<{
+    survivorId: string;
+    name: string;
+    serialized: boolean;
+    totalProducts: number;
+    merged: Array<{ productId: string; variantsMoved: number; devices: number }>;
+  }>;
+}
+
 export const productsApi = {
   list: (params: { page?: number; size?: number; categoryId?: string; active?: boolean } = {}) =>
     api.get<PageResponse<ProductSummary>>('/products', { params }).then((r) => r.data),
+
+  /** รวม product รุ่นซ้ำให้เหลือรุ่นเดียว — apply=false = พรีวิว(dry-run), apply=true = ลงมือจริง (FIX-100) */
+  dedup: (apply = false) =>
+    api.post<ProductDedupReport>('/products/dedup', null, { params: { apply } }).then((r) => r.data),
 
   get: (id: string) =>
     api.get<ProductDetail>(`/products/${id}`).then((r) => r.data),

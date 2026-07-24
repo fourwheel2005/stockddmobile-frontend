@@ -7,6 +7,7 @@ import {
 import { inventoryApi } from '@/api/inventory';
 import { lotsApi } from '@/api/lots';
 import { extractErrorMessage } from '@/api/client';
+import { AuthImage } from '@/components/AuthImage';
 import { formatTHB } from '@/lib/format';
 import { shopToday } from '@/lib/datetime';
 import { ACQ_INFO, ACQ_ORDER } from '@/lib/acquisition';
@@ -146,7 +147,7 @@ export function FastInboundForm({ variant, isSerialized, onBack, onDone }: Props
           <div className="flex items-center gap-3">
             <div className="grid h-16 w-16 shrink-0 place-items-center rounded-md bg-emerald-100">
               {variant.imageUrl
-                ? <img src={variant.imageUrl} alt="" className="h-full w-full rounded-md object-cover" />
+                ? <AuthImage src={variant.imageUrl} alt="" className="h-full w-full rounded-md object-cover" />
                 : <ImageIcon className="h-7 w-7 text-emerald-600" />}
             </div>
             <div className="min-w-0 flex-1">

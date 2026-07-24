@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ImageIcon, Loader2, Upload, X } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { AuthImage } from '@/components/AuthImage';
 import { filesApi } from '@/api/files';
 import { extractErrorMessage } from '@/api/client';
 import { compressImage } from '@/lib/imageCompress';
@@ -29,7 +30,7 @@ export function MultiImageUpload({
       <div className="flex flex-wrap gap-2">
         {images.map((url, idx) => (
           <div key={url + idx} className="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg border border-slate-200 group">
-            <img src={url} alt={`img-${idx}`} className="h-full w-full object-cover" />
+            <AuthImage src={url} alt={`img-${idx}`} className="h-full w-full object-cover" />
             {idx === 0 && (
               <span className="absolute bottom-0 left-0 right-0 bg-brand-600/90 py-0.5 text-center text-[10px] font-semibold text-white">
                 ปก

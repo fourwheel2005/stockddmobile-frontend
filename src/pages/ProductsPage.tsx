@@ -7,6 +7,7 @@ import { productsApi } from '@/api/products';
 import { extractErrorMessage } from '@/api/client';
 import { useAuthStore } from '@/stores/authStore';
 import { formatDate, formatTHB } from '@/lib/format';
+import { AuthImage } from '@/components/AuthImage';
 import { SearchVariantBar } from '@/components/receive/SearchVariantBar';
 import { FastInboundModal } from '@/components/receive/FastInboundModal';
 import type { VariantResponse } from '@/types/api';
@@ -29,6 +30,7 @@ export function ProductsPage() {
   const [query, setQuery] = useState(searchParams.get('q') ?? '');
   const [receiveTarget, setReceiveTarget] = useState<VariantResponse | null>(null);
   const canEdit = useAuthStore((s) => s.hasRole('ADMIN', 'MANAGER'));
+  const isAdmin = useAuthStore((s) => s.hasRole('ADMIN'));
   const qc = useQueryClient();
 
   const del = useMutation({
@@ -43,6 +45,28 @@ export function ProductsPage() {
     if (!confirm(`ลบสินค้า "${p.name}" ?\nซ่อนออกจากรายการ · ข้อมูล/ประวัติยังอยู่ (กู้คืนได้)`)) return;
     del.mutate(p.id);
   };
+
+  // รวมรุ่นซ้ำ (เช่น "iPhone 13" หลายอัน) → พรีวิว (dry-run) ก่อน แล้วค่อยลงมือจริง (FIX-100)
+  const dedup = useMutation({
+    mutationFn: async () => {
+      const preview = await productsApi.dedup(false);
+      if (preview.duplicateGroups === 0) { toast('ไม่พบรุ่นซ้ำ — ทุกอย่างเรียบร้อยแล้ว'); return null; }
+      const ok = confirm(
+        `พบรุ่นซ้ำ ${preview.duplicateGroups} รุ่น\n\n` +
+        `• ย้าย SKU/เครื่องทั้งหมด ${preview.variantsMoved} รายการ ไปรวมที่ "รุ่นหลัก" (ตัวเก่าสุด)\n` +
+        `• ปิดตัวซ้ำที่ว่างแล้ว ${preview.productsDeactivated} อัน\n\n` +
+        `ข้อมูล/ประวัติการขายไม่หาย · ย้อนกลับได้\nยืนยันรวมเลยไหม?`,
+      );
+      if (!ok) return null;
+      return productsApi.dedup(true);
+    },
+    onSuccess: (res) => {
+      if (!res) return;
+      toast.success(`รวมสำเร็จ ${res.duplicateGroups} รุ่น · ย้าย ${res.variantsMoved} SKU`);
+      qc.invalidateQueries({ queryKey: ['products', 'all'] });
+    },
+    onError: (e) => toast.error(extractErrorMessage(e)),
+  });
 
   // List (default view) — ดึงทั้งหมด แล้วจัดกลุ่มตามรุ่น (album-as-heading) ฝั่ง client
   const productsList = useQuery({
@@ -64,6 +88,9 @@ export function ProductsPage() {
     }
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, 'th'));
   }, [productsList.data]);
+
+  // มีรุ่นที่มี product ซ้ำ (>1 อันในโฟลเดอร์เดียว) → โชว์ปุ่ม "รวมรุ่นซ้ำ" ให้ ADMIN
+  const hasDuplicates = useMemo(() => albums.some((a) => a.items.length > 1), [albums]);
 
   // Search variants (when user types)
   const variantSearch = useQuery({
@@ -95,6 +122,15 @@ export function ProductsPage() {
                   className="btn-primary bg-emerald-600 hover:bg-emerald-700">
             <ArrowDownToLine className="h-4 w-4" /> รับสินค้าเข้า
           </button>
+          {isAdmin && hasDuplicates && !isSearchMode && (
+            <button type="button"
+                    onClick={() => dedup.mutate()}
+                    disabled={dedup.isPending}
+                    className="btn-secondary border-amber-300 text-amber-700 hover:bg-amber-50 disabled:opacity-60"
+                    title="รวมรุ่นที่มีหลาย product ซ้ำให้เหลือรุ่นเดียว (ย้าย SKU ไปรุ่นหลัก · ข้อมูลไม่หาย)">
+              <FolderOpen className="h-4 w-4" /> {dedup.isPending ? 'กำลังรวม…' : 'รวมรุ่นซ้ำ'}
+            </button>
+          )}
           <Link to="/products/new" className="btn-secondary">
             <Plus className="h-4 w-4" /> สร้างสินค้าใหม่
           </Link>
@@ -266,7 +302,7 @@ function VariantRow({ variant, onReceive }: { variant: VariantResponse; onReceiv
     <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-3 transition hover:border-brand-300 hover:shadow-sm">
       <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-md bg-slate-100">
         {variant.imageUrl
-          ? <img src={variant.imageUrl} alt="" className="h-full w-full object-cover" />
+          ? <AuthImage src={variant.imageUrl} alt="" className="h-full w-full object-cover" />
           : <PackagePlus className="h-6 w-6 text-slate-400" />}
       </div>
 
