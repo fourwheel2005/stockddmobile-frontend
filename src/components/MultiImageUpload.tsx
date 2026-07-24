@@ -82,7 +82,7 @@ export function ImageEditor({ value, onChange }: { value: string[]; onChange: (n
     setUploading(true);
     try {
       const compressed = await Promise.all(ok.map((f) => compressImage(f)));
-      const up = await Promise.all(compressed.map((f) => filesApi.upload(f)));
+      const up = await Promise.all(compressed.map((f) => filesApi.upload(f, { normalize: true })));
       onChange([...value, ...up.map((u) => u.url)]);
       toast.success(`อัปโหลด ${up.length} รูป`, { duration: 1000 });
     } catch (e) { toast.error(extractErrorMessage(e)); }

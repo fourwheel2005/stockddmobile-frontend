@@ -1316,7 +1316,7 @@ function ItemCard({
     setImgUploading(true);
     try {
       const compressed = await Promise.all(ok.map((f) => compressImage(f)));
-      const up = await Promise.all(compressed.map((f) => filesApi.upload(f)));
+      const up = await Promise.all(compressed.map((f) => filesApi.upload(f, { normalize: true })));
       setImages([...images, ...up.map((u) => u.url)]);
       toast.success(`อัปโหลด ${up.length} รูป`, { duration: 1000 });
     } catch (e) { toast.error(extractErrorMessage(e)); }

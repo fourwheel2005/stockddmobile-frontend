@@ -6,13 +6,17 @@ export interface UploadedFile {
 }
 
 export const filesApi = {
-  /** Alias for slip uploads — same backend endpoint */
+  /** Alias for slip uploads — same backend endpoint · ไม่ normalize (สลิปห้ามตัดขอบ) */
   uploadSlip: (file: File) => filesApi.upload(file),
 
-  /** Upload a file (multipart). Returns { id, url }. */
-  upload: (file: File) => {
+  /**
+   * Upload a file (multipart). Returns { id, url }.
+   * @param opts.normalize รูปสินค้า → ให้ backend ตัดขอบว่าง+จัดเฟรม (อย่าใช้กับสลิป)
+   */
+  upload: (file: File, opts?: { normalize?: boolean }) => {
     const form = new FormData();
     form.append('file', file);
+    if (opts?.normalize) form.append('normalize', 'true');
     return api
       .post<UploadedFile>('/files', form, {
         headers: { 'Content-Type': 'multipart/form-data' },
