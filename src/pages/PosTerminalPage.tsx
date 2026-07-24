@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { ScanLine, Trash2, ShoppingCart, Receipt, Search, ListChecks, UserCircle2, Printer, Upload, X, Wrench, Truck, Globe, Store, Plus, ChevronDown, ChevronUp } from 'lucide-react';
+import { ScanLine, Trash2, ShoppingCart, Receipt, Search, ListChecks, UserCircle2, Printer, Upload, X, Wrench, Truck, Globe, Store, Plus, ChevronDown, ChevronUp, ArrowLeftRight } from 'lucide-react';
 import { posApi } from '@/api/pos';
 import { filesApi } from '@/api/files';
 import { extractErrorMessage } from '@/api/client';
@@ -17,8 +17,9 @@ import { ReceiptPrintView } from '@/components/ReceiptPrintView';
 import { RepairBillPrintView } from '@/components/RepairBillPrintView';
 import type {
   CartScanResponse, Customer, InStockItem, OrderChannel,
-  PaymentMethod, PaymentSplit, RepairTicket, SalesOrderResponse, ShippingPartner,
+  PaymentMethod, PaymentSplit, RepairTicket, SalesOrderResponse, ShippingPartner, VariantResponse,
 } from '@/types/api';
+import { productsApi } from '@/api/products';
 import { PaymentSplitEditor, validateSplit } from '@/components/pos/PaymentSplitEditor';
 import { CustomItemForm, type CustomItemDraft } from '@/components/pos/CustomItemForm';
 import { MultiSlipUpload, type SlipEntry } from '@/components/pos/MultiSlipUpload';
@@ -86,6 +87,24 @@ export function PosTerminalPage() {
   const [scanQuery, setScanQuery] = useState('');
   // เครื่องที่เพิ่งสแกน → โชว์การ์ดรายละเอียด (battery + ประวัติซ่อม/อะไหล่ + ใบรับซ่อม) FIX-103
   const [scannedDevice, setScannedDevice] = useState<ScannedDeviceRef | null>(null);
+
+  // ─── เทิร์นเครื่องเก่า (FIX-105) ───
+  const [tradeInOpen, setTradeInOpen] = useState(false);
+  const [tradeInVariant, setTradeInVariant] = useState<VariantResponse | null>(null);
+  const [tradeInSkuQuery, setTradeInSkuQuery] = useState('');
+  const [tradeInResults, setTradeInResults] = useState<VariantResponse[]>([]);
+  const [tradeInImei, setTradeInImei] = useState('');
+  const [tradeInSerial, setTradeInSerial] = useState('');
+  const [tradeInBattery, setTradeInBattery] = useState('');
+  const [tradeInValueStr, setTradeInValueStr] = useState('');
+  const [tradeInPayoutMethod, setTradeInPayoutMethod] = useState<PaymentMethod>('CASH');
+  // สภาพเครื่องเทิร์น (FIX-106)
+  const [tiHasBox, setTiHasBox] = useState(false);
+  const [tiHasCharger, setTiHasCharger] = useState(false);
+  const [tiHasWarranty, setTiHasWarranty] = useState(false);
+  const [tiNeedsBattery, setTiNeedsBattery] = useState(false);
+  const [tiNeedsScreen, setTiNeedsScreen] = useState(false);
+  const [tiNote, setTiNote] = useState('');
   const [cart, setCart] = useState<CartLine[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH');
   const [paymentRef, setPaymentRef] = useState('');
@@ -295,12 +314,29 @@ export function PosTerminalPage() {
   const taxBase = Math.max(0, subtotal - discount);
   const vatAmount = Math.round(taxBase * (Number(vatRate) || 0)) / 100;
   const grandTotal = Math.max(0, taxBase + vatAmount + (Number(shippingFee) || 0));
+  // เทิร์น (FIX-105): ยอดขายเต็ม − มูลค่าเทิร์น = net (≥0 รับจากลูกค้า · <0 จ่ายคืน)
+  const tradeInActive = tradeInOpen && tradeInVariant != null && Number(tradeInValueStr) > 0;
+  const tradeInValueNum = tradeInActive ? Number(tradeInValueStr) : 0;
+  const netCollect = grandTotal - tradeInValueNum;
+  // เทิร์นดาวน์ (FIX-106): ผ่อน + เทิร์น → หักเทิร์นจากเงินดาวน์ที่ลูกค้าจ่ายจริงวันนี้
+  const isInstallmentSel = paymentMethod === 'INSTALLMENT';
+
+  // ค้น SKU เครื่องเทิร์น (debounce) — เลือกแล้วหยุดค้น
+  useEffect(() => {
+    const q = tradeInSkuQuery.trim();
+    if (!q || tradeInVariant) { setTradeInResults([]); return; }
+    const t = setTimeout(() => {
+      productsApi.searchVariants(q, 0, 8)
+        .then((p) => setTradeInResults(p.content))
+        .catch(() => setTradeInResults([]));
+    }, 300);
+    return () => clearTimeout(t);
+  }, [tradeInSkuQuery, tradeInVariant]);
   // บิลผ่อน: บรรทัดที่ "จ่ายสดวันนี้" (อุปกรณ์เสริม) = ไม่รวมยอดผ่อน · ติ๊กต่อบรรทัดได้ (FIX-090/094)
   const addOnToday = cart.filter((l) => l.payToday).reduce((s, l) => s + l.sellPrice * l.quantity, 0);
   const payToday = downAmount + addOnToday;
   // แยกยอดรับวันนี้: โอนเท่าที่กรอก (ไม่เกินยอดรวม) · ที่เหลือ = เงินสด (FIX-097)
   const payTransferClamped = Math.min(Math.max(0, payTransfer), payToday);
-  const payCash = Math.max(0, payToday - payTransferClamped);
   const discountExceedsSubtotal = discount > subtotal;
 
   // Add an IMEI from the picker modal to the cart
@@ -336,6 +372,10 @@ export function PosTerminalPage() {
   const checkout = useMutation({
     mutationFn: () => {
       const isInstallment = paymentMethod === 'INSTALLMENT';
+      // เทิร์นดาวน์ (FIX-106): ยอดจ่ายจริงวันนี้ = payToday − มูลค่าเทิร์น (เทิร์นแทนเงินดาวน์)
+      const payNetToday = Math.max(0, payToday - (isInstallment && tradeInActive ? tradeInValueNum : 0));
+      const effTransfer = Math.min(payTransferClamped, payNetToday);
+      const effCash = payNetToday - effTransfer;
       return posApi.checkout({
         customerId: customer?.id,
         branchId: useBranchStore.getState().activeBranchId ?? undefined,  // ขายที่สาขาที่เลือก (Phase 2C)
@@ -375,13 +415,27 @@ export function PosTerminalPage() {
         shippingAddress: shippingAddress.trim() || undefined,
         shippingFeeGrandpa: shippingFeeGrandpa > 0 ? shippingFeeGrandpa : undefined,
         shippingFeeGrandma: shippingFeeGrandma > 0 ? shippingFeeGrandma : undefined,
+        // เทิร์นเครื่องเก่า (FIX-105) — net<0 ส่ง diffPayoutMethod (วิธีจ่ายคืน)
+        tradeIn: tradeInActive ? {
+          variantId: tradeInVariant!.id,
+          value: tradeInValueNum,
+          imei: tradeInImei.trim() || undefined,
+          serialNumber: tradeInSerial.trim() || undefined,
+          condition: 'SECOND_HAND',
+          batteryHealth: tradeInBattery ? Number(tradeInBattery) : undefined,
+          hasBox: tiHasBox, hasCharger: tiHasCharger, hasWarranty: tiHasWarranty,
+          needsBattery: tiNeedsBattery, needsScreen: tiNeedsScreen,
+          note: tiNote.trim() || undefined,
+          // net<0 เทิร์นสด → วิธีจ่ายคืน · ผ่อน (เทิร์นดาวน์) ไม่ใช้ diffPayoutMethod
+          diffPayoutMethod: (!isInstallment && netCollect < 0) ? tradeInPayoutMethod : undefined,
+        } : undefined,
         ...(isInstallment ? {
           installmentMonths,
           installmentMonthlyAmount: installmentMonthly > 0 ? installmentMonthly : undefined,
           downPaymentAmount: downAmount,
-          // ยอดรับวันนี้แยก เงินสด/เงินโอน (ส่งทุกครั้งในบิลผ่อน) — FIX-097
-          downPaymentCashAmount: isInstallment ? payCash : undefined,
-          downPaymentTransferAmount: isInstallment ? payTransferClamped : undefined,
+          // ยอดรับวันนี้แยก เงินสด/เงินโอน (หักเทิร์นดาวน์แล้ว — FIX-097/106)
+          downPaymentCashAmount: isInstallment ? effCash : undefined,
+          downPaymentTransferAmount: isInstallment ? effTransfer : undefined,
         } : {}),
       });
     },
@@ -419,6 +473,18 @@ export function PosTerminalPage() {
       setShippingAddress('');
       setShippingFeeGrandpa(0);
       setShippingFeeGrandma(0);
+      // เทิร์น — reset (FIX-105)
+      setTradeInOpen(false);
+      setTradeInVariant(null);
+      setTradeInSkuQuery('');
+      setTradeInResults([]);
+      setTradeInImei('');
+      setTradeInSerial('');
+      setTradeInBattery('');
+      setTradeInValueStr('');
+      setTradeInPayoutMethod('CASH');
+      setTiHasBox(false); setTiHasCharger(false); setTiHasWarranty(false);
+      setTiNeedsBattery(false); setTiNeedsScreen(false); setTiNote('');
       clearSlips();
       qc.invalidateQueries({ queryKey: ['cash-session'] });
       inputRef.current?.focus();
@@ -495,6 +561,13 @@ export function PosTerminalPage() {
     onlineNeedsAddress ? 'ออนไลน์: ต้องกรอกที่อยู่จัดส่ง' :
     installmentNeedsIdentity ? 'ผ่อนชำระ: ต้องระบุชื่อลูกค้า' :
     mixedError ? `จ่ายแบบผสม: ${mixedError}` :
+    // เทิร์น (FIX-105/106) — รองรับ สด/โอน/ผ่อน(เทิร์นดาวน์) · ยังไม่รองรับจ่ายผสม
+    (tradeInOpen && paymentMethod === 'MIXED')
+      ? 'เทิร์น: ยังไม่รองรับจ่ายแบบผสม (ใช้เงินสด/โอน/ผ่อน)' :
+    (tradeInOpen && !tradeInVariant) ? 'เทิร์น: เลือก SKU ของเครื่องที่รับเทิร์น' :
+    (tradeInOpen && !(Number(tradeInValueStr) > 0)) ? 'เทิร์น: กรอกมูลค่าตีเทิร์น' :
+    (tradeInActive && !tradeInImei.trim() && !tradeInSerial.trim()) ? 'เทิร์น: กรอก IMEI หรือ Serial ของเครื่องเก่า' :
+    (tradeInActive && isInstallmentSel && tradeInValueNum > downAmount) ? 'เทิร์นดาวน์: มูลค่าเทิร์นเกินเงินดาวน์ — ใช้เทิร์นสด หรือเพิ่มดาวน์' :
     null;
 
   return (
@@ -1079,6 +1152,106 @@ export function PosTerminalPage() {
         </div>
       </div>
 
+      {/* ─── เทิร์นเครื่องเก่า (FIX-105) ─── */}
+      <div className="card border-2 border-violet-300">
+        <button type="button" onClick={() => setTradeInOpen((o) => !o)}
+                className="card-header flex w-full items-center gap-2 bg-violet-50 text-left">
+          <ArrowLeftRight className="h-5 w-5 shrink-0 text-violet-700" />
+          <span className="shrink-0">เทิร์นเครื่องเก่า</span>
+          {tradeInActive && (
+            <span className="truncate text-xs font-normal text-slate-500">
+              {tradeInVariant?.sku} · ตีเทิร์น {formatTHB(tradeInValueNum)}
+            </span>
+          )}
+          <span className="ml-auto shrink-0 text-slate-400">
+            {tradeInOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </span>
+        </button>
+        {tradeInOpen && (
+          <div className="card-body space-y-3">
+            {/* เลือก SKU ของเครื่องเทิร์น */}
+            {tradeInVariant ? (
+              <div className="flex items-center justify-between rounded-md border border-violet-200 bg-violet-50 px-3 py-2 text-sm">
+                <span>
+                  <span className="font-mono font-semibold">{tradeInVariant.sku}</span>
+                  {' · '}{tradeInVariant.productName}{' '}
+                  {[tradeInVariant.color, tradeInVariant.storage].filter(Boolean).join(' ')}
+                </span>
+                <button type="button" className="text-xs text-red-600 hover:underline"
+                        onClick={() => { setTradeInVariant(null); setTradeInSkuQuery(''); }}>✕ เปลี่ยน SKU</button>
+              </div>
+            ) : (
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-600">รุ่น / SKU ของเครื่องที่รับเทิร์น (เครื่องเก่าจะลงสต็อกที่รุ่นนี้)</label>
+                <input className="input" placeholder="ค้นหา SKU / รุ่น เช่น iPhone 13"
+                       value={tradeInSkuQuery} onChange={(e) => setTradeInSkuQuery(e.target.value)} />
+                {tradeInResults.length > 0 && (
+                  <div className="mt-1 max-h-44 overflow-y-auto rounded-md border border-slate-200">
+                    {tradeInResults.map((v) => (
+                      <button type="button" key={v.id}
+                              onClick={() => { setTradeInVariant(v); setTradeInResults([]); }}
+                              className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-slate-50">
+                        <span><span className="font-mono">{v.sku}</span> · {v.productName} <span className="text-slate-500">{[v.color, v.storage].filter(Boolean).join(' ')}</span></span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <a href="/products/new" target="_blank" rel="noreferrer"
+                   className="mt-1 inline-block text-xs font-medium text-violet-700 hover:underline">
+                  + ไม่เจอรุ่น? สร้าง SKU ใหม่ (เปิดแท็บใหม่ แล้วกลับมาค้นอีกครั้ง)
+                </a>
+              </div>
+            )}
+            {/* ข้อมูลเครื่องเก่า + มูลค่า */}
+            <div className="grid grid-cols-2 gap-2">
+              <input className="input font-mono" placeholder="IMEI เครื่องเก่า"
+                     value={tradeInImei} onChange={(e) => setTradeInImei(e.target.value)} />
+              <input className="input font-mono" placeholder="Serial (ถ้ามี)"
+                     value={tradeInSerial} onChange={(e) => setTradeInSerial(e.target.value)} />
+              <input type="number" min={0} max={100} className="input" placeholder="แบต %"
+                     value={tradeInBattery} onChange={(e) => setTradeInBattery(e.target.value)} />
+              <input type="number" min={0} className="input text-right font-semibold" placeholder="มูลค่าตีเทิร์น (บาท)"
+                     value={tradeInValueStr} onChange={(e) => setTradeInValueStr(e.target.value)} />
+            </div>
+            {/* สภาพเครื่องเทิร์น (FIX-106) */}
+            <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-sm">
+              <label className="flex items-center gap-1.5"><input type="checkbox" checked={tiHasBox} onChange={(e) => setTiHasBox(e.target.checked)} /> มีกล่อง</label>
+              <label className="flex items-center gap-1.5"><input type="checkbox" checked={tiHasCharger} onChange={(e) => setTiHasCharger(e.target.checked)} /> สายชาร์จแท้</label>
+              <label className="flex items-center gap-1.5"><input type="checkbox" checked={tiHasWarranty} onChange={(e) => setTiHasWarranty(e.target.checked)} /> มีประกัน</label>
+              <label className="flex items-center gap-1.5"><input type="checkbox" checked={tiNeedsBattery} onChange={(e) => setTiNeedsBattery(e.target.checked)} /> ต้องเปลี่ยนแบต</label>
+              <label className="flex items-center gap-1.5"><input type="checkbox" checked={tiNeedsScreen} onChange={(e) => setTiNeedsScreen(e.target.checked)} /> ต้องเปลี่ยนจอ</label>
+            </div>
+            <input className="input" placeholder="อุปกรณ์อื่นที่ต้องเปลี่ยน / โน้ต (ถ้ามี)"
+                   value={tiNote} onChange={(e) => setTiNote(e.target.value)} />
+            {/* เทิร์นดาวน์ (ผ่อน) */}
+            {tradeInActive && isInstallmentSel && (
+              <div className="rounded-md bg-violet-50 px-3 py-2 text-xs text-violet-800">
+                เทิร์นดาวน์: หักมูลค่าเทิร์น {formatTHB(tradeInValueNum)} จากเงินดาวน์ · ลูกค้าจ่ายดาวน์วันนี้เท่าที่เหลือ
+              </div>
+            )}
+            {/* net < 0 → เลือกวิธีจ่ายคืน (เฉพาะเทิร์นสด ไม่ใช่ผ่อน) */}
+            {tradeInActive && !isInstallmentSel && netCollect < 0 && (
+              <div className="rounded-md bg-amber-50 px-3 py-2 text-sm">
+                <div className="mb-1 font-medium text-amber-800">
+                  มูลค่าเทิร์นมากกว่ายอดบิล → จ่ายคืนลูกค้า {formatTHB(-netCollect)}
+                </div>
+                <div className="flex gap-2">
+                  {(['CASH', 'TRANSFER'] as PaymentMethod[]).map((m) => (
+                    <button type="button" key={m} onClick={() => setTradeInPayoutMethod(m)}
+                            className={`rounded-md border px-3 py-1.5 text-sm ${tradeInPayoutMethod === m ? 'border-amber-500 bg-amber-100 font-semibold text-amber-800' : 'border-slate-200 hover:border-slate-300'}`}>
+                      {m === 'CASH' ? '💵 จ่ายสด' : '📲 โอนคืน'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <p className="text-[11px] text-slate-500">
+              เครื่องเก่าลงสต็อกอัตโนมัติ (มือ 2 · ทุน = มูลค่าตีเทิร์น) · ยอดขายบันทึกเต็มราคา · รองรับ เงินสด / โอน / ผ่อน (เทิร์นดาวน์)
+            </p>
+          </div>
+        )}
+      </div>
+
       {/* Total + Checkout */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="card lg:col-span-2">
@@ -1138,23 +1311,32 @@ export function PosTerminalPage() {
                 const monthlyShow = installmentMonthly > 0
                   ? installmentMonthly
                   : (installmentMonths > 0 ? Math.ceil(Math.max(0, grandTotal - downAmount - addOnToday) / installmentMonths) : 0);
+                // เทิร์นดาวน์ (FIX-106): เงินจริงที่ลูกค้าจ่ายวันนี้ = payToday − มูลค่าเทิร์น
+                const payNetView = Math.max(0, payToday - (tradeInActive ? tradeInValueNum : 0));
+                const transferView = Math.min(payTransferClamped, payNetView);
+                const cashView = payNetView - transferView;
                 return (
                   <>
                     <div className="text-xs uppercase text-amber-700 font-semibold">
                       รับวันนี้ {addOnToday > 0 ? '(ดาวน์ + อุปกรณ์เสริม)' : '(เงินดาวน์)'}
                     </div>
                     <div className="rounded-md bg-slate-900 px-4 py-6 text-right text-4xl font-bold text-amber-300">
-                      {formatTHB(payToday)}
+                      {formatTHB(payNetView)}
                     </div>
+                    {tradeInActive && tradeInValueNum > 0 && (
+                      <div className="flex justify-between text-xs text-violet-700">
+                        <span>↳ หักเทิร์นดาวน์</span><span>- {formatTHB(tradeInValueNum)}</span>
+                      </div>
+                    )}
                     {/* แยกเงินสด/เงินโอน ของยอดรับวันนี้ (FIX-097) */}
                     <div className="flex justify-between text-xs">
                       <span className="text-slate-500">💵 เงินสด</span>
-                      <span className="font-semibold text-slate-700">{formatTHB(payCash)}</span>
+                      <span className="font-semibold text-slate-700">{formatTHB(cashView)}</span>
                     </div>
-                    {payTransferClamped > 0 && (
+                    {transferView > 0 && (
                       <div className="flex justify-between text-xs">
                         <span className="text-slate-500">📲 เงินโอน</span>
-                        <span className="font-semibold text-slate-700">{formatTHB(payTransferClamped)}</span>
+                        <span className="font-semibold text-slate-700">{formatTHB(transferView)}</span>
                       </div>
                     )}
                     {addOnToday > 0 && (
@@ -1177,11 +1359,21 @@ export function PosTerminalPage() {
               })()
             ) : (
               <>
+                {tradeInActive && (
+                  <div className="space-y-1 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">ยอดขาย</span><span>{formatTHB(grandTotal)}</span>
+                    </div>
+                    <div className="flex justify-between text-violet-700">
+                      <span>หักเทิร์น ({tradeInVariant?.sku})</span><span>- {formatTHB(tradeInValueNum)}</span>
+                    </div>
+                  </div>
+                )}
                 <div className="text-xs uppercase text-amber-700 font-semibold">
-                  ยอดสุทธิที่ต้องชำระ (Net Total)
+                  {tradeInActive ? (netCollect >= 0 ? 'รับสุทธิจากลูกค้า' : 'จ่ายคืนลูกค้า') : 'ยอดสุทธิที่ต้องชำระ (Net Total)'}
                 </div>
                 <div className="rounded-md bg-slate-900 px-4 py-6 text-right text-4xl font-bold text-amber-300">
-                  {formatTHB(grandTotal)}
+                  {formatTHB(tradeInActive ? Math.abs(netCollect) : grandTotal)}
                 </div>
               </>
             )}

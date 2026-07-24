@@ -794,6 +794,27 @@ export interface CheckoutRequest {
   shippingPaidFrom?: PaidFrom;     // legacy — deprecated
   shippingFeeGrandpa?: number;     // ค่าส่งของตา (บาท)
   shippingFeeGrandma?: number;     // ค่าส่งของยาย (บาท)
+  // ─── เทิร์นเครื่องเก่า (FIX-105) — null = ไม่มีเทิร์น ───
+  tradeIn?: TradeInRequest;
+}
+
+/** เทิร์นที่จุดขาย — เครื่องเก่าลงสต็อก (ทุน = value) + คิดส่วนต่างเข้า/ออกเก๊ะ (FIX-105) */
+export interface TradeInRequest {
+  variantId: string;               // SKU ที่เครื่องเทิร์นจะลงสต็อก
+  value: number;                   // มูลค่าตีเทิร์น (= ต้นทุนเครื่องเก่า)
+  imei?: string;
+  serialNumber?: string;
+  condition?: SerializedCondition; // เว้น = SECOND_HAND (มือ 2)
+  batteryHealth?: number;
+  // สภาพตอนรับเทิร์น (FIX-106)
+  hasBox?: boolean;
+  hasCharger?: boolean;
+  hasWarranty?: boolean;
+  needsBattery?: boolean;
+  needsScreen?: boolean;
+  note?: string;                   // อุปกรณ์อื่นที่ต้องเปลี่ยน / โน้ต
+  /** วิธีจ่ายส่วนต่างคืนลูกค้า เมื่อมูลค่าเทิร์น > ยอดบิล (net<0) — CASH/TRANSFER */
+  diffPayoutMethod?: PaymentMethod;
 }
 
 export interface SalesOrderItemResponse {
@@ -827,6 +848,8 @@ export interface SalesOrderResponse {
   shippingFee: number;
   grandTotal: number;
   paidAmount: number;
+  tradeInValue?: number | null;      // มูลค่าตีเทิร์น (FIX-105)
+  tradeInSerialId?: string | null;   // เครื่องเทิร์นที่ลงสต็อก
   paymentMethod: PaymentMethod | null;
   installmentMonths: number | null;
   installmentMonthlyAmount: number | null;

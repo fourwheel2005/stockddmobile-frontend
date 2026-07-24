@@ -36,6 +36,7 @@ export interface ReceiptData {
   vatAmount: number;
   shippingFee: number;
   grandTotal: number;
+  tradeInValue?: number | null;   // เทิร์นเครื่องเก่า (FIX-105)
   paidAmount?: number | null;
   changeAmount?: number | null;
   paymentMethod?: string | null;
@@ -204,9 +205,23 @@ export function buildDDMobileReceipt(
       }
     }
 
-    b.separator('=', W);
-    b.size(2, 1).justify('ยอดสุทธิ:', fmtTHB(data.grandTotal), W / 2).size(1, 1);
-    b.separator('=', W);
+    if ((data.tradeInValue ?? 0) > 0) {
+      // เทิร์น (FIX-105): โชว์ยอดขายเต็ม − มูลค่าเทิร์น = รับสุทธิ / จ่ายคืน
+      b.justify('ยอดขาย:', fmtTHB(data.grandTotal), W);
+      b.justify('หักเทิร์นเครื่องเก่า:', '-' + fmtTHB(data.tradeInValue!), W);
+      const net = data.grandTotal - (data.tradeInValue ?? 0);
+      b.separator('=', W);
+      if (net >= 0) {
+        b.size(2, 1).justify('รับสุทธิ:', fmtTHB(net), W / 2).size(1, 1);
+      } else {
+        b.size(2, 1).justify('จ่ายคืนลูกค้า:', fmtTHB(-net), W / 2).size(1, 1);
+      }
+      b.separator('=', W);
+    } else {
+      b.separator('=', W);
+      b.size(2, 1).justify('ยอดสุทธิ:', fmtTHB(data.grandTotal), W / 2).size(1, 1);
+      b.separator('=', W);
+    }
   } else {
     // ผ่อน → ยอดสุทธิ = ยอดที่ต้องชำระวันนี้ (ดาวน์ + อุปกรณ์เสริม) ไม่โชว์ราคาเครื่องเต็ม — FIX-072/FIX-097
     const addOn = data.addOnTotal ?? 0;
