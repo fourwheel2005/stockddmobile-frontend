@@ -112,8 +112,34 @@ export function DeviceScanDetailPanel({ device, onClose }: { device: ScannedDevi
                 <span>{d.warrantyTerms}{d.warrantyExpire ? ` · ถึง ${formatInShopZone(d.warrantyExpire, { year: 'numeric', month: '2-digit', day: '2-digit' })}` : ''}</span>
               </div>
             )}
+            {/* ต้นทุน (FIX-107) — head/ADMIN เห็นตัวเลขจริง · STAFF เห็นรหัสต้นทุน (backend mask ให้) */}
+            {(d?.purchasePrice != null || d?.purchasePriceCode) && (
+              <div className="flex justify-between gap-3">
+                <span className="text-slate-500">ราคาทุน</span>
+                <span className="text-right font-semibold text-amber-700">
+                  {d.purchasePrice != null ? formatTHB(d.purchasePrice) : d.purchasePriceCode}
+                </span>
+              </div>
+            )}
+            {d?.refurbCost != null && d.refurbCost > 0 && d.totalCost != null && (
+              <div className="flex justify-between gap-3 text-xs">
+                <span className="text-slate-400">ต้นทุนรวม (+ค่าซ่อม {formatTHB(d.refurbCost)})</span>
+                <span className="text-right font-medium text-amber-600">{formatTHB(d.totalCost)}</span>
+              </div>
+            )}
             {d?.sellingPrice != null && (
-              <div className="pt-1 text-base font-bold text-emerald-700">{formatTHB(d.sellingPrice)}</div>
+              <div className="flex items-end justify-between gap-3 pt-1">
+                <span className="text-xs text-slate-500">ราคาขาย</span>
+                <div className="text-right">
+                  <div className="text-base font-bold text-emerald-700">{formatTHB(d.sellingPrice)}</div>
+                  {/* กำไรขั้นต้น = ราคาขาย − ต้นทุนรวม (เห็นเฉพาะคนที่เห็นทุน) */}
+                  {(d.totalCost ?? d.purchasePrice) != null && (
+                    <div className="text-[11px] text-slate-500">
+                      กำไร {formatTHB(d.sellingPrice - (d.totalCost ?? d.purchasePrice ?? 0))}
+                    </div>
+                  )}
+                </div>
+              </div>
             )}
           </div>
 
