@@ -82,21 +82,23 @@ export function InstallmentPlansEditor({ value, onChange }: Props) {
           <div className="space-y-1.5">
             <span className="text-xs font-medium text-slate-600">งวดผ่อน</span>
             {plan.terms.map((t, ti) => (
-              <div key={ti} className="flex items-center gap-2">
-                <input type="number" min="1" className="input w-24 text-sm"
+              <div key={ti} className="flex flex-wrap items-center gap-2">
+                <input type="number" min="1" inputMode="numeric"
+                  className="input w-20 shrink-0 text-sm"
                   placeholder="งวด"
-                  value={t.months}
+                  value={t.months ?? ''}
                   onChange={(e) => patchTerm(pi, ti, { months: e.target.value })}
                 />
-                <span className="text-xs text-slate-400">เดือน ×</span>
-                <input type="number" step="0.01" min="0" className="input flex-1 text-sm"
+                <span className="shrink-0 text-xs text-slate-400">เดือน ×</span>
+                <input type="number" step="0.01" min="0" inputMode="decimal"
+                  className="input w-28 min-w-0 flex-1 text-sm"
                   placeholder="บาท/เดือน"
-                  value={t.monthly}
+                  value={t.monthly ?? ''}
                   onChange={(e) => patchTerm(pi, ti, { monthly: e.target.value })}
                 />
                 <button type="button" onClick={() => removeTerm(pi, ti)}
                   disabled={plan.terms.length === 1}
-                  className="rounded p-1 text-red-400 hover:bg-red-50 disabled:opacity-30">
+                  className="shrink-0 rounded p-1 text-red-400 hover:bg-red-50 disabled:opacity-30">
                   <X className="h-3.5 w-3.5" />
                 </button>
               </div>

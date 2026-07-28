@@ -69,6 +69,9 @@ interface ItemRow {
   imei: string;
   condition: Condition;
   batteryHealth: number | '';
+  // อุปกรณ์เครื่องมือสอง (FIX-108) — ตัวเครื่องเปล่า = ทั้งคู่ false
+  hasBox: boolean;
+  hasCharger: boolean;
   deviceColor: string;
   modelNumber: string;
   deviceStorage: string;
@@ -116,7 +119,7 @@ interface FormValues {
 
 const EMPTY_ITEM: ItemRow = {
   serialNumber: '', imei: '',
-  condition: 'NEW', batteryHealth: '', deviceColor: '', modelNumber: '',
+  condition: 'NEW', batteryHealth: '', hasBox: false, hasCharger: false, deviceColor: '', modelNumber: '',
   deviceStorage: '', deviceNetwork: '', warrantyTerms: '', warrantyExpire: '',
   acquisitionType: 'PURCHASE', purchasePrice: '', sellingPrice: '', imageUrls: [],
   downPayment: '', installmentTerms: [], installmentPromo: '', installmentPlans: [],
@@ -541,7 +544,7 @@ export function ProductRegisterPage() {
 
     let validItems: Array<{
       serialNumber: string; stockCode?: string; imei?: string; condition?: Condition;
-      batteryHealth?: number; deviceColor?: string; modelNumber?: string;
+      batteryHealth?: number; hasBox?: boolean; hasCharger?: boolean; deviceColor?: string; modelNumber?: string;
       deviceStorage?: string; deviceNetwork?: string;
       acquisitionType?: AcquisitionType; purchasePrice?: number; sellingPrice?: number;
       warrantyTerms?: string; warrantyExpire?: string; imageUrls?: string[];
@@ -562,6 +565,9 @@ export function ProductRegisterPage() {
           batteryHealth: it.condition === 'NEW'
             ? 100
             : (it.batteryHealth === '' ? undefined : Number(it.batteryHealth)),
+          // อุปกรณ์เครื่องมือสอง (FIX-108) — ส่งเฉพาะมือ 2
+          hasBox: it.condition !== 'NEW' ? !!it.hasBox : undefined,
+          hasCharger: it.condition !== 'NEW' ? !!it.hasCharger : undefined,
           // สี/ความจุ/เครือข่าย/เลขรุ่น/ประกัน = รายเครื่อง (รับคละในล็อตเดียวได้)
           // เลขรุ่นเว้น = ใช้ค่าระดับรุ่น (Product.modelNumber) เป็น default
           deviceColor: blank(it.deviceColor),
@@ -1228,6 +1234,9 @@ function ItemCard({
   flagMissingSpec?: boolean;
 }) {
   const condition = useWatch({ control, name: `items.${idx}.condition` }) ?? 'NEW';
+  // อุปกรณ์เครื่องมือสอง (FIX-108) — ตัวเครื่องเปล่า = ไม่มีทั้งกล่องและสายชาร์จ
+  const hasBox = useWatch({ control, name: `items.${idx}.hasBox` }) ?? false;
+  const hasCharger = useWatch({ control, name: `items.${idx}.hasCharger` }) ?? false;
   const warrantyTerms = useWatch({ control, name: `items.${idx}.warrantyTerms` }) ?? '';
   /* เครื่อง activate แล้ว → โชว์ช่อง "ประกันถึงวันที่" (ประกัน Apple นับจากวัน activate) */
   const needsExpireDate = warrantyTerms === WARRANTY_APPLE_ACTIVATED || /activate/i.test(warrantyTerms);
@@ -1277,7 +1286,7 @@ function ItemCard({
   const copyFromPrev = () => {
     const prev = getValues(`items.${idx - 1}`);
     if (!prev) return;
-    (['condition', 'batteryHealth', 'deviceColor', 'deviceStorage', 'deviceNetwork',
+    (['condition', 'batteryHealth', 'hasBox', 'hasCharger', 'deviceColor', 'deviceStorage', 'deviceNetwork',
       'modelNumber', 'acquisitionType', 'purchasePrice', 'sellingPrice',
       'warrantyTerms', 'warrantyExpire'] as const)
       .forEach((k) => setValue(`items.${idx}.${k}`, prev[k], { shouldDirty: true }));
@@ -1472,6 +1481,29 @@ function ItemCard({
           )}
         </div>
       </div>
+
+      {/* อุปกรณ์ที่มากับเครื่องมือสอง (FIX-108) — มีกล่อง / มีสายชาร์จ / ตัวเครื่องเปล่า */}
+      {condition !== 'NEW' && (
+        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2 text-sm">
+          <span className="text-xs font-semibold text-slate-600">อุปกรณ์ที่มากับเครื่อง:</span>
+          <label className="flex items-center gap-1.5">
+            <input type="checkbox" {...register(`items.${idx}.hasBox`)} /> มีกล่อง
+          </label>
+          <label className="flex items-center gap-1.5">
+            <input type="checkbox" {...register(`items.${idx}.hasCharger`)} /> มีสายชาร์จ
+          </label>
+          <label className="flex items-center gap-1.5">
+            <input type="checkbox" checked={!hasBox && !hasCharger}
+                   onChange={(e) => {
+                     if (e.target.checked) {
+                       setValue(`items.${idx}.hasBox`, false);
+                       setValue(`items.${idx}.hasCharger`, false);
+                     }
+                   }} />
+            ตัวเครื่องเปล่า
+          </label>
+        </div>
+      )}
 
       {/* รูปเครื่องนี้ (รายเครื่อง) — เว็บหน้าร้านดึงไปแสดง · รูปแรก = ปก
           มือ1: เครื่องถัดไปสี/ความจุเดียวกัน ใช้รูปร่วมอัตโนมัติ (FIX-086) */}

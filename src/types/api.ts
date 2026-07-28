@@ -206,6 +206,9 @@ export interface WizardInitialItem {
   imei2?: string;
   condition?: 'NEW' | 'SECOND_HAND' | 'LIKE_NEW' | 'REFURBISHED' | 'DEFECTIVE';
   batteryHealth?: number;
+  // อุปกรณ์เครื่องมือสอง (FIX-108) — ตัวเครื่องเปล่า = ทั้งคู่ false
+  hasBox?: boolean;
+  hasCharger?: boolean;
   deviceColor?: string;
   modelNumber?: string;
   deviceStorage?: string;
