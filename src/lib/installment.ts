@@ -103,10 +103,14 @@ export function parsePlans(
  * - ตัดแผนที่ "ว่างเปล่า" (ไม่มีทั้ง งวด/ดาวน์/โปรโม/label) ออก
  * - ถ้าไม่มีแผนที่ใช้ได้เลย → คืน null ทุก field (ล้างค่า)
  */
-export function serializePlans(plans: InstallmentPlan[]): SerializedPlans {
-  const clean = plans
+export function serializePlans(plans: InstallmentPlan[] | null | undefined): SerializedPlans {
+  // กัน draft เก่า (ก่อนมี installmentPlans) กู้มาแล้ว field เป็น undefined → เดิม .map ระเบิด
+  // ทำให้กดบันทึกเงียบ ๆ ไม่มีอะไรเกิดขึ้น (FIX-110)
+  const clean = (Array.isArray(plans) ? plans : [])
     .map((p) => {
       const terms = p.terms
+        // งวดที่เว้น "บาท/เดือน" ว่าง = กรอกไม่ครบ → ตัดทิ้ง (เดิม Number('')=0 หลุดเป็น ฿0/เดือนขึ้นเว็บ)
+        .filter((t) => String(t.monthly).trim() !== '')
         .map((t) => {
           const td = (t.down ?? '').trim() === '' ? undefined : Number(t.down);   // ดาวน์รายงวด (back-compat)
           return {

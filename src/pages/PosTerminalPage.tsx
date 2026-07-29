@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import axios from 'axios';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { ScanLine, Trash2, ShoppingCart, Receipt, Search, ListChecks, UserCircle2, Printer, Upload, X, Wrench, Truck, Globe, Store, Plus, ChevronDown, ChevronUp, ArrowLeftRight } from 'lucide-react';
@@ -213,15 +214,22 @@ export function PosTerminalPage() {
       }
     },
     onError: async (e, q) => {
-      // เครื่องขายแล้ว/ยิงเข้าตะกร้าไม่ได้ → ยังโชว์รายละเอียด (ไม่เพิ่มลงตะกร้า) กันช่างเช็คประวัติไม่ได้
-      try {
-        const found = await inventoryApi.lookupSerial(q);
-        setScannedDevice({
-          serialItemId: found.id, imei: found.imei, serialNumber: found.serialNumber, lookupOnly: true,
-        });
-      } catch {
-        toast.error(extractErrorMessage(e));
+      // เครื่องขายแล้ว/ยิงเข้าตะกร้าไม่ได้ (409 Conflict เท่านั้น) → โชว์รายละเอียดแบบดูอย่างเดียว
+      // error อื่น (500/network/สิทธิ์) ต้อง toast จริง — เดิม fallback กลืน error ทุกชนิด
+      // ทำให้สแกนพลาดแล้วการ์ดเด้งเหมือนสำเร็จ แต่ของไม่เข้าตะกร้า (FIX-110)
+      const status = axios.isAxiosError(e) ? e.response?.status : undefined;
+      if (status === 409) {
+        try {
+          const found = await inventoryApi.lookupSerial(q);
+          setScannedDevice({
+            serialItemId: found.id, imei: found.imei, serialNumber: found.serialNumber, lookupOnly: true,
+          });
+          // บอกเหตุผลที่ไม่เข้าตะกร้าด้วย (เช่น เครื่องขายแล้ว/ติดจอง) — การ์ดโชว์ประวัติได้ตามเดิม
+          toast(extractErrorMessage(e), { icon: 'ℹ️', duration: 3000 });
+          return;
+        } catch { /* lookup พลาด → ตกไป toast ด้านล่าง */ }
       }
+      toast.error(extractErrorMessage(e));
     },
   });
 
@@ -521,10 +529,13 @@ export function PosTerminalPage() {
   });
 
   // โอนเงินต้องแนบสลิปก่อนปิดบิล — รวม MIXED ที่มี transfer > 0
+  // ผ่อน+เทิร์นดาวน์: ใช้ยอดโอน "หลังหักเทิร์น" — เทิร์นคลุมดาวน์หมดแล้วต้องไม่บังคับแนบสลิป ฿0 (FIX-110)
+  const instNetToday = Math.max(0, payToday - (isInstallmentSel && tradeInActive ? tradeInValueNum : 0));
+  const instEffTransfer = Math.min(payTransferClamped, instNetToday);
   const needSlip =
     paymentMethod === 'TRANSFER'
     || (paymentMethod === 'MIXED' && mixedSplit.transfer > 0)
-    || (paymentMethod === 'INSTALLMENT' && payTransferClamped > 0);
+    || (paymentMethod === 'INSTALLMENT' && instEffTransfer > 0);
   const slipMissing = needSlip && slips.length === 0;
   const hasAnySlip = slips.length > 0;
 
@@ -595,14 +606,14 @@ export function PosTerminalPage() {
         </div>
       )}
 
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0">
           <h1 className="flex items-center gap-2 page-title">
-            <ScanLine className="h-6 w-6 text-brand-600" /> ระบบขายหน้าร้าน (POS Terminal)
+            <ScanLine className="h-6 w-6 shrink-0 text-brand-600" /> ระบบขายหน้าร้าน (POS Terminal)
           </h1>
           <p className="text-sm text-slate-500">สแกนบาร์โค้ด / IMEI / Serial (iPad · Watch ไม่มี IMEI → ใช้ Serial)</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button className="btn-secondary" onClick={() => setShowImeiPicker(true)}>
             <ListChecks className="h-4 w-4" /> เลือก IMEI จากรายการ
           </button>
@@ -633,7 +644,7 @@ export function PosTerminalPage() {
             className="btn-secondary"
             onClick={() => setShowQuickReprint(true)}
             title="พิมพ์บิลเก่าซ้ำ (ยิงสแกน QR หรือพิมพ์เลขบิล)">
-            <Printer className="h-4 w-4" /> 🔍 พิมพ์บิลเก่า
+            <Printer className="h-4 w-4" /> พิมพ์บิลเก่า
           </button>
           <PrinterStatusBadge status={printer.status} onClick={() => setShowPrinterSettings(true)} />
         </div>
@@ -1005,7 +1016,8 @@ export function PosTerminalPage() {
             <label className="mb-1 block text-xs font-medium text-slate-600">
               พาร์ทเนอร์จัดส่ง {onlineNeedsPartner && <span className="text-red-600">*</span>}
             </label>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+            {/* 8 พาร์ทเนอร์ → 4 คอลัมน์ = 2 แถวเต็มพอดี (5 คอลัมน์เหลือเศษ 3 แถวท้ายเบี้ยว) */}
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {SHIPPING_PARTNER_OPTIONS.map((p) => {
                 const active = shippingPartner === p.value;
                 return (
@@ -1171,13 +1183,13 @@ export function PosTerminalPage() {
           <div className="card-body space-y-3">
             {/* เลือก SKU ของเครื่องเทิร์น */}
             {tradeInVariant ? (
-              <div className="flex items-center justify-between rounded-md border border-violet-200 bg-violet-50 px-3 py-2 text-sm">
-                <span>
+              <div className="flex items-center justify-between gap-2 rounded-md border border-violet-200 bg-violet-50 px-3 py-2 text-sm">
+                <span className="min-w-0 truncate">
                   <span className="font-mono font-semibold">{tradeInVariant.sku}</span>
                   {' · '}{tradeInVariant.productName}{' '}
                   {[tradeInVariant.color, tradeInVariant.storage].filter(Boolean).join(' ')}
                 </span>
-                <button type="button" className="text-xs text-red-600 hover:underline"
+                <button type="button" className="shrink-0 text-xs text-red-600 hover:underline"
                         onClick={() => { setTradeInVariant(null); setTradeInSkuQuery(''); }}>✕ เปลี่ยน SKU</button>
               </div>
             ) : (

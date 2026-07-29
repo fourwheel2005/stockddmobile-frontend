@@ -1,7 +1,10 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Receipt, Smartphone } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { ArrowLeft, Receipt, Smartphone, Pencil } from 'lucide-react';
 import { posApi } from '@/api/pos';
+import { extractErrorMessage } from '@/api/client';
+import { useAuthStore } from '@/stores/authStore';
 import { formatTHB, formatDateTime } from '@/lib/format';
 import type { SalesOrderStatus } from '@/types/api';
 
@@ -23,11 +26,29 @@ function Row({ label, value, strong }: { label: string; value: React.ReactNode; 
 
 export function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const qc = useQueryClient();
+  const canEditCost = useAuthStore((s) => s.hasRole('ADMIN', 'MANAGER'));
   const { data: o, isLoading, isError } = useQuery({
     queryKey: ['order-detail', id],
     queryFn: () => posApi.getOrder(id!),
     enabled: !!id,
   });
+
+  // แก้ทุนย้อนหลังของบรรทัดพิมพ์เอง — กรอกเป็น "รหัสตัวอักษร" (convention เดิม ไม่โชว์เลขทุนบนจอ) FIX-110
+  const fixCost = useMutation({
+    mutationFn: ({ itemId, code }: { itemId: string; code: string }) =>
+      posApi.updateCustomLineCost(id!, itemId, code),
+    onSuccess: () => {
+      toast.success('บันทึกทุนแล้ว — รายงานกำไรจะคิดทุนนี้');
+      qc.invalidateQueries({ queryKey: ['order-detail', id] });
+    },
+    onError: (e) => toast.error(extractErrorMessage(e)),
+  });
+  const promptFixCost = (itemId: string) => {
+    const code = window.prompt('กรอกทุน/ชิ้น เป็นรหัสตัวอักษร (เช่น SRR):');
+    if (code === null || !code.trim()) return;
+    fixCost.mutate({ itemId, code: code.trim().toUpperCase() });
+  };
 
   if (isLoading) return <div className="p-8 text-center text-slate-400">กำลังโหลด...</div>;
   if (isError || !o) return (
@@ -122,9 +143,23 @@ export function OrderDetailPage() {
                     <tr key={it.id}>
                       <td className="px-4 py-2">
                         <div className="flex items-center gap-1.5 font-medium">
-                          <Smartphone className="h-3.5 w-3.5 text-slate-400" /> {it.productName}
+                          <Smartphone className="h-3.5 w-3.5 shrink-0 text-slate-400" /> {it.productName}
                         </div>
-                        <div className="font-mono text-xs text-slate-400">{it.sku}</div>
+                        {it.custom ? (
+                          <div className="flex items-center gap-1.5 text-xs text-amber-700">
+                            พิมพ์เอง · ไม่ตัดสต็อก
+                            {canEditCost && (
+                              <button type="button" onClick={() => promptFixCost(it.id)}
+                                      disabled={fixCost.isPending}
+                                      className="inline-flex items-center gap-0.5 rounded border border-amber-300 px-1 py-0.5 text-[10px] font-medium hover:bg-amber-50"
+                                      title="กรอก/แก้ทุนย้อนหลังเป็นรหัสตัวอักษร — รายงานกำไรจะคิดทุนนี้">
+                                <Pencil className="h-2.5 w-2.5" /> แก้ทุน
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="font-mono text-xs text-slate-400">{it.sku}</div>
+                        )}
                       </td>
                       <td className="px-4 py-2 font-mono text-xs">{it.imei ?? '-'}</td>
                       <td className="px-4 py-2 text-right">{formatTHB(it.sellPrice)}</td>
@@ -145,6 +180,16 @@ export function OrderDetailPage() {
               {o.vatAmount > 0 && <Row label="VAT" value={formatTHB(o.vatAmount)} />}
               <div className="my-2 border-t border-slate-200" />
               <Row label="ยอดสุทธิ" value={formatTHB(o.grandTotal)} strong />
+              {(o.tradeInValue ?? 0) > 0 && (
+                <>
+                  <Row label="หักเทิร์นเครื่องเก่า" value={`- ${formatTHB(o.tradeInValue!)}`} />
+                  <Row
+                    label={o.grandTotal - o.tradeInValue! >= 0 ? 'รับสุทธิจากลูกค้า' : 'จ่ายคืนลูกค้า'}
+                    value={formatTHB(Math.abs(o.grandTotal - o.tradeInValue!))}
+                    strong
+                  />
+                </>
+              )}
             </div>
           </div>
 

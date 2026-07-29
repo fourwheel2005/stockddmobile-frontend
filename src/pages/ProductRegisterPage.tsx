@@ -271,7 +271,12 @@ export function ProductRegisterPage() {
     setProductKind(draft.productKind ?? 'phone');
     setAccessorySerialOn(draft.accessorySerialOn ?? false);
     setAccessoryImages(draft.accessoryImages ?? []);
-    reset(draft.values);
+    // ร่างจาก build เก่าอาจไม่มี field ใหม่ (installmentPlans/hasBox/...) → merge default รายแถว
+    // กัน undefined ระเบิดตอน build payload (กดบันทึกแล้วเงียบ) — FIX-110
+    reset({
+      ...draft.values,
+      items: (draft.values.items ?? []).map((it) => ({ ...EMPTY_ITEM, ...it })),
+    });
     setDraft(null);
     toast.success('กู้ร่างเดิมแล้ว — เช็คข้อมูลอีกรอบก่อนบันทึก');
   };
@@ -517,7 +522,9 @@ export function ProductRegisterPage() {
 
     // ผ่อนดาวน์รายเครื่อง (มือ2) → {downPayment, installmentTerms(JSON), installmentPromo}
     const instOf = (it: ItemRow) => {
-      const clean = it.installmentTerms
+      const clean = (it.installmentTerms ?? [])
+        // งวดที่เว้น "บาท/เดือน" ว่าง = ไม่ครบ → ตัดทิ้ง (กัน Number('')=0 หลุดเป็น ฿0/เดือน) FIX-110
+        .filter((t) => String(t.monthly).trim() !== '')
         .map((t) => {
           const down = t.down?.trim() === '' || t.down == null ? undefined : Number(t.down);
           return { months: Number(t.months), monthly: Number(t.monthly),
@@ -1398,7 +1405,8 @@ function ItemCard({
         <div>
           <label className="mb-0.5 block text-xs font-semibold text-slate-600">แบต %</label>
           {condition === 'NEW' ? (
-            <div className="flex h-9 items-center gap-1 rounded-lg bg-emerald-50 px-2 text-xs font-medium text-emerald-700">
+            // h-[38px] = ความสูง .input จริง (py-2 + text-sm + border) — บรรทัดฐานตรงกับช่องข้างเคียง
+            <div className="flex h-[38px] items-center gap-1 rounded-lg bg-emerald-50 px-2 text-xs font-medium text-emerald-700">
               <BatteryFull className="h-3.5 w-3.5" /> 100% (มือ 1)
             </div>
           ) : (
