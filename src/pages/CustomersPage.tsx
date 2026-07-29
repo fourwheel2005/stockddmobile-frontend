@@ -18,7 +18,7 @@ export function CustomersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h1 className="flex items-center gap-2 page-title">
             <Users className="h-6 w-6 text-brand-600" /> ลูกค้า (Customers)
@@ -33,7 +33,7 @@ export function CustomersPage() {
       <div className="card">
         <div className="card-body">
           <div className="relative">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input className="input pl-9" placeholder="ค้นหาด้วยชื่อ หรือเบอร์โทร"
                    value={q} onChange={(e) => setQ(e.target.value)} />
           </div>
@@ -91,7 +91,7 @@ function CreateCustomerModal({ onClose }: { onClose: () => void }) {
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 py-8">
       <div className="w-full max-w-lg rounded-lg bg-white shadow-xl">
         <div className="flex items-center justify-between border-b px-5 py-3">
           <h2 className="font-semibold">เพิ่มลูกค้าใหม่</h2>

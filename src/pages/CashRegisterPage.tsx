@@ -175,7 +175,7 @@ export function CashRegisterPage() {
                         <td className="px-4 py-2">{PAID_FROM_TH[m.paidFrom]}</td>
                         <td className="px-4 py-2 text-xs font-mono text-slate-600">
                           {m.referenceNo ?? '-'}
-                          {m.note && <div className="text-slate-400 not-mono">{m.note}</div>}
+                          {m.note && <div className="font-sans text-slate-400">{m.note}</div>}
                         </td>
                         <td className={`px-4 py-2 text-right font-bold ${positive ? 'text-emerald-700' : 'text-rose-700'}`}>
                           <span className="inline-flex items-center gap-1">
@@ -202,7 +202,7 @@ export function CashRegisterPage() {
           ตา/ยาย — เงินที่ออกแทนเก๊ะ (วันนี้)
         </div>
         <div className="card-body">
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <Stat label="👴 ตา" value={formatTHB(ledger?.totalGrandpa ?? 0)} highlight />
             <Stat label="👵 ยาย" value={formatTHB(ledger?.totalGrandma ?? 0)} highlight />
             <Stat label="รวม" value={formatTHB(ledger?.totalAll ?? 0)} highlight />

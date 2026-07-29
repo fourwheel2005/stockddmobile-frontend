@@ -54,7 +54,7 @@ export function CustomItemForm({ onAdd }: Props) {
         <PackagePlus className="h-5 w-5" />
         <span>ขายของที่ไม่ได้ลงสต็อก (อุปกรณ์เสริม/อื่นๆ)</span>
       </div>
-      <div className="space-y-3 p-4">
+      <div className="card-body space-y-3">
         <div className="grid gap-3 sm:grid-cols-12">
           <div className="sm:col-span-5">
             <label className="mb-1 block text-xs font-medium text-slate-600">ขายอะไร *</label>

@@ -82,7 +82,7 @@ export function TransfersPage() {
         </button>
       </div>
 
-      <div className="flex gap-2 text-sm">
+      <div className="flex flex-wrap gap-2 text-sm">
         {([['', 'ทั้งหมด'], ['PENDING', 'รอรับ'], ['RECEIVED', 'รับแล้ว'], ['CANCELLED', 'ยกเลิก']] as const).map(
           ([v, label]) => (
             <button key={v} onClick={() => setFilter(v)}
@@ -102,9 +102,9 @@ export function TransfersPage() {
         <div className="space-y-2">
           {(transfers ?? []).map((t) => (
             <div key={t.id} className="rounded-lg border border-slate-200 bg-white p-4">
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="font-mono font-semibold">{t.transferNo}</span>
                     <span className={`rounded px-2 py-0.5 text-xs ${STATUS_LABEL[t.status].cls}`}>
                       {STATUS_LABEL[t.status].text}
@@ -228,7 +228,7 @@ function CreateTransferModal({ onClose }: { onClose: () => void }) {
                   เลือกเครื่อง ({selected.size} เครื่อง)
                 </label>
                 <div className="relative mb-1">
-                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-slate-400" />
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   <input className="input pl-8 text-sm" placeholder="ค้นหา IMEI / รหัส / รุ่น"
                          value={q} onChange={(e) => setQ(e.target.value)} />
                 </div>

@@ -56,7 +56,7 @@ export function ImeiPickerModal({ selectedIds = [], onSelect, onClose }: Props) 
 
         <div className="space-y-3 p-5">
           <div className="relative">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
               autoFocus
               className="input pl-9"
@@ -140,7 +140,7 @@ export function ImeiPickerModal({ selectedIds = [], onSelect, onClose }: Props) 
                 พบ {data.totalElements} เครื่อง · แสดง {data.content.length} ตัว
               </p>
             )}
-            <button onClick={onClose} className="btn-primary bg-emerald-600 hover:bg-emerald-700">
+            <button onClick={onClose} className="btn-primary ml-auto bg-emerald-600 hover:bg-emerald-700">
               <CheckCircle2 className="h-4 w-4" />
               เสร็จสิ้น ({selectedSet.size})
             </button>

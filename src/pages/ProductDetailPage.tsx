@@ -114,14 +114,14 @@ export function ProductDetailPage() {
 
       <div className="card">
         <div className="card-body space-y-3">
-          <div className="flex items-start justify-between">
-            <div>
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="min-w-0">
               <h1 className="page-title">{product.name}</h1>
               <div className="mt-1 text-sm text-slate-500">
                 {product.brand} {product.modelNumber && `· ${product.modelNumber}`} · {product.category.name}
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex shrink-0 flex-wrap items-center gap-2">
               {product.serialized && <span className="badge-blue">Serialized</span>}
               {product.active ? <span className="badge-green">Active</span> : <span className="badge-red">Inactive</span>}
               {canEdit && (
@@ -365,7 +365,7 @@ function DeviceCard({ idx, device, onChange, onRemove, disableRemove, colorList,
           </button>
         )}
       </div>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <div>
           <label className="mb-0.5 block text-xs font-semibold text-slate-600">IMEI (15 หลัก)</label>
           <input className="input font-mono text-sm" inputMode="numeric" maxLength={15}

@@ -45,17 +45,17 @@ export function InstallmentPlansEditor({ value, onChange }: Props) {
               {pi + 1}
             </span>
             <input
-              className="input flex-1 text-sm"
+              className="input min-w-0 flex-1 text-sm"
               placeholder={`ชื่อแผน (เช่น "ดาวน์ ${plan.down || 0}") — เว้นได้`}
               value={plan.label}
               onChange={(e) => patchPlan(pi, { label: e.target.value })}
             />
             <button type="button" onClick={() => duplicatePlan(pi)} title="ทำซ้ำแผนนี้"
-              className="rounded p-1.5 text-slate-500 hover:bg-slate-100">
+              className="shrink-0 rounded p-1.5 text-slate-500 hover:bg-slate-100">
               <Copy className="h-4 w-4" />
             </button>
             <button type="button" onClick={() => removePlan(pi)} title="ลบแผนนี้"
-              className="rounded p-1.5 text-red-500 hover:bg-red-50">
+              className="shrink-0 rounded p-1.5 text-red-500 hover:bg-red-50">
               <X className="h-4 w-4" />
             </button>
           </div>

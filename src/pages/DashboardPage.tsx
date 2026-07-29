@@ -79,8 +79,8 @@ export function DashboardPage() {
         )}
       </div>
 
-      {/* Stat Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Stat Cards — การ์ดที่ 4 (มูลค่าสต็อก) เห็นเฉพาะ MANAGER/ADMIN → role อื่นใช้ 3 คอลัมน์ กันช่องว่างท้ายแถว */}
+      <div className={`grid grid-cols-1 gap-4 sm:grid-cols-2 ${isManagerOrAdmin ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
         <StatCard
           icon={<Package className="h-5 w-5" />}
           label="สินค้าทั้งหมด"

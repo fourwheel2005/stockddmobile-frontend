@@ -172,16 +172,17 @@ export function AppShell() {
       {/* Right column */}
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Mobile top bar */}
-        <header className="flex items-center justify-between border-b border-slate-200 bg-white/90 px-4 py-3 backdrop-blur md:hidden">
+        {/* grid 1fr_auto_1fr → โลโก้อยู่กึ่งกลางจริง (เดิม justify-between เบี้ยวเพราะปุ่มซ้าย/ขวากว้างไม่เท่ากัน) */}
+        <header className="grid grid-cols-[1fr_auto_1fr] items-center border-b border-slate-200 bg-white/90 px-4 py-3 backdrop-blur md:hidden">
           <button
-            className="rounded-lg p-1.5 text-slate-600 hover:bg-slate-100"
+            className="justify-self-start rounded-lg p-1.5 text-slate-600 hover:bg-slate-100"
             onClick={() => setMobileOpen(true)}
             aria-label="เปิดเมนู"
           >
             <Menu className="h-6 w-6" />
           </button>
-          <Wordmark />
-          <WsStatusIndicator />
+          <div className="justify-self-center"><Wordmark /></div>
+          <div className="justify-self-end"><WsStatusIndicator /></div>
         </header>
 
         <main className="flex-1 overflow-y-auto">

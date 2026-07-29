@@ -197,7 +197,7 @@ export function InventoryPage() {
       )}
 
       {/* สรุปจำนวนเครื่องพร้อมขาย + filter มือ1/มือ2 (กดเพื่อกรองตาราง) */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <button
           type="button"
           onClick={() => pickCondition('')}

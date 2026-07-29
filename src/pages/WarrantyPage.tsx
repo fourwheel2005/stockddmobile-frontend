@@ -43,7 +43,7 @@ export function WarrantyPage() {
         <div className="card-body">
           <div className="flex gap-2">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <input
                 autoFocus
                 type="text"
@@ -103,8 +103,8 @@ export function WarrantyPage() {
 
             {/* Barcode display + print button */}
             {(result.imei || result.serialNumber) && (
-              <div className="flex items-center justify-between rounded-md border border-slate-200 bg-slate-50 p-4">
-                <div className="flex items-center gap-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 p-4">
+                <div className="flex min-w-0 items-center gap-4">
                   <BarcodeDisplay
                     value={result.imei || result.serialNumber}
                     height={50}
@@ -114,7 +114,7 @@ export function WarrantyPage() {
                     บาร์โค้ดของเครื่องนี้ — ใช้ Scanner ยิงตรวจสอบได้
                   </div>
                 </div>
-                <button className="btn-secondary" onClick={() => window.print()}>
+                <button className="btn-secondary shrink-0" onClick={() => window.print()}>
                   <Printer className="h-4 w-4" /> พิมพ์ Label
                 </button>
               </div>
