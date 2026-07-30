@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Plus, X, ArrowDownToLine, Copy, PackageOpen, Pencil, Trash2 } from 'lucide-react';
+import { ArrowLeft, Plus, X, ArrowDownToLine, Copy, PackageOpen, Pencil, Trash2, Smartphone, BatteryMedium } from 'lucide-react';
 import { productsApi, categoriesApi } from '@/api/products';
 import { inventoryApi } from '@/api/inventory';
 import { extractErrorMessage } from '@/api/client';
@@ -13,7 +13,7 @@ import { BarcodeDisplay } from '@/components/BarcodeDisplay';
 import { ImageEditor } from '@/components/MultiImageUpload';
 import { SerialsModal } from '@/components/SerialsModal';
 import { FastInboundModal } from '@/components/receive/FastInboundModal';
-import { formatTHB } from '@/lib/format';
+import { formatDate, formatNumber, formatTHB } from '@/lib/format';
 import { ACQ_INFO, ACQ_ORDER } from '@/lib/acquisition';
 import {
   WARRANTY_NEW, WARRANTY_OPTIONS, COLOR_OPTIONS, STORAGE_OPTIONS, warrantyNeedsExpire,
@@ -292,6 +292,11 @@ export function ProductDetailPage() {
         </div>
       </div>
 
+      {/* รายเครื่องทั้งหมดของรุ่นนี้ (ทุก SKU/สี รวมมือ 1 + มือ 2) — ไม่ต้องกด "รายเครื่อง" ทีละ SKU */}
+      {product.serialized && (
+        <ProductSerialsSection product={product} />
+      )}
+
       {showAddVariant && (
         <AddVariantModal productId={product.id} serialized={product.serialized}
                          productModelNumber={product.modelNumber ?? undefined}
@@ -314,6 +319,164 @@ export function ProductDetailPage() {
         <FastInboundModal variant={receiveVariant}
                           onClose={() => setReceiveVariant(null)}
                           onDone={onReceiveDone} />
+      )}
+    </div>
+  );
+}
+
+/* ─── รายเครื่องทั้งหมดของรุ่นนี้ (ทุก SKU รวมมือ 1 + มือ 2) ─────────────
+   เดิมต้องกดปุ่ม "รายเครื่อง" ทีละ SKU — ตารางนี้ดึง flat ผ่าน /inventory/serials?productId=
+   กดแถวไหนเปิด SerialsModal ของ SKU นั้น (แก้ไข/ส่งซ่อม/ย้าย SKU ได้ครบเหมือนเดิม) */
+const SERIAL_STATUS_LABEL: Record<string, { text: string; cls: string }> = {
+  IN_STOCK: { text: 'พร้อมขาย', cls: 'badge-green' },
+  RESERVED: { text: 'จองแล้ว', cls: 'badge-blue' },
+  SOLD: { text: 'ขายแล้ว', cls: 'badge-slate' },
+  DEFECTIVE: { text: 'ชำรุด/บริการ', cls: 'badge-red' },
+  RETURNED: { text: 'คืน', cls: 'badge-amber' },
+  TRANSFERRED: { text: 'ย้ายสาขา', cls: 'badge-slate' },
+};
+const SERIAL_CONDITION_TH: Record<string, string> = {
+  NEW: 'มือ 1', SECOND_HAND: 'มือ 2', LIKE_NEW: 'สภาพดีมาก', REFURBISHED: 'ปรับสภาพ', DEFECTIVE: 'ชำรุด',
+};
+type SerialConditionFilter = '' | 'NEW' | 'SECOND_HAND';
+
+function ProductSerialsSection({ product }: { product: ProductDetail }) {
+  const [condition, setCondition] = useState<SerialConditionFilter>('');
+  const [status, setStatus] = useState('IN_STOCK');   // ค่าเริ่มต้น: เครื่องพร้อมขาย
+  const [page, setPage] = useState(0);
+  const [serialsFor, setSerialsFor] = useState<{ variantId: string; sku: string; highlightId: string } | null>(null);
+
+  const { data, isLoading } = useQuery({
+    // prefix 'inventory-serials' เดียวกับหน้า Stock → invalidate หลังรับเข้า/แก้ไข/ขาย ครอบถึงกันอัตโนมัติ
+    queryKey: ['inventory-serials', 'product', product.id, { condition, status, page }],
+    queryFn: () => inventoryApi.listSerials({
+      productId: product.id,
+      condition: condition || undefined,
+      status: status || undefined,
+      page, size: 50,
+    }),
+  });
+
+  const pickCondition = (c: SerialConditionFilter) => { setCondition(c); setPage(0); };
+  const condChip = (c: SerialConditionFilter, label: string) => (
+    <button type="button" onClick={() => pickCondition(c)}
+            className={`rounded-full border px-3 py-1 text-xs font-medium ${
+              condition === c ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+            }`}>
+      {label}
+    </button>
+  );
+
+  return (
+    <div className="card">
+      <div className="card-header flex flex-wrap items-center justify-between gap-2">
+        <span>
+          รายเครื่องในรุ่นนี้ <span className="font-normal text-slate-500">(ทุกสี/SKU · มือ 1 + มือ 2{data ? ` · ${formatNumber(data.totalElements)} เครื่อง` : ''})</span>
+        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex gap-1.5">
+            {condChip('', 'ทั้งหมด')}
+            {condChip('NEW', 'มือ 1')}
+            {condChip('SECOND_HAND', 'มือ 2')}
+          </div>
+          <select className="input w-40 py-1 text-sm" value={status}
+                  onChange={(e) => { setStatus(e.target.value); setPage(0); }}>
+            <option value="IN_STOCK">พร้อมขาย</option>
+            <option value="">ทุกสถานะ</option>
+            <option value="RESERVED">จองแล้ว</option>
+            <option value="SOLD">ขายแล้ว</option>
+            <option value="DEFECTIVE">ชำรุด/บริการ</option>
+            <option value="RETURNED">คืน</option>
+          </select>
+        </div>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+            <tr>
+              <th className="px-5 py-2.5">รหัสเครื่อง</th>
+              <th className="px-5 py-2.5">สี / ความจุ</th>
+              <th className="px-5 py-2.5">IMEI / SN</th>
+              <th className="px-5 py-2.5">สภาพ</th>
+              <th className="px-5 py-2.5">สถานะ</th>
+              <th className="px-5 py-2.5 text-right">ราคาขาย</th>
+              <th className="px-5 py-2.5">รับเข้า</th>
+              <th className="px-5 py-2.5 text-right"></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {isLoading && (
+              <tr><td colSpan={8} className="px-5 py-8 text-center text-slate-400">กำลังโหลด...</td></tr>
+            )}
+            {data?.content.map((s) => {
+              const st = SERIAL_STATUS_LABEL[s.status] ?? { text: s.status, cls: 'badge-slate' };
+              // ราคาขายรายเครื่อง (มือ 2 ตั้งต่อเครื่อง) → fallback ราคา SKU
+              const variant = product.variants.find((v) => v.id === s.variantId);
+              const sell = s.sellingPrice ?? variant?.sellingPrice;
+              return (
+                <tr key={s.id} className="hover:bg-slate-50">
+                  <td className="px-5 py-3">
+                    <span className="rounded bg-brand-100 px-1.5 font-mono text-xs font-semibold text-brand-700">
+                      {s.stockCode ?? '—'}
+                    </span>
+                    {s.branchName && (
+                      <div className="mt-0.5 text-[10px] text-slate-500">🏪 {s.branchName}</div>
+                    )}
+                  </td>
+                  <td className="px-5 py-3">
+                    {[s.deviceColor, s.deviceStorage].filter(Boolean).join(' / ') || '-'}
+                  </td>
+                  <td className="px-5 py-3">
+                    <div className="font-mono text-xs">{s.imei ?? '-'}</div>
+                    <div className="font-mono text-xs text-slate-400">{s.serialNumber}</div>
+                  </td>
+                  <td className="px-5 py-3">
+                    <span className={s.condition === 'NEW' ? 'badge-blue'
+                      : 'rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700'}>
+                      {SERIAL_CONDITION_TH[s.condition] ?? s.condition}
+                    </span>
+                    {s.batteryHealth != null && (
+                      <div className="mt-0.5 inline-flex items-center gap-0.5 text-xs text-slate-500">
+                        <BatteryMedium className="h-3.5 w-3.5" />{s.batteryHealth}%
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-5 py-3"><span className={st.cls}>{st.text}</span></td>
+                  <td className="px-5 py-3 text-right font-semibold">{sell != null ? formatTHB(sell) : '-'}</td>
+                  <td className="px-5 py-3 text-xs text-slate-500">{formatDate(s.receivedAt)}</td>
+                  <td className="px-5 py-3 text-right">
+                    <button type="button"
+                            className="rounded p-1.5 text-brand-600 hover:bg-brand-50"
+                            title="เปิดจัดการเครื่องนี้ (แก้ไข/ส่งซ่อม/ย้าย SKU)"
+                            onClick={() => setSerialsFor({ variantId: s.variantId, sku: s.sku, highlightId: s.id })}>
+                      <Smartphone className="h-4 w-4" />
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+            {data && data.content.length === 0 && (
+              <tr><td colSpan={8} className="px-5 py-8 text-center text-slate-400">
+                ไม่มีเครื่อง{condition && ` (${condition === 'NEW' ? 'มือ 1' : 'มือ 2'})`}ในสถานะนี้
+              </td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      {data && data.totalPages > 1 && (
+        <div className="flex items-center justify-between border-t border-slate-200 px-5 py-3 text-sm">
+          <div>หน้า {data.page + 1} / {data.totalPages} ({formatNumber(data.totalElements)} เครื่อง)</div>
+          <div className="flex gap-2">
+            <button className="btn-secondary" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>ก่อนหน้า</button>
+            <button className="btn-secondary" disabled={data.last} onClick={() => setPage((p) => p + 1)}>ถัดไป</button>
+          </div>
+        </div>
+      )}
+
+      {serialsFor && (
+        <SerialsModal variantId={serialsFor.variantId} productName={product.name} sku={serialsFor.sku}
+                      highlightId={serialsFor.highlightId} productVariants={product.variants}
+                      onClose={() => setSerialsFor(null)} />
       )}
     </div>
   );

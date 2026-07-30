@@ -29,8 +29,8 @@ export const inventoryApi = {
   getSerials: (variantId: string, params: { status?: string; page?: number; size?: number } = {}) =>
     api.get<PageResponse<SerializedItemResponse>>(`/inventory/${variantId}/serials`, { params }).then((r) => r.data),
 
-  /** มุมมองรายเครื่อง (flat ทุกรุ่น) สำหรับหน้า Stock */
-  listSerials: (params: { status?: string; condition?: 'NEW' | 'SECOND_HAND'; branchId?: string; q?: string; page?: number; size?: number } = {}) =>
+  /** มุมมองรายเครื่อง (flat ทุกรุ่น) สำหรับหน้า Stock · productId = เฉพาะเครื่องของรุ่นนั้นทุก SKU */
+  listSerials: (params: { status?: string; condition?: 'NEW' | 'SECOND_HAND'; branchId?: string; productId?: string; q?: string; page?: number; size?: number } = {}) =>
     api.get<PageResponse<SerializedItemResponse>>('/inventory/serials', { params }).then((r) => r.data),
 
   /** suggestion เลขรุ่น + สี (distinct ที่เคยกรอก) — autocomplete ตอนรับเครื่อง */
