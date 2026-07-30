@@ -13,6 +13,7 @@ import { BarcodeDisplay } from '@/components/BarcodeDisplay';
 import { ImageEditor } from '@/components/MultiImageUpload';
 import { SerialsModal } from '@/components/SerialsModal';
 import { FastInboundModal } from '@/components/receive/FastInboundModal';
+import { ProductFastInboundModal } from '@/components/receive/ProductFastInboundModal';
 import { formatDate, formatNumber, formatTHB } from '@/lib/format';
 import { ACQ_INFO, ACQ_ORDER } from '@/lib/acquisition';
 import {
@@ -30,6 +31,7 @@ export function ProductDetailPage() {
   const [editingVariant, setEditingVariant] = useState<VariantResponse | null>(null);
   const [serialsVariant, setSerialsVariant] = useState<VariantResponse | null>(null);
   const [receiveVariant, setReceiveVariant] = useState<VariantResponse | null>(null);  // รับเข้าในหน้านี้เลย (FIX-087)
+  const [receiveProduct, setReceiveProduct] = useState(false);   // รับเข้าระดับรุ่น — หลายสี/มือ ครั้งเดียว (FIX-112)
   const [editingProduct, setEditingProduct] = useState(false);
   const canEdit = useAuthStore((s) => s.hasRole('ADMIN', 'MANAGER'));
   const qc = useQueryClient();
@@ -92,10 +94,12 @@ export function ProductDetailPage() {
   if (isLoading) return <div className="text-slate-500">กำลังโหลด...</div>;
   if (!product) return <div className="text-slate-500">ไม่พบสินค้า</div>;
 
-  /* รับเข้าโดยไม่เด้งออกจากหน้า (FIX-087):
-     0 SKU → เพิ่มสี/ความจุก่อน · 1 SKU → เปิด modal รับเข้าเลย · หลาย SKU → เลื่อนไปตารางให้เลือก */
+  /* รับเข้าโดยไม่เด้งออกจากหน้า (FIX-087 → FIX-112):
+     0 SKU → เพิ่มสี/ความจุก่อน · serialized → ฟอร์มระดับรุ่น (หลายสี/มือ ครั้งเดียว ระบบจับ SKU ให้)
+     ไม่ serialized (bulk) → modal ต่อ SKU เดิม (1 SKU เปิดเลย · หลาย SKU เลือกจากตาราง) */
   const handleReceive = () => {
     if (product.variants.length === 0) { setShowAddVariant(true); return; }
+    if (product.serialized) { setReceiveProduct(true); return; }
     if (product.variants.length === 1) { setReceiveVariant(product.variants[0]); return; }
     document.getElementById('sku-table')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     toast('เลือกสีที่จะรับเข้า — กดปุ่ม 📥 ท้ายแถว', { icon: '👇', duration: 3000 });
@@ -172,8 +176,8 @@ export function ProductDetailPage() {
             )}
             {canEdit && product.variants.length > 0 && (
               <button type="button" onClick={handleReceive} className="btn-secondary"
-                      title="เพิ่มสต็อกให้ SKU/สีที่มีอยู่แล้ว — เปิดฟอร์มรับเข้าในหน้านี้เลย">
-                <ArrowDownToLine className="h-4 w-4" /> รับเข้าสีเดิม
+                      title="รับเครื่องเข้าสต็อก — หลายสี/หลายมือได้ในครั้งเดียว ระบบจับเข้า SKU เดิมให้อัตโนมัติ">
+                <ArrowDownToLine className="h-4 w-4" /> รับสินค้าเข้า
               </button>
             )}
           </div>
@@ -319,6 +323,12 @@ export function ProductDetailPage() {
         <FastInboundModal variant={receiveVariant}
                           onClose={() => setReceiveVariant(null)}
                           onDone={onReceiveDone} />
+      )}
+      {/* รับเข้าระดับรุ่น — หลายสี/หลายมือ lot เดียว (FIX-112) */}
+      {receiveProduct && (
+        <ProductFastInboundModal product={product}
+                                 onClose={() => setReceiveProduct(false)}
+                                 onDone={onReceiveDone} />
       )}
     </div>
   );
