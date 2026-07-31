@@ -27,6 +27,24 @@ export interface ProductDedupReport {
   }>;
 }
 
+/** ผลการรวม SKU ซ้ำในรุ่น (FIX-115) — กลุ่ม = มือ+สี+ความจุ ตรงกัน */
+export interface VariantDedupReport {
+  applied: boolean;
+  duplicateGroups: number;
+  variantsDeactivated: number;
+  devicesMoved: number;
+  groups: Array<{
+    keptVariantId: string;
+    keptSku: string;
+    condition: 'NEW' | 'SECOND_HAND';
+    color: string;
+    storage: string;
+    mergedSkus: string[];
+    skippedSkus: string[];
+    devicesMoved: number;
+  }>;
+}
+
 export const productsApi = {
   list: (params: { page?: number; size?: number; categoryId?: string; active?: boolean } = {}) =>
     api.get<PageResponse<ProductSummary>>('/products', { params }).then((r) => r.data),
@@ -34,6 +52,11 @@ export const productsApi = {
   /** รวม product รุ่นซ้ำให้เหลือรุ่นเดียว — apply=false = พรีวิว(dry-run), apply=true = ลงมือจริง (FIX-100) */
   dedup: (apply = false) =>
     api.post<ProductDedupReport>('/products/dedup', null, { params: { apply } }).then((r) => r.data),
+
+  /** รวม SKU ซ้ำในรุ่นเดียว (มือ+สี+ความจุ ตรงกัน) — ย้ายเครื่องไป SKU เก่าสุด + ปิดตัวซ้ำ (FIX-115) */
+  dedupVariants: (productId: string, apply = false) =>
+    api.post<VariantDedupReport>(`/products/${productId}/variants/dedup`, null, { params: { apply } })
+      .then((r) => r.data),
 
   get: (id: string) =>
     api.get<ProductDetail>(`/products/${id}`).then((r) => r.data),

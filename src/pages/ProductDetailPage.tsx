@@ -3,7 +3,7 @@ import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Plus, X, ArrowDownToLine, Copy, PackageOpen, Pencil, Trash2, Smartphone, BatteryMedium } from 'lucide-react';
+import { ArrowLeft, Plus, X, ArrowDownToLine, Copy, FolderOpen, PackageOpen, Pencil, Trash2, Smartphone, BatteryMedium } from 'lucide-react';
 import { productsApi, categoriesApi } from '@/api/products';
 import { inventoryApi } from '@/api/inventory';
 import { extractErrorMessage } from '@/api/client';
@@ -27,7 +27,33 @@ export function ProductDetailPage() {
   const [receiveProduct, setReceiveProduct] = useState(false);   // รับเข้าระดับรุ่น — หลายสี/มือ ครั้งเดียว (FIX-112)
   const [editingProduct, setEditingProduct] = useState(false);
   const canEdit = useAuthStore((s) => s.hasRole('ADMIN', 'MANAGER'));
+  const isAdmin = useAuthStore((s) => s.hasRole('ADMIN'));
   const qc = useQueryClient();
+
+  // รวม SKU ซ้ำในรุ่น (มือ+สี+ความจุ ตรงกัน) — dry-run พรีวิวก่อน แล้วค่อยลงมือจริง (FIX-115)
+  const dedupVariants = useMutation({
+    mutationFn: async () => {
+      const preview = await productsApi.dedupVariants(id!, false);
+      if (preview.duplicateGroups === 0) { toast('ไม่พบ SKU ซ้ำ — เรียบร้อยอยู่แล้ว'); return null; }
+      const lines = preview.groups.map((g) =>
+        `• ${g.color} ${g.storage} (${g.condition === 'NEW' ? 'มือ 1' : 'มือ 2'}): เก็บ ${g.keptSku} ← ปิด ${g.mergedSkus.join(', ')}`
+        + (g.devicesMoved > 0 ? ` (ย้าย ${g.devicesMoved} เครื่อง)` : '')
+        + (g.skippedSkus.length > 0 ? ` · ข้าม ${g.skippedSkus.join(', ')} (มีเครื่องติดจอง)` : ''));
+      const ok = confirm(
+        `พบ SKU ซ้ำ ${preview.duplicateGroups} กลุ่ม:\n\n${lines.join('\n')}\n\n`
+        + `เครื่องพร้อมขายจะย้ายไป SKU หลัก · ประวัติขายไม่หาย · SKU ซ้ำถูกปิด (กู้คืนได้)\nยืนยันรวมเลยไหม?`);
+      if (!ok) return null;
+      return productsApi.dedupVariants(id!, true);
+    },
+    onSuccess: (res) => {
+      if (!res) return;
+      toast.success(`รวมสำเร็จ ${res.duplicateGroups} กลุ่ม · ปิด ${res.variantsDeactivated} SKU · ย้าย ${res.devicesMoved} เครื่อง`);
+      qc.invalidateQueries({ queryKey: ['product', id] });
+      qc.invalidateQueries({ queryKey: ['inventory'] });
+      qc.invalidateQueries({ queryKey: ['inventory-serials'] });
+    },
+    onError: (e) => toast.error(extractErrorMessage(e)),
+  });
 
   const { data: product, isLoading } = useQuery({
     queryKey: ['product', id],
@@ -93,6 +119,14 @@ export function ProductDetailPage() {
     }
   });
   const stockResolved = variants.length > 0 && stockQueries.every((q) => q.isSuccess || q.isError);
+  // มี SKU ซ้ำ (มือ+สี+ความจุ ตรงกัน) ไหม — โชว์ปุ่มรวมเฉพาะตอนเจอจริง (FIX-115)
+  const dupKeyCounts = new Map<string, number>();
+  for (const v of variants) {
+    if (!v.active || !v.condition || !(v.color ?? '').trim() || !(v.storage ?? '').trim()) continue;
+    const key = `${v.condition}|${v.color!.trim().toLowerCase()}|${v.storage!.trim().toLowerCase()}`;
+    dupKeyCounts.set(key, (dupKeyCounts.get(key) ?? 0) + 1);
+  }
+  const hasDupSkus = [...dupKeyCounts.values()].some((n) => n > 1);
   const totalQty = [...qtyByVariant.values()].reduce((sum, n) => sum + n, 0);
   const hasNoStock = stockResolved && totalQty === 0;
 
@@ -172,6 +206,14 @@ export function ProductDetailPage() {
         <div className="card-header flex flex-wrap items-center justify-between gap-2">
           <span>สี / ความจุ ที่มี <span className="font-normal text-slate-500">({product.variants.length} SKU)</span></span>
           <div className="flex flex-wrap gap-2">
+            {/* รวม SKU ซ้ำ (มือ+สี+ความจุ ตรงกัน) — ซากจากยุคก่อน FIX-113 (FIX-115) */}
+            {isAdmin && hasDupSkus && (
+              <button type="button" onClick={() => dedupVariants.mutate()} disabled={dedupVariants.isPending}
+                      className="btn-secondary border-amber-300 text-amber-700 hover:bg-amber-50 disabled:opacity-60"
+                      title="รวม SKU ที่ มือ+สี+ความจุ ตรงกันให้เหลือตัวเดียว (ย้ายเครื่องไปตัวเก่าสุด · ประวัติไม่หาย)">
+                <FolderOpen className="h-4 w-4" /> {dedupVariants.isPending ? 'กำลังรวม…' : 'รวม SKU ซ้ำ'}
+              </button>
+            )}
             {/* FIX-114: มือถือเหลือปุ่มเดียว "รับสินค้าเข้า" — ฟอร์มเดียวรับหลายสี/มือ + สร้างสี/SKU ใหม่ได้ในตัว
                 (แทนที่ "เพิ่มสี + เครื่อง" เดิมที่ทำงานซ้ำกันแต่ field ไม่เท่ากัน) */}
             {canEdit && !product.serialized && (

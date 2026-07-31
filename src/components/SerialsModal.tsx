@@ -64,6 +64,8 @@ export function SerialsModal({ variantId, productName, sku, onClose, highlightId
   const [moveFor, setMoveFor] = useState<SerializedItemResponse | null>(null);
   // SKU อื่นของรุ่นเดียวกันที่ย้ายไปได้ (active + ไม่ใช่ตัวปัจจุบัน)
   const moveTargets = (productVariants ?? []).filter((v) => v.id !== variantId && v.active);
+  // มือของ SKU ปัจจุบัน (FIX-115) — ใช้เตือนเมื่อแก้มือเครื่องแล้วไม่ตรงกับ SKU
+  const variantCondition = (productVariants ?? []).find((v) => v.id === variantId)?.condition ?? null;
 
   // ปุ่มพิมพ์ป้าย QR แปะเครื่อง — เฉพาะ ADMIN (FIX-104)
   const isAdmin = useAuthStore((s) => s.hasRole('ADMIN'));
@@ -262,10 +264,15 @@ export function SerialsModal({ variantId, productName, sku, onClose, highlightId
     {editing && (
       <EditSerialModal
         item={editing}
+        variantCondition={variantCondition}
         onClose={() => setEditing(null)}
         onSaved={() => {
           qc.invalidateQueries({ queryKey: ['serials', variantId] });
           qc.invalidateQueries({ queryKey: ['inventory'] });
+        }}
+        // แก้มือเครื่องแล้วไม่ตรงมือ SKU → เปิด modal ย้าย SKU ต่อทันที (กัน "ผสม 1+2" ค้าง — FIX-115)
+        onConditionMismatch={(updated) => {
+          if (moveTargets.length > 0 && updated.status === 'IN_STOCK') setMoveFor(updated);
         }}
       />
     )}
@@ -316,8 +323,16 @@ function MoveVariantModal({ item, targets, onClose, onMoved }: {
     onSuccess: () => { toast.success('ย้าย SKU แล้ว'); onMoved(); },
     onError: (e) => toast.error(extractErrorMessage(e)),
   });
+  // ปลายทางเรียง "มือตรงกับเครื่อง" ขึ้นก่อน + มือไม่ตรงกดไม่ได้ (backend กันอีกชั้นด้วย FIX-113)
+  const itemGroup = item.condition === 'NEW' ? 'NEW' : 'SECOND_HAND';
+  const handTh = (c?: 'NEW' | 'SECOND_HAND' | null) =>
+    c === 'NEW' ? 'มือ 1' : c === 'SECOND_HAND' ? 'มือ 2' : 'ยังไม่ผูกมือ';
+  const rank = (v: VariantResponse) => (v.condition === itemGroup ? 0 : v.condition == null ? 1 : 2);
+  const sortedTargets = [...targets].sort((a, b) => rank(a) - rank(b));
+  const mismatched = (v: VariantResponse) => v.condition != null && v.condition !== itemGroup;
   const label = (v: VariantResponse) =>
-    `${v.sku} · ${[v.color, v.storage].filter(Boolean).join(' ') || '-'}`;
+    `${v.sku} · ${[v.color, v.storage].filter(Boolean).join(' ') || '-'} · ${handTh(v.condition)}`
+    + (mismatched(v) ? ' (มือไม่ตรง)' : '');
 
   return (
     <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/50 p-4">
@@ -337,8 +352,8 @@ function MoveVariantModal({ item, targets, onClose, onMoved }: {
             <label className="mb-1 block text-xs font-semibold text-slate-600">ย้ายไป SKU (รุ่นเดียวกัน)</label>
             <select className="input" value={targetId} onChange={(e) => setTargetId(e.target.value)}>
               <option value="">— เลือก SKU ปลายทาง —</option>
-              {targets.map((v) => (
-                <option key={v.id} value={v.id}>{label(v)}</option>
+              {sortedTargets.map((v) => (
+                <option key={v.id} value={v.id} disabled={mismatched(v)}>{label(v)}</option>
               ))}
             </select>
           </div>
@@ -361,10 +376,13 @@ function MoveVariantModal({ item, targets, onClose, onMoved }: {
 /* ─── แก้ไขข้อมูลเครื่อง (typo correction) ──────────────────────────── */
 const EDIT_CONDITIONS: SerializedCondition[] = ['NEW', 'SECOND_HAND', 'LIKE_NEW', 'REFURBISHED', 'DEFECTIVE'];
 
-function EditSerialModal({ item, onClose, onSaved }: {
+function EditSerialModal({ item, variantCondition, onClose, onSaved, onConditionMismatch }: {
   item: SerializedItemResponse;
+  /** มือของ SKU ที่เครื่องอยู่ (null = ยังไม่ผูกมือ) — ใช้เตือนตอนแก้มือเครื่องไม่ตรง SKU (FIX-115) */
+  variantCondition?: 'NEW' | 'SECOND_HAND' | null;
   onClose: () => void;
   onSaved: () => void;
+  onConditionMismatch?: (updated: SerializedItemResponse) => void;
 }) {
   const [imei, setImei] = useState(item.imei ?? '');
   const [imei2, setImei2] = useState(item.imei2 ?? '');
@@ -438,7 +456,18 @@ function EditSerialModal({ item, onClose, onSaved }: {
       })(),
       installmentPromo: instPromo.trim() || null,
     }),
-    onSuccess: () => { toast.success('แก้ไขเครื่องแล้ว'); onSaved(); onClose(); },
+    onSuccess: () => {
+      toast.success('แก้ไขเครื่องแล้ว');
+      onSaved();
+      onClose();
+      // มือของเครื่องหลังแก้ ไม่ตรงกับมือของ SKU → ชวนย้าย SKU ทันที (กันตกค้างเป็น "ผสม 1+2" — FIX-115)
+      const group = condition === 'NEW' ? 'NEW' : 'SECOND_HAND';
+      if (variantCondition && group !== variantCondition) {
+        toast(`⚠️ เครื่องนี้ตอนนี้เป็น${group === 'NEW' ? 'มือ 1' : 'มือ 2'} แต่ SKU เป็น${variantCondition === 'NEW' ? 'มือ 1' : 'มือ 2'} — เลือก SKU ปลายทางเพื่อย้าย`,
+              { duration: 6000 });
+        onConditionMismatch?.({ ...item, condition });
+      }
+    },
     onError: (e) => toast.error(extractErrorMessage(e)),
   });
 
