@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { X, Plus, ScanLine, Save, AlertTriangle, Package } from 'lucide-react';
+import { X, Plus, ScanLine, Save, AlertTriangle, Package, ChevronDown, ChevronRight } from 'lucide-react';
 import { productsApi } from '@/api/products';
 import { extractErrorMessage } from '@/api/client';
 import { useBranchStore } from '@/stores/branchStore';
@@ -9,17 +9,24 @@ import { useModalChrome, backdropCloseHandler } from '@/hooks/useModalChrome';
 import { formatTHB } from '@/lib/format';
 import { shopToday } from '@/lib/datetime';
 import { ACQ_INFO, ACQ_ORDER } from '@/lib/acquisition';
-import { NETWORK_OPTIONS, STORAGE_OPTIONS, WARRANTY_NEW } from '@/lib/deviceOptions';
-import type { AcquisitionType, ProductDetail, WizardInitialItem, WizardVariantBlock } from '@/types/api';
+import {
+  NETWORK_OPTIONS, STORAGE_OPTIONS, WARRANTY_NEW, WARRANTY_OPTIONS, warrantyNeedsExpire,
+} from '@/lib/deviceOptions';
+import { ImageEditor } from '@/components/MultiImageUpload';
+import { InstallmentPlansEditor } from '@/components/products/InstallmentPlansEditor';
+import { serializePlans, type InstallmentPlan } from '@/lib/installment';
+import type {
+  AcquisitionType, ProductDetail, VariantResponse, WizardInitialItem, WizardVariantBlock,
+} from '@/types/api';
 
 /**
- * รับเข้าเครื่องระดับ "รุ่น" — หลายสี/หลายมือ ในฟอร์มเดียว กดบันทึกครั้งเดียว (FIX-112)
+ * ฟอร์มรับเข้า "หนึ่งเดียว" ของสินค้ามือถือ (FIX-112 → FIX-114) — หลายสี/หลายมือ กดบันทึกครั้งเดียว
+ * ครอบทุกเคสที่เดิมแยก 3 ฟอร์ม: รับเข้าระดับรุ่น · เพิ่มสีใหม่ (สร้าง SKU อัตโนมัติ) · รับเข้าเจาะจง SKU
+ * (ผ่าน prop initialVariant = prefill สี/ความจุ/มือ ของ SKU นั้น)
  *
- * เดิมปุ่ม "รับเข้าสีเดิม" ผูกกับ SKU เดียว → ล็อตที่มีหลายสีต้องเปิดฟอร์มทีละสี
- * ฟอร์มนี้ส่งผ่าน POST /products/wizard ซึ่งฝั่ง backend:
+ * ส่งผ่าน POST /products/wizard ซึ่งฝั่ง backend:
  *  - reuse product ตามชื่อ (FIX-100 กันรุ่นซ้ำ)
- *  - จับ SKU เดิมตาม สภาพ+สี+ความจุ (findMatchingVariant — แม่นกว่าเดาฝั่ง client
- *    เพราะรุ่นเดียวอาจมีหลาย SKU สี/ความจุเดียวกันแยกมือ 1/มือ 2)
+ *  - จับ SKU เดิมตาม มือ+สี+ความจุ ของ SKU (FIX-113 — SKU ขายหมดก็ match, ไม่มีทางลงผิดมือ)
  *  - รวมทุกเครื่องเป็น StockLot เดียว (เก็บผู้ขาย/ใบกำกับใน note เหมือนฟอร์มเดิม)
  */
 
@@ -34,11 +41,17 @@ interface DeviceRow {
   batteryHealth: string;  // มือ 2
   purchasePrice: string;  // เว้น = ทุนเริ่มต้น
   sellingPrice: string;   // มือ 2 ควรตั้งรายเครื่อง · มือ 1 เว้น = ราคา SKU
+  // รายละเอียดเพิ่มเติม (พับเก็บ — ไม่บังคับ) เดิมมีเฉพาะฟอร์ม "เพิ่มสี + เครื่อง"
+  extraOpen: boolean;
+  warrantyTerms: string;  // เว้น = มือ1 ใช้ประกันศูนย์ default · มือ2 ไม่ระบุ
+  warrantyExpire: string; // YYYY-MM-DD
+  imageUrls: string[];
 }
 
 const EMPTY_ROW: DeviceRow = {
   imei: '', serialNumber: '', color: '', storage: '', condition: '',
   batteryHealth: '', purchasePrice: '', sellingPrice: '',
+  extraOpen: false, warrantyTerms: '', warrantyExpire: '', imageUrls: [],
 };
 
 const norm = (s: string | null | undefined) => (s ?? '').trim().toLowerCase();
@@ -50,8 +63,10 @@ const deviceCode = (base: string, idx: number) => {
   return 'DD' + String(parseInt(m[1], 10) + idx).padStart(5, '0');
 };
 
-export function ProductFastInboundModal({ product, onClose, onDone }: {
+export function ProductFastInboundModal({ product, initialVariant, onClose, onDone }: {
   product: ProductDetail;
+  /** เปิดจากปุ่ม 📥 ท้ายแถว SKU — prefill สี/ความจุ/มือ ของ SKU นั้น (แก้รายแถวได้เหมือนเดิม) */
+  initialVariant?: VariantResponse;
   onClose: () => void;
   onDone: () => void;
 }) {
@@ -63,16 +78,21 @@ export function ProductFastInboundModal({ product, onClose, onDone }: {
   const storageOptions = Array.from(new Set(activeVariants.map((v) => (v.storage ?? '').trim()).filter(Boolean))).sort();
 
   // ─── ค่าเริ่มต้นของทั้งล็อต ─────────────────────────────────────────
-  const [batchCondition, setBatchCondition] = useState<Cond>('NEW');
-  const [batchColor, setBatchColor] = useState('');
+  const [batchCondition, setBatchCondition] = useState<Cond>(
+    initialVariant?.condition === 'SECOND_HAND' ? 'SECOND_HAND' : 'NEW');
+  const [batchColor, setBatchColor] = useState(initialVariant?.color ?? '');
   // รุ่นมีความจุเดียว → เติมให้เลย (เคสร้านส่วนใหญ่)
-  const [batchStorage, setBatchStorage] = useState(storageOptions.length === 1 ? storageOptions[0] : '');
-  const [batchNetwork, setBatchNetwork] = useState('');
+  const [batchStorage, setBatchStorage] = useState(
+    initialVariant?.storage ?? (storageOptions.length === 1 ? storageOptions[0] : ''));
+  const [batchNetwork, setBatchNetwork] = useState(initialVariant?.network ?? '');
   const [acquisitionType, setAcquisitionType] = useState<AcquisitionType>('PURCHASE');
   const [unitCost, setUnitCost] = useState('');
   const [supplierRef, setSupplierRef] = useState('');
   const [invoiceNo, setInvoiceNo] = useState('');
   const [note, setNote] = useState('');
+  // แผนผ่อน มือ 1 — ใช้กับ SKU มือ1 ที่ "สร้างใหม่" รอบนี้ (SKU เดิมตั้งที่ปุ่มแก้ไขเหมือนเดิม)
+  const [plans, setPlans] = useState<InstallmentPlan[]>([]);
+  const [plansOpen, setPlansOpen] = useState(false);
 
   // ─── เครื่องรายตัว ──────────────────────────────────────────────────
   const [rows, setRows] = useState<DeviceRow[]>([{ ...EMPTY_ROW }]);
@@ -175,7 +195,9 @@ export function ProductFastInboundModal({ product, onClose, onDone }: {
           acquisitionType,
           purchasePrice: r.purchasePrice !== '' ? Number(r.purchasePrice) : (unitCostNum || undefined),
           sellingPrice: r.sellingPrice === '' ? undefined : Number(r.sellingPrice),
-          warrantyTerms: isNew ? WARRANTY_NEW : undefined,
+          warrantyTerms: r.warrantyTerms.trim() || (isNew ? WARRANTY_NEW : undefined),
+          warrantyExpire: r.warrantyExpire.trim() || undefined,
+          imageUrls: r.imageUrls.length ? r.imageUrls : undefined,
         };
       });
 
@@ -193,6 +215,9 @@ export function ProductFastInboundModal({ product, onClose, onDone }: {
         const sameSpec = activeVariants.filter(
           (v) => norm(v.color) === norm(first.deviceColor) && norm(v.storage) === norm(first.deviceStorage));
         const ref = sameSpec.find((v) => v.condition === first.condition) ?? sameSpec[0];
+        const isNewGroup = first.condition === 'NEW';
+        const cover = grp.find((x) => x.imageUrls?.length)?.imageUrls;   // รูป SKU ใหม่ = เครื่องแรกที่มีรูป
+        const inst = serializePlans(plans);   // แผนผ่อน มือ1 → เฉพาะ SKU มือ1 (SKU เดิม backend ข้าม spec)
         return {
           spec: {
             sku: first.stockCode!,
@@ -202,6 +227,13 @@ export function ProductFastInboundModal({ product, onClose, onDone }: {
             costPrice: Number(first.purchasePrice) || ref?.costPrice || 0,
             sellingPrice: Number(first.sellingPrice) || ref?.sellingPrice || 0,
             reorderPoint: ref?.reorderPoint ?? 5,
+            imageUrls: cover,
+            ...(isNewGroup ? {
+              downPayment: inst.downPayment ?? undefined,
+              installmentTerms: inst.installmentTerms ?? undefined,
+              installmentPromo: inst.installmentPromo ?? undefined,
+              installmentPlans: inst.installmentPlans ?? undefined,
+            } : {}),
           },
           items: grp,
         };
@@ -421,9 +453,45 @@ export function ProductFastInboundModal({ product, onClose, onDone }: {
                            placeholder={isSecond ? 'ราคาขาย (มือ2)' : 'ราคาขาย (=SKU)'}
                            value={r.sellingPrice} onChange={(ev) => patchRow(idx, { sellingPrice: ev.target.value })} />
                   </div>
+                  {/* รายละเอียดเพิ่มเติม (ไม่บังคับ) — ประกัน/รูป รายเครื่อง (เดิมมีเฉพาะฟอร์มเพิ่มสี) */}
+                  <button type="button" onClick={() => patchRow(idx, { extraOpen: !r.extraOpen })}
+                          className="ml-6 inline-flex items-center gap-0.5 text-[11px] text-slate-500 hover:text-slate-700">
+                    {r.extraOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                    เพิ่มเติม (ประกัน / รูปเครื่อง)
+                    {(r.warrantyTerms || r.imageUrls.length > 0) && !r.extraOpen && (
+                      <span className="ml-1 rounded bg-indigo-100 px-1 text-[10px] text-indigo-700">มีข้อมูล</span>
+                    )}
+                  </button>
+                  {r.extraOpen && (
+                    <div className="space-y-2 pl-6">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="mb-0.5 block text-[11px] font-semibold text-slate-600">ประกัน</label>
+                          <input className="input text-xs" list="pfi-warranty"
+                                 placeholder={isSecond ? 'เช่น ประกันร้าน 1 เดือน' : `เว้น = ${WARRANTY_NEW}`}
+                                 value={r.warrantyTerms}
+                                 onChange={(ev) => patchRow(idx, { warrantyTerms: ev.target.value })} />
+                        </div>
+                        {warrantyNeedsExpire(r.warrantyTerms || (isSecond ? '' : WARRANTY_NEW)) && (
+                          <div>
+                            <label className="mb-0.5 block text-[11px] font-semibold text-slate-600">ประกันถึงวันที่</label>
+                            <input type="date" className="input text-xs" value={r.warrantyExpire}
+                                   onChange={(ev) => patchRow(idx, { warrantyExpire: ev.target.value })} />
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <label className="mb-0.5 block text-[11px] font-semibold text-slate-600">
+                          รูปเครื่องนี้ <span className="font-normal text-slate-400">(รูปแรก = ปก · SKU ใหม่ใช้เป็นรูปปกด้วย)</span>
+                        </label>
+                        <ImageEditor value={r.imageUrls} onChange={(urls) => patchRow(idx, { imageUrls: urls })} />
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
+            <datalist id="pfi-warranty">{WARRANTY_OPTIONS.map((w) => <option key={w} value={w} />)}</datalist>
             <button
               type="button"
               onClick={() => setRows((p) => [...p, { ...EMPTY_ROW }])}
@@ -450,6 +518,20 @@ export function ProductFastInboundModal({ product, onClose, onDone }: {
               </div>
             </div>
           )}
+
+          {/* แผนผ่อน มือ 1 — เฉพาะกรณีรอบนี้จะสร้าง SKU มือ1 ใหม่ (SKU เดิมตั้งที่ปุ่มแก้ไข) */}
+          <div className="rounded-lg border border-slate-200 p-3">
+            <button type="button" onClick={() => setPlansOpen((o) => !o)}
+                    className="inline-flex items-center gap-1 text-sm font-medium text-slate-700">
+              {plansOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              แผนผ่อน มือ 1 <span className="text-xs font-normal text-slate-400">(ใช้กับสี/SKU มือ1 ที่สร้างใหม่รอบนี้ · SKU เดิมตั้งที่ปุ่ม "แก้ไข")</span>
+            </button>
+            {plansOpen && (
+              <div className="mt-2">
+                <InstallmentPlansEditor value={plans} onChange={setPlans} />
+              </div>
+            )}
+          </div>
 
           <div>
             <label className="mb-1 block text-sm font-medium">หมายเหตุ</label>

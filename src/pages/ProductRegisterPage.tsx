@@ -751,16 +751,18 @@ export function ProductRegisterPage() {
           <div className="flex items-start gap-2 text-sm text-emerald-900">
             <PackageOpen className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
             <div>
-              <div className="font-semibold">“{existingProduct.name}” มีในระบบแล้ว — จะเพิ่มเข้ารุ่นเดิม (ไม่สร้างซ้ำ)</div>
+              <div className="font-semibold">“{existingProduct.name}” มีในระบบแล้ว — ไม่ต้องลงทะเบียนซ้ำ</div>
               <div className="text-xs text-emerald-800">
-                กด <strong>“เพิ่มเข้ารุ่นเดิม”</strong> ระบบจะเพิ่มสี/ความจุเข้ารุ่นนี้ให้ · <strong>แยก SKU มือ 1 / มือ 2 ให้อัตโนมัติ</strong> · เว็บหน้าร้านโชว์หน้าเดียว
+                ทางที่แนะนำ: กด <strong>"รับเข้ารุ่นเดิมเลย"</strong> — ฟอร์มรับเข้าจับสี/มือให้อัตโนมัติ ·
+                (ถ้ายังกดบันทึกในหน้านี้ ระบบจะเพิ่มเข้ารุ่นเดิมให้ ไม่สร้างซ้ำ)
               </div>
             </div>
           </div>
+          {/* FIX-114: CTA หลักพาไปรับเข้าทันที (เดิม merge เงียบตอน submit — ผู้ใช้ไม่รู้ว่าเกิดอะไร) */}
           <button type="button"
-                  onClick={() => navigate(`/products/${existingProduct.id}`)}
-                  className="btn-secondary shrink-0 whitespace-nowrap">
-            <PackageOpen className="h-4 w-4" /> เปิดรุ่นเดิม
+                  onClick={() => navigate(`/products/${existingProduct.id}?receive=1`)}
+                  className="btn-primary shrink-0 whitespace-nowrap bg-emerald-600 hover:bg-emerald-700">
+            <PackageOpen className="h-4 w-4" /> รับเข้ารุ่นเดิมเลย
           </button>
         </div>
       )}

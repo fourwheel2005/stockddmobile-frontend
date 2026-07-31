@@ -7,7 +7,6 @@ import { InventoryPage } from '@/pages/InventoryPage';
 import { ProductsPage } from '@/pages/ProductsPage';
 import { ProductDetailPage } from '@/pages/ProductDetailPage';
 import { ProductRegisterPage } from '@/pages/ProductRegisterPage';
-import { InboundPage } from '@/pages/InboundPage';
 import { OutboundPage } from '@/pages/OutboundPage';
 import { TransactionsPage } from '@/pages/TransactionsPage';
 import { AlertsPage } from '@/pages/AlertsPage';
@@ -72,8 +71,8 @@ export default function App() {
           <Route path="/labels" element={<PrintLabelsPage />} />
           <Route path="/branches" element={<BranchesPage />} />
           <Route path="/transfers" element={<TransfersPage />} />
-          {/* /inbound (เก่า) เก็บไว้ admin-only เผื่อ link เก่า — UI ไม่มี nav แล้ว */}
-          <Route path="/inbound-legacy" element={<InboundPage />} />
+          {/* /inbound-legacy ถูกลบ (FIX-114) — รับเข้าใช้ปุ่ม "รับสินค้าเข้า" ที่ /products */}
+          <Route path="/inbound-legacy" element={<Navigate to="/products" replace />} />
           <Route path="/adjustment" element={<AdjustmentPage />} />
           <Route path="/transactions" element={<TransactionsPage />} />
           <Route path="/alerts" element={<AlertsPage />} />

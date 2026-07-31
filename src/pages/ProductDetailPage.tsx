@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
@@ -7,7 +7,6 @@ import { ArrowLeft, Plus, X, ArrowDownToLine, Copy, PackageOpen, Pencil, Trash2,
 import { productsApi, categoriesApi } from '@/api/products';
 import { inventoryApi } from '@/api/inventory';
 import { extractErrorMessage } from '@/api/client';
-import { useBranchStore } from '@/stores/branchStore';
 import { useAuthStore } from '@/stores/authStore';
 import { BarcodeDisplay } from '@/components/BarcodeDisplay';
 import { ImageEditor } from '@/components/MultiImageUpload';
@@ -15,15 +14,9 @@ import { SerialsModal } from '@/components/SerialsModal';
 import { FastInboundModal } from '@/components/receive/FastInboundModal';
 import { ProductFastInboundModal } from '@/components/receive/ProductFastInboundModal';
 import { formatDate, formatNumber, formatTHB } from '@/lib/format';
-import { ACQ_INFO, ACQ_ORDER } from '@/lib/acquisition';
-import {
-  WARRANTY_NEW, WARRANTY_OPTIONS, COLOR_OPTIONS, STORAGE_OPTIONS, warrantyNeedsExpire,
-} from '@/lib/deviceOptions';
 import { InstallmentPlansEditor } from '@/components/products/InstallmentPlansEditor';
 import { parsePlans, serializePlans, type InstallmentPlan } from '@/lib/installment';
-import type {
-  CreateVariantRequest, VariantResponse, ProductDetail, AcquisitionType, WizardInitialItem,
-} from '@/types/api';
+import type { CreateVariantRequest, VariantResponse, ProductDetail } from '@/types/api';
 
 export function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -41,6 +34,16 @@ export function ProductDetailPage() {
     queryFn: () => productsApi.get(id!),
     enabled: !!id,
   });
+
+  // ?receive=1 → เปิดฟอร์มรับเข้าทันที (deep-link จากหน้าลงทะเบียน "รับเข้ารุ่นเดิมเลย" — FIX-114)
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    if (!product || searchParams.get('receive') !== '1') return;
+    if (product.serialized) setReceiveProduct(true);
+    else if (product.variants.length === 1) setReceiveVariant(product.variants[0]);
+    setSearchParams({}, { replace: true });   // ใช้ครั้งเดียว — กัน modal เด้งซ้ำตอน refresh
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product]);
 
   // ลบ SKU (รุ่นย่อย) จากแถวได้เลย — force-confirm ถ้ามีเครื่องพร้อมขาย (FIX-078)
   const removeVariant = useMutation({
@@ -96,12 +99,12 @@ export function ProductDetailPage() {
   if (isLoading) return <div className="text-slate-500">กำลังโหลด...</div>;
   if (!product) return <div className="text-slate-500">ไม่พบสินค้า</div>;
 
-  /* รับเข้าโดยไม่เด้งออกจากหน้า (FIX-087 → FIX-112):
-     0 SKU → เพิ่มสี/ความจุก่อน · serialized → ฟอร์มระดับรุ่น (หลายสี/มือ ครั้งเดียว ระบบจับ SKU ให้)
-     ไม่ serialized (bulk) → modal ต่อ SKU เดิม (1 SKU เปิดเลย · หลาย SKU เลือกจากตาราง) */
+  /* รับเข้าโดยไม่เด้งออกจากหน้า (FIX-087 → FIX-114):
+     serialized → ฟอร์มรับเข้าหนึ่งเดียว (หลายสี/มือ ครั้งเดียว · สร้างสี/SKU ใหม่ได้ในตัว — 0 SKU ก็ใช้ได้)
+     ไม่ serialized (bulk) → 0 SKU ต้องเพิ่มรุ่นย่อยก่อน · 1 SKU เปิด modal เลย · หลาย SKU เลือกจากตาราง */
   const handleReceive = () => {
-    if (product.variants.length === 0) { setShowAddVariant(true); return; }
     if (product.serialized) { setReceiveProduct(true); return; }
+    if (product.variants.length === 0) { setShowAddVariant(true); return; }
     if (product.variants.length === 1) { setReceiveVariant(product.variants[0]); return; }
     document.getElementById('sku-table')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     toast('เลือกสีที่จะรับเข้า — กดปุ่ม 📥 ท้ายแถว', { icon: '👇', duration: 3000 });
@@ -169,16 +172,17 @@ export function ProductDetailPage() {
         <div className="card-header flex flex-wrap items-center justify-between gap-2">
           <span>สี / ความจุ ที่มี <span className="font-normal text-slate-500">({product.variants.length} SKU)</span></span>
           <div className="flex flex-wrap gap-2">
-            {canEdit && (
-              // เพิ่ม "สี/ความจุใหม่ + เครื่อง" เข้า "รุ่นนี้" (ไม่สร้าง product ซ้ำ) — เสร็จในหน้าเดียว
-              <button type="button" onClick={() => setShowAddVariant(true)} className="btn-primary bg-emerald-600 hover:bg-emerald-700"
-                      title="เพิ่มสี/ความจุใหม่ + ใส่ IMEI เข้ารุ่นนี้ เสร็จในหน้าเดียว">
-                <Plus className="h-4 w-4" /> เพิ่มสี + เครื่อง
+            {/* FIX-114: มือถือเหลือปุ่มเดียว "รับสินค้าเข้า" — ฟอร์มเดียวรับหลายสี/มือ + สร้างสี/SKU ใหม่ได้ในตัว
+                (แทนที่ "เพิ่มสี + เครื่อง" เดิมที่ทำงานซ้ำกันแต่ field ไม่เท่ากัน) */}
+            {canEdit && !product.serialized && (
+              <button type="button" onClick={() => setShowAddVariant(true)} className="btn-secondary"
+                      title="เพิ่ม SKU/รุ่นย่อยใหม่ของอุปกรณ์เสริมชิ้นนี้">
+                <Plus className="h-4 w-4" /> เพิ่มรุ่นย่อย
               </button>
             )}
-            {canEdit && product.variants.length > 0 && (
-              <button type="button" onClick={handleReceive} className="btn-secondary"
-                      title="รับเครื่องเข้าสต็อก — หลายสี/หลายมือได้ในครั้งเดียว ระบบจับเข้า SKU เดิมให้อัตโนมัติ">
+            {canEdit && (
+              <button type="button" onClick={handleReceive} className="btn-primary bg-emerald-600 hover:bg-emerald-700"
+                      title="รับของเข้าสต็อก — หลายสี/หลายมือได้ในครั้งเดียว ระบบจับเข้า SKU ให้ (สีใหม่ = สร้าง SKU ให้เอง)">
                 <ArrowDownToLine className="h-4 w-4" /> รับสินค้าเข้า
               </button>
             )}
@@ -276,7 +280,7 @@ export function ProductDetailPage() {
                         <span className="mx-0.5 h-4 w-px bg-slate-200" aria-hidden />
                         <Link to={`/products/new?cloneProduct=${product.id}&cloneFrom=${v.id}`}
                               className="rounded-md border border-slate-200 p-1.5 text-brand-700 hover:bg-brand-50"
-                              title="คัดลอก SKU นี้ → สร้างสินค้าใหม่ที่มีข้อมูลเหมือนกัน (แก้ IMEI/สี/ความจุได้)">
+                              title="สร้าง 'รุ่นใหม่แยกต่างหาก' โดยคัดลอกข้อมูล SKU นี้เป็นต้นแบบ — ไม่ใช่การรับของเข้า (รับเข้าใช้ปุ่ม 📥)">
                           <Copy className="h-3.5 w-3.5" />
                         </Link>
                         <button type="button" onClick={() => setReceiveVariant(v)}
@@ -304,9 +308,11 @@ export function ProductDetailPage() {
                       <br />ต้องเพิ่มอย่างน้อย 1 สี/ความจุก่อน
                     </p>
                     {canEdit && (
-                      // FIX-087: CTA ชี้ไป modal เพิ่มสี/ความจุ "เข้ารุ่นนี้" (เดิมพาไป clone เป็นรุ่นใหม่ — ผิดเป้า)
-                      <button type="button" onClick={() => setShowAddVariant(true)} className="btn-primary inline-flex">
-                        <Plus className="h-4 w-4" /> เพิ่มสี/ความจุ + เครื่อง เข้ารุ่นนี้
+                      // FIX-114: มือถือ → ฟอร์มรับเข้าหนึ่งเดียว (สร้างสี/SKU ให้เอง) · อุปกรณ์เสริม → เพิ่มรุ่นย่อยก่อน
+                      <button type="button" onClick={handleReceive} className="btn-primary inline-flex">
+                        {product.serialized
+                          ? <><ArrowDownToLine className="h-4 w-4" /> รับสินค้าเข้า (ระบบสร้างสี/SKU ให้)</>
+                          : <><Plus className="h-4 w-4" /> เพิ่มรุ่นย่อย</>}
                       </button>
                     )}
                   </div>
@@ -323,12 +329,10 @@ export function ProductDetailPage() {
       )}
 
       {showAddVariant && (
-        <AddVariantModal productId={product.id} serialized={product.serialized}
-                         productModelNumber={product.modelNumber ?? undefined}
-                         onClose={() => setShowAddVariant(false)} />
+        <AddVariantModal productId={product.id} onClose={() => setShowAddVariant(false)} />
       )}
       {editingVariant && (
-        <AddVariantModal productId={product.id} serialized={product.serialized} editVariant={editingVariant}
+        <AddVariantModal productId={product.id} editVariant={editingVariant}
                          onClose={() => setEditingVariant(null)} />
       )}
       {editingProduct && (
@@ -513,164 +517,15 @@ function ProductSerialsSection({ product }: { product: ProductDetail }) {
   );
 }
 
-/* ─── เครื่อง 1 ตัว (per-device) — ข้อมูลครบเท่าหน้ารับสต๊อก ─────────────── */
-type PhoneDevice = {
-  imei: string; serialNumber: string;
-  condition: 'NEW' | 'SECOND_HAND'; batteryHealth: string;
-  color: string; storage: string; modelNumber: string;
-  warrantyTerms: string; warrantyExpire: string;
-  acquisitionType: AcquisitionType; sourceCustomer: string;
-  costPrice: string; sellingPrice: string;
-  imageUrls: string[];
-};
-const emptyDevice = (): PhoneDevice => ({
-  imei: '', serialNumber: '', condition: 'NEW', batteryHealth: '',
-  color: '', storage: '', modelNumber: '', warrantyTerms: WARRANTY_NEW, warrantyExpire: '',
-  acquisitionType: 'PURCHASE', sourceCustomer: '', costPrice: '', sellingPrice: '', imageUrls: [],
-});
-/** เครื่องใหม่ลอก สภาพ/สี/ความจุ/ที่มา/ราคา/ประกัน จากเครื่องล่าสุด (เคลียร์ IMEI/Serial/รูป) */
-const cloneDevice = (last: PhoneDevice): PhoneDevice => ({
-  ...emptyDevice(),
-  condition: last.condition, color: last.color, storage: last.storage,
-  acquisitionType: last.acquisitionType, costPrice: last.costPrice, sellingPrice: last.sellingPrice,
-  warrantyTerms: last.warrantyTerms,
-});
-
-function DeviceCard({ idx, device, onChange, onRemove, disableRemove, colorList, modelList }: {
-  idx: number; device: PhoneDevice; onChange: (patch: Partial<PhoneDevice>) => void;
-  onRemove: () => void; disableRemove: boolean; colorList: string[]; modelList: string[];
-}) {
-  const isNew = device.condition === 'NEW';
-  const needsExpire = warrantyNeedsExpire(device.warrantyTerms);
-  /** เปลี่ยนสภาพ → auto ประกัน (มือ1=ศูนย์ Apple, มือ2=เว้น) เฉพาะตอนยังไม่แก้เอง */
-  const setCondition = (c: 'NEW' | 'SECOND_HAND') => {
-    const auto = c === 'NEW' ? WARRANTY_NEW : '';
-    const cur = device.warrantyTerms;
-    const untouched = cur === '' || cur === WARRANTY_NEW;
-    onChange({ condition: c, ...(untouched ? { warrantyTerms: auto } : {}) });
-  };
-  return (
-    <div className="rounded-lg border border-slate-200 bg-white p-3">
-      <div className="mb-2 flex items-center justify-between">
-        <span className="text-sm font-semibold text-slate-700">เครื่องที่ {idx + 1}</span>
-        {!disableRemove && (
-          <button type="button" onClick={onRemove} className="rounded p-1 text-red-500 hover:bg-red-50" title="ลบเครื่องนี้">
-            <Trash2 className="h-4 w-4" />
-          </button>
-        )}
-      </div>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <div>
-          <label className="mb-0.5 block text-xs font-semibold text-slate-600">IMEI (15 หลัก)</label>
-          <input className="input font-mono text-sm" inputMode="numeric" maxLength={15}
-                 placeholder="35xxxxxxxxxxxxx" value={device.imei}
-                 onChange={(e) => onChange({ imei: e.target.value.replace(/\D/g, '').slice(0, 15) })} />
-        </div>
-        <div>
-          <label className="mb-0.5 block text-xs font-semibold text-slate-600">Serial (เว้น = ใช้ IMEI)</label>
-          <input className="input text-sm" value={device.serialNumber}
-                 onChange={(e) => onChange({ serialNumber: e.target.value })} />
-        </div>
-        <div>
-          <label className="mb-0.5 block text-xs font-semibold text-slate-600">สภาพ</label>
-          <div className="flex items-center gap-3 pt-1.5 text-sm">
-            <label className="inline-flex items-center gap-1">
-              <input type="radio" checked={isNew} onChange={() => setCondition('NEW')} /> มือ 1
-            </label>
-            <label className="inline-flex items-center gap-1">
-              <input type="radio" checked={!isNew} onChange={() => setCondition('SECOND_HAND')} /> มือ 2
-            </label>
-          </div>
-        </div>
-        <div>
-          <label className="mb-0.5 block text-xs font-semibold text-slate-600">แบต %</label>
-          {isNew ? (
-            <div className="rounded-md bg-emerald-50 px-2 py-2 text-sm text-emerald-700">🔋 100% (มือ 1)</div>
-          ) : (
-            <input type="number" min={0} max={100} className="input text-sm" placeholder="เช่น 89"
-                   value={device.batteryHealth} onChange={(e) => onChange({ batteryHealth: e.target.value })} />
-          )}
-        </div>
-        <div>
-          <label className="mb-0.5 block text-xs font-semibold text-slate-600">สี</label>
-          <input className="input text-sm" list={`dc-color-${idx}`} placeholder="เช่น Black"
-                 value={device.color} onChange={(e) => onChange({ color: e.target.value })} />
-          <datalist id={`dc-color-${idx}`}>{colorList.map((c) => <option key={c} value={c} />)}</datalist>
-        </div>
-        <div>
-          <label className="mb-0.5 block text-xs font-semibold text-slate-600">ความจุ</label>
-          <input className="input text-sm" list={`dc-storage-${idx}`} placeholder="เช่น 256GB"
-                 value={device.storage} onChange={(e) => onChange({ storage: e.target.value })} />
-          <datalist id={`dc-storage-${idx}`}>{STORAGE_OPTIONS.map((s) => <option key={s} value={s} />)}</datalist>
-        </div>
-        <div>
-          <label className="mb-0.5 block text-xs font-semibold text-slate-600">เลขรุ่น</label>
-          <input className="input font-mono text-sm" list={`dc-model-${idx}`} placeholder="เช่น MG2N4ZP/A"
-                 value={device.modelNumber} onChange={(e) => onChange({ modelNumber: e.target.value })} />
-          <datalist id={`dc-model-${idx}`}>{modelList.map((m) => <option key={m} value={m} />)}</datalist>
-        </div>
-        <div>
-          <label className="mb-0.5 block text-xs font-semibold text-slate-600">ที่มา</label>
-          <select className="input text-sm" value={device.acquisitionType}
-                  onChange={(e) => onChange({ acquisitionType: e.target.value as AcquisitionType })}>
-            <optgroup label="ประเภทธุรกรรม">
-              {ACQ_ORDER.filter((k) => ACQ_INFO[k].group === 'TXN').map((k) => (
-                <option key={k} value={k}>{ACQ_INFO[k].th}</option>
-              ))}
-            </optgroup>
-            <optgroup label="ซัพพลายเออร์">
-              {ACQ_ORDER.filter((k) => ACQ_INFO[k].group === 'SUPPLIER').map((k) => (
-                <option key={k} value={k}>{ACQ_INFO[k].th}</option>
-              ))}
-            </optgroup>
-          </select>
-        </div>
-        {device.acquisitionType === 'RETURN_CREDIT' && (
-          <div className="col-span-2">
-            <label className="mb-0.5 block text-xs font-semibold text-slate-600">ชื่อลูกค้าที่คืนเครื่อง</label>
-            <input className="input text-sm" placeholder="เช่น คุณสมชาย (เครื่องคืน มีเครดิต)"
-                   value={device.sourceCustomer} onChange={(e) => onChange({ sourceCustomer: e.target.value })} />
-          </div>
-        )}
-        <div className={needsExpire ? '' : 'col-span-2'}>
-          <label className="mb-0.5 block text-xs font-semibold text-slate-600">ประกัน</label>
-          <input className="input text-sm" list={`dc-warranty-${idx}`} placeholder="เช่น ประกันร้าน 1 เดือน"
-                 value={device.warrantyTerms} onChange={(e) => onChange({ warrantyTerms: e.target.value })} />
-          <datalist id={`dc-warranty-${idx}`}>{WARRANTY_OPTIONS.map((w) => <option key={w} value={w} />)}</datalist>
-        </div>
-        {needsExpire && (
-          <div>
-            <label className="mb-0.5 block text-xs font-semibold text-slate-600">ประกันถึงวันที่</label>
-            <input type="date" className="input text-sm" value={device.warrantyExpire}
-                   onChange={(e) => onChange({ warrantyExpire: e.target.value })} />
-          </div>
-        )}
-        <div>
-          <label className="mb-0.5 block text-xs font-semibold text-slate-600">ราคาทุน (บาท)</label>
-          <input type="number" step="0.01" min={0} className="input text-sm" placeholder="เช่น 19500"
-                 value={device.costPrice} onChange={(e) => onChange({ costPrice: e.target.value })} />
-        </div>
-        <div>
-          <label className="mb-0.5 block text-xs font-semibold text-emerald-700">ราคาขาย (บาท)</label>
-          <input type="number" step="0.01" min={0} className="input text-sm" placeholder="เช่น 22900"
-                 value={device.sellingPrice} onChange={(e) => onChange({ sellingPrice: e.target.value })} />
-        </div>
-      </div>
-      <div className="mt-2">
-        <label className="mb-0.5 block text-xs font-semibold text-slate-600">รูปเครื่องนี้ (หลายรูปได้ · รูปแรก = ปก)</label>
-        <ImageEditor value={device.imageUrls} onChange={(urls) => onChange({ imageUrls: urls })} />
-      </div>
-    </div>
-  );
-}
-
-function AddVariantModal({ productId, serialized, productModelNumber, editVariant, onClose }: {
-  productId: string; serialized?: boolean; productModelNumber?: string;
+/* ─── เพิ่ม/แก้ไขรุ่นย่อย (SKU) — อุปกรณ์เสริม + แก้ไข SKU ทุกชนิด ────────
+   FIX-114: โหมด "เพิ่มสี + เครื่อง" (มือถือ) ถูกตัดออก — งานนั้นย้ายไปฟอร์มรับเข้าหนึ่งเดียว
+   (ProductFastInboundModal) ซึ่งสร้างสี/SKU ใหม่ได้ในตัวผ่าน /products/wizard */
+function AddVariantModal({ productId, editVariant, onClose }: {
+  productId: string;
   editVariant?: VariantResponse; onClose: () => void;
 }) {
   const qc = useQueryClient();
   const isEdit = !!editVariant;
-  const addingPhone = !!serialized && !isEdit;   // เพิ่มสีใหม่ + เครื่อง (มือถือ) ในหน้าเดียว
   // รูป variant (หลายรูป) — มือ 1 เว็บอ่านรูปจาก variant (FIX-046)
   const [variantImages, setVariantImages] = useState<string[]>(
     editVariant?.imageUrls?.length ? editVariant.imageUrls
@@ -685,25 +540,6 @@ function AddVariantModal({ productId, serialized, productModelNumber, editVarian
       installmentPromo: editVariant?.installmentPromo,
     },
   ));
-  // เพิ่มสีมือถือ: เครื่องรายตัว ข้อมูลครบเท่าหน้ารับสต๊อก (บางเครื่องต่างกันได้)
-  const [devices, setDevices] = useState<PhoneDevice[]>([emptyDevice()]);
-  const patchDevice = (i: number, patch: Partial<PhoneDevice>) =>
-    setDevices((arr) => arr.map((d, j) => (j === i ? { ...d, ...patch } : d)));
-  const addDevice = () => setDevices((arr) => [...arr, cloneDevice(arr[arr.length - 1] ?? emptyDevice())]);
-  const removeDevice = (i: number) => setDevices((arr) => arr.filter((_, j) => j !== i));
-
-  // suggestion เลขรุ่น/สี (DB distinct + ที่กำลังพิมพ์) — autocomplete เหมือนหน้าสต๊อก
-  const { data: serialSuggest } = useQuery({
-    queryKey: ['serial-suggestions'], queryFn: () => inventoryApi.serialSuggestions(),
-    staleTime: 60 * 1000, enabled: addingPhone,
-  });
-  const colorList = Array.from(new Set([
-    ...COLOR_OPTIONS, ...(serialSuggest?.colors ?? []), ...devices.map((d) => d.color.trim()).filter(Boolean),
-  ])).sort();
-  const modelList = Array.from(new Set([
-    ...(serialSuggest?.modelNumbers ?? []), ...(productModelNumber ? [productModelNumber] : []),
-    ...devices.map((d) => d.modelNumber.trim()).filter(Boolean),
-  ])).sort();
   const { register, handleSubmit, watch, formState: { errors } } = useForm<CreateVariantRequest>({
     defaultValues: isEdit ? {
       sku: editVariant!.sku,
@@ -720,13 +556,6 @@ function AddVariantModal({ productId, serialized, productModelNumber, editVarian
   const profit = sell - cost;
   const margin = cost > 0 ? ((profit / cost) * 100) : 0;
 
-  // รหัสเครื่อง running จาก base "DDxxxxx" + ลำดับ (เครื่องแรก = base = SKU ของ variant)
-  const deviceCode = (base: string, idx: number) => {
-    const m = (base || '').match(/^DD(\d+)$/);
-    if (!m) return base ? (idx === 0 ? base : `${base}-${idx + 1}`) : '';
-    return 'DD' + String(parseInt(m[1], 10) + idx).padStart(5, '0');
-  };
-
   const create = useMutation({
     mutationFn: async (req: CreateVariantRequest) => {
       if (isEdit) {
@@ -742,80 +571,11 @@ function AddVariantModal({ productId, serialized, productModelNumber, editVarian
           installmentPlans: inst.installmentPlans,
         });
       }
-      // เพิ่มสีมือถือ + เครื่องรายตัว → จัดกลุ่มเป็น variant ตามสเปกเว็บ DD
-      // (1 variant = สภาพ × สี × ความจุ) แล้วเพิ่มเข้า product เดิมทีละกลุ่ม
-      if (addingPhone) {
-        const valid = devices.filter((d) => (d.imei || d.serialNumber).trim());
-        if (valid.length === 0) throw new Error('ใส่อย่างน้อย 1 เครื่อง (IMEI หรือ Serial)');
-
-        const { sku: base } = await productsApi.nextSku();   // running DD ไม่ซ้ำ (ไล่ทั้งชุด)
-        const items: WizardInitialItem[] = valid.map((d, i) => ({
-          serialNumber: (d.serialNumber || d.imei).trim(),
-          imei: d.imei.trim() || undefined,
-          stockCode: deviceCode(base, i),
-          condition: d.condition,
-          batteryHealth: d.condition === 'NEW' ? 100 : (d.batteryHealth === '' ? undefined : Number(d.batteryHealth)),
-          deviceColor: d.color.trim() || undefined,
-          deviceStorage: d.storage.trim() || undefined,
-          modelNumber: d.modelNumber.trim() || productModelNumber || undefined,
-          acquisitionType: d.acquisitionType,
-          sourceCustomer: d.acquisitionType === 'RETURN_CREDIT' ? (d.sourceCustomer.trim() || undefined) : undefined,
-          purchasePrice: d.costPrice === '' ? undefined : Number(d.costPrice),
-          sellingPrice: d.sellingPrice === '' ? undefined : Number(d.sellingPrice),
-          warrantyTerms: d.warrantyTerms.trim() || undefined,
-          warrantyExpire: d.warrantyExpire.trim() || undefined,
-          imageUrls: d.imageUrls.length ? d.imageUrls : undefined,
-        }));
-
-        // จัดกลุ่ม (สภาพ|สี|ความจุ) — แต่ละกลุ่ม = 1 variant
-        const groups = new Map<string, WizardInitialItem[]>();
-        for (const it of items) {
-          const key = `${it.condition}|${(it.deviceColor ?? '').toLowerCase()}|${(it.deviceStorage ?? '').toLowerCase()}`;
-          const arr = groups.get(key) ?? [];
-          arr.push(it);
-          groups.set(key, arr);
-        }
-        // เตือน: มือ 1 ควรมีสี+ความจุ (variant ห้าม null บนเว็บ) — ไม่บล็อก
-        if (items.some((it) => it.condition === 'NEW' && (!it.deviceColor || !it.deviceStorage)))
-          toast('⚠️ มือ 1 บางเครื่องไม่ได้ใส่สี/ความจุ — แนะนำใส่ให้ครบ', { duration: 4000, icon: '📱' });
-
-        // แผนผ่อน มือ1 (ตั้งครั้งเดียว) → แนบทุก variant มือ1 ที่เพิ่มรอบนี้ + mirror แผนแรกลง field เก่า
-        const inst = serializePlans(plans);
-        // เพิ่มทีละ variant (sequential — รหัส DD ไม่ชน)
-        for (const grp of groups.values()) {
-          const first = grp[0];
-          const cover = grp.find((x) => x.imageUrls?.length)?.imageUrls;
-          const isNew = first.condition === 'NEW';
-          await productsApi.addVariantWithStock(productId, {
-            branchId: useBranchStore.getState().activeBranchId ?? undefined,  // รับเข้าสาขาที่เลือก (Phase 2A)
-            variant: {
-              spec: {
-                sku: first.stockCode!,               // SKU variant = รหัสเครื่องแรกในกลุ่ม
-                color: first.deviceColor, storage: first.deviceStorage,
-                costPrice: Number(first.purchasePrice) || 0,
-                sellingPrice: Number(first.sellingPrice) || 0,
-                reorderPoint: Number(req.reorderPoint) || 5,
-                imageUrls: cover,
-                // ผ่อน มือ1 เท่านั้น (มือ2 = per-serial ไม่ผูกกับ preset)
-                ...(isNew ? {
-                  downPayment: inst.downPayment ?? undefined,
-                  installmentTerms: inst.installmentTerms ?? undefined,
-                  installmentPromo: inst.installmentPromo ?? undefined,
-                  installmentPlans: inst.installmentPlans ?? undefined,
-                } : {}),
-              },
-              items: grp,
-            },
-          });
-        }
-        return { added: groups.size };
-      }
-      // ไม่มี IMEI (หรืออุปกรณ์เสริม) → สร้าง variant เปล่า
+      // อุปกรณ์เสริม (ไม่มี IMEI) → สร้าง variant เปล่า
       return productsApi.addVariant(productId, { ...req, imageUrl: variantImages[0], imageUrls: variantImages });
     },
     onSuccess: () => {
-      toast.success(isEdit ? 'แก้ไขรุ่นย่อยสำเร็จ'
-        : addingPhone ? 'เพิ่มสี + เครื่องเข้ารุ่นนี้สำเร็จ' : 'เพิ่มรุ่นย่อยสำเร็จ');
+      toast.success(isEdit ? 'แก้ไขรุ่นย่อยสำเร็จ' : 'เพิ่มรุ่นย่อยสำเร็จ');
       qc.invalidateQueries({ queryKey: ['product', productId] });
       onClose();
     },
@@ -855,7 +615,7 @@ function AddVariantModal({ productId, serialized, productModelNumber, editVarian
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4">
       <div className="w-full max-w-lg rounded-lg bg-white shadow-xl">
         <div className="flex items-center justify-between border-b px-5 py-3">
-          <h2 className="font-semibold">{isEdit ? 'แก้ไขรุ่นย่อย (Variant)' : addingPhone ? 'เพิ่มสี + เครื่อง (เข้ารุ่นนี้)' : 'เพิ่มรุ่นย่อย (Variant)'}</h2>
+          <h2 className="font-semibold">{isEdit ? 'แก้ไขรุ่นย่อย (Variant)' : 'เพิ่มรุ่นย่อย (Variant)'}</h2>
           <button onClick={onClose} className="rounded p-1 hover:bg-slate-100">
             <X className="h-4 w-4" />
           </button>
@@ -881,15 +641,6 @@ function AddVariantModal({ productId, serialized, productModelNumber, editVarian
           });
         })}>
           <div className="space-y-3 p-5">
-          {addingPhone && (
-            <div className="rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
-              📱 เพิ่ม <strong>เครื่องเข้ารุ่นนี้</strong> — กรอกข้อมูล <strong>รายเครื่องครบเหมือนหน้ารับสต๊อก</strong>
-              (IMEI · สภาพ · แบต · สี · ความจุ · เลขรุ่น · ประกัน · ที่มา · ราคา · รูป)
-              · แต่ละเครื่อง<strong>ต่างกันได้</strong> · ระบบแยก variant ตามสภาพ/สี/ความจุ + ออกรหัส DD ให้อัตโนมัติ
-            </div>
-          )}
-          {/* SKU — โชว์เฉพาะอุปกรณ์เสริม/แก้ไข (มือถือใช้ DD อัตโนมัติ) */}
-          {!addingPhone && (
           <div>
             <label className="mb-1 block text-sm font-medium">
               รหัสสินค้า / SKU <span className="text-red-500">*</span>
@@ -903,8 +654,6 @@ function AddVariantModal({ productId, serialized, productModelNumber, editVarian
             </p>
             {errors.sku && <p className="mt-1 text-xs text-red-600">{errors.sku.message}</p>}
           </div>
-          )}
-          {!addingPhone && (
           <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="mb-1 block text-sm font-medium">สี (Color)</label>
@@ -919,8 +668,6 @@ function AddVariantModal({ productId, serialized, productModelNumber, editVarian
               <input className="input" placeholder="เช่น TH / Intl" {...register('network')} />
             </div>
           </div>
-          )}
-          {!addingPhone && (
           <div>
             <label className="mb-1 block text-sm font-medium">
               บาร์โค้ด <span className="text-xs font-normal text-slate-500">(ถ้ามี — ส่วนใหญ่บนกล่องสินค้า)</span>
@@ -934,8 +681,6 @@ function AddVariantModal({ productId, serialized, productModelNumber, editVarian
               </ul>
             </div>
           </div>
-          )}
-          {!addingPhone ? (
           <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="mb-1 block text-sm font-medium">
@@ -958,17 +703,9 @@ function AddVariantModal({ productId, serialized, productModelNumber, editVarian
               <input type="number" className="input" placeholder="5" {...register('reorderPoint', { min: 0 })} />
             </div>
           </div>
-          ) : (
-          <div className="w-40">
-            <label className="mb-1 block text-sm font-medium">
-              จุดสั่งใหม่ <span className="text-xs font-normal text-slate-500">(แจ้งเตือนทั้งสีนี้)</span>
-            </label>
-            <input type="number" className="input" placeholder="5" {...register('reorderPoint', { min: 0 })} />
-          </div>
-          )}
 
           {/* Live profit calculation */}
-          {!addingPhone && cost > 0 && sell > 0 && (
+          {cost > 0 && sell > 0 && (
             <div className={`rounded-md border px-3 py-2 text-sm ${
               profit > 0 ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
                 : profit < 0 ? 'border-red-200 bg-red-50 text-red-800'
@@ -980,56 +717,22 @@ function AddVariantModal({ productId, serialized, productModelNumber, editVarian
             </div>
           )}
 
-          {!addingPhone && (
           <div>
             <label className="mb-1 block text-sm font-medium">
               รูปสีนี้ <span className="text-xs font-normal text-slate-500">(หลายรูปได้ · รูปแรก = ปก · เว็บหน้าร้านมือ 1 ดึงจากตรงนี้)</span>
             </label>
             <ImageEditor value={variantImages} onChange={setVariantImages} />
           </div>
-          )}
 
           {/* แผนผ่อนหลายแบบ มือ 1 (ต่อรุ่น+ความจุ) — ตั้งครั้งเดียวที่รุ่น เว็บหน้าร้านดึงไปแสดงเป็นปุ่มเลือก */}
           {isEdit && (
             <InstallmentPlansEditor value={plans} onChange={setPlans} />
           )}
-          {addingPhone && (
-            <div className="space-y-1">
-              <InstallmentPlansEditor value={plans} onChange={setPlans} />
-              <p className="px-1 text-[11px] text-amber-700">
-                💡 แผนผ่อนนี้ใช้กับ <strong>ทุกสี/ความจุ (มือ1)</strong> ที่เพิ่มรอบนี้ · ปรับรายรุ่นภายหลังได้ที่ปุ่ม “แก้”
-              </p>
-            </div>
-          )}
 
-          {/* เครื่องรายตัว — ข้อมูลครบเท่าหน้ารับสต๊อก (แต่ละเครื่องต่างกันได้) */}
-          {addingPhone && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold text-slate-700">รายการเครื่อง</span>
-                <span className="text-xs text-slate-500">
-                  {devices.filter((d) => (d.imei || d.serialNumber).trim()).length} เครื่อง · ระบบแยก variant ตามสภาพ/สี/ความจุให้อัตโนมัติ
-                </span>
-              </div>
-              {devices.map((d, i) => (
-                <DeviceCard key={i} idx={i} device={d}
-                            onChange={(patch) => patchDevice(i, patch)}
-                            onRemove={() => removeDevice(i)} disableRemove={devices.length <= 1}
-                            colorList={colorList} modelList={modelList} />
-              ))}
-              <button type="button" onClick={addDevice}
-                      className="w-full rounded-lg border-2 border-dashed border-blue-300 py-2.5 text-sm font-medium text-blue-600 hover:bg-blue-50">
-                + เพิ่มเครื่องอีกตัว
-              </button>
-            </div>
-          )}
-
-          {!addingPhone && (
           <div className="rounded-md bg-blue-50 px-3 py-2 text-xs text-blue-800">
             💡 <strong>จุดสั่งใหม่ (Reorder Point):</strong> ถ้าสต็อกเหลือ ≤ จำนวนนี้ ระบบจะแจ้งเตือน Manager
             ตัวอย่าง: ตั้ง 3 = พอเหลือ 3 ชิ้น จะมี toast แดง "Low Stock"
           </div>
-          )}
 
           </div>
           <div className="flex items-center justify-between gap-2 border-t px-5 py-3">

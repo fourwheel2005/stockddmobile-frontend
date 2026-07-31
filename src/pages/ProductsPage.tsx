@@ -19,7 +19,7 @@ import type { VariantResponse } from '@/types/api';
  *  1. Default view: products list (browse)
  *  2. Type/scan in search bar → switches to variant search results
  *  3. Per variant row:
- *      - "📥 รับเพิ่ม" → opens FastInboundModal (in-place, no navigate)
+ *      - "📥 รับเข้า" → opens FastInboundModal (in-place, no navigate)
  *      - "👁 ดู" → navigates to /products/:id
  *  4. Empty search results → CTA "ลงทะเบียนสินค้าใหม่ '<query>'" → /products/new?name=
  *  5. Header button "➕ สร้างสินค้าใหม่" — always visible
@@ -29,6 +29,9 @@ export function ProductsPage() {
   // pre-fill search จาก ?q= (deep-link จากหน้าลงทะเบียน "เพิ่มเครื่องเข้ารุ่นนี้")
   const [query, setQuery] = useState(searchParams.get('q') ?? '');
   const [receiveTarget, setReceiveTarget] = useState<VariantResponse | null>(null);
+  // โหมดรับเข้า (FIX-114): กดปุ่ม "รับสินค้าเข้า" = เข้าโหมดจริง — แบนเนอร์บอกขั้นถัดไป
+  // + กดแถวผลค้นหาที่ไหนก็ได้เปิดฟอร์มรับเข้าเลย (เดิมปุ่มแค่ focus ช่องค้นหาเงียบๆ)
+  const [receiveIntent, setReceiveIntent] = useState(false);
   const canEdit = useAuthStore((s) => s.hasRole('ADMIN', 'MANAGER'));
   const isAdmin = useAuthStore((s) => s.hasRole('ADMIN'));
   const qc = useQueryClient();
@@ -116,9 +119,9 @@ export function ProductsPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {/* งานหลักประจำวัน = รับของเข้า → ปุ่มเด่น (FIX-087) · โฟกัสช่องค้นหาให้เลย */}
+          {/* งานหลักประจำวัน = รับของเข้า → ปุ่มเด่น เข้า "โหมดรับเข้า" จริง (FIX-114) */}
           <button type="button"
-                  onClick={() => document.getElementById('receive-search')?.focus()}
+                  onClick={() => { setReceiveIntent(true); document.getElementById('receive-search')?.focus(); }}
                   className="btn-primary bg-emerald-600 hover:bg-emerald-700">
             <ArrowDownToLine className="h-4 w-4" /> รับสินค้าเข้า
           </button>
@@ -131,11 +134,27 @@ export function ProductsPage() {
               <FolderOpen className="h-4 w-4" /> {dedup.isPending ? 'กำลังรวม…' : 'รวมรุ่นซ้ำ'}
             </button>
           )}
-          <Link to="/products/new" className="btn-secondary">
-            <Plus className="h-4 w-4" /> สร้างสินค้าใหม่
+          <Link to="/products/new" className="btn-secondary"
+                title="สร้างข้อมูลรุ่นใหม่ (แคตตาล็อก) — ถ้าของมาถึงร้าน ใช้ปุ่ม 'รับสินค้าเข้า' แทน">
+            <Plus className="h-4 w-4" /> สร้างรุ่นใหม่
           </Link>
         </div>
       </div>
+
+      {/* โหมดรับเข้า — บอกขั้นถัดไปชัดๆ (ไม่ต้องเดาว่ากดปุ่มแล้วเกิดอะไร) */}
+      {receiveIntent && (
+        <div className="flex items-start justify-between gap-2 rounded-xl border-2 border-emerald-300 bg-emerald-50 p-3">
+          <div className="text-sm text-emerald-900">
+            <span className="font-semibold">📥 โหมดรับสินค้าเข้า</span> — ยิงสแกน IMEI หรือพิมพ์ชื่อรุ่น/สี
+            แล้ว<strong>กดรายการที่ตรง</strong> ระบบจะเปิดฟอร์มรับเข้าให้ทันที
+            · ไม่เจอในระบบ = มีปุ่ม "สร้างรุ่นใหม่ + รับเข้า" ให้เลย
+          </div>
+          <button type="button" onClick={() => setReceiveIntent(false)}
+                  className="shrink-0 rounded p-1 text-emerald-700 hover:bg-emerald-100" title="ออกจากโหมดรับเข้า">
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Search bar */}
       <SearchVariantBar
@@ -168,7 +187,7 @@ export function ProductsPage() {
                 to={`/products/new?name=${encodeURIComponent(query)}`}
                 className="btn-primary mt-3 bg-emerald-600 hover:bg-emerald-700">
                 <Plus className="h-4 w-4" />
-                ลงทะเบียน "{query.slice(0, 30)}{query.length > 30 ? '…' : ''}"
+                สร้างรุ่นใหม่ "{query.slice(0, 30)}{query.length > 30 ? '…' : ''}" + รับเข้าเลย
               </Link>
             </div>
           )}
@@ -180,12 +199,13 @@ export function ProductsPage() {
                 <Link
                   to={`/products/new?name=${encodeURIComponent(query)}`}
                   className="text-brand-600 hover:underline">
-                  + ไม่มีตัวที่ใช่ → สร้างใหม่
+                  + ไม่มีตัวที่ใช่ → สร้างรุ่นใหม่
                 </Link>
               </div>
               <div className="space-y-2">
                 {variantSearch.data.content.map((v) => (
-                  <VariantRow key={v.id} variant={v} onReceive={() => setReceiveTarget(v)} />
+                  <VariantRow key={v.id} variant={v} rowOpensReceive={receiveIntent}
+                              onReceive={() => setReceiveTarget(v)} />
                 ))}
               </div>
             </>
@@ -297,9 +317,16 @@ export function ProductsPage() {
 }
 
 /* ─── Variant row component ─────────────────────────────────────── */
-function VariantRow({ variant, onReceive }: { variant: VariantResponse; onReceive: () => void }) {
+function VariantRow({ variant, onReceive, rowOpensReceive }: {
+  variant: VariantResponse; onReceive: () => void;
+  /** โหมดรับเข้า (FIX-114): กดที่แถวตรงไหนก็เปิดฟอร์มรับเข้า */
+  rowOpensReceive?: boolean;
+}) {
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-3 transition hover:border-brand-300 hover:shadow-sm">
+    <div
+      onClick={rowOpensReceive ? onReceive : undefined}
+      className={`flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-3 transition hover:border-brand-300 hover:shadow-sm ${
+        rowOpensReceive ? 'cursor-pointer hover:border-emerald-400 hover:bg-emerald-50/40' : ''}`}>
       <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-md bg-slate-100">
         {variant.imageUrl
           ? <AuthImage src={variant.imageUrl} alt="" className="h-full w-full object-cover" />
@@ -325,14 +352,15 @@ function VariantRow({ variant, onReceive }: { variant: VariantResponse; onReceiv
       <div className="flex shrink-0 items-center gap-1">
         <Link
           to={`/products/${variant.productId}`}
+          onClick={(e) => e.stopPropagation()}
           className="rounded-md border border-slate-200 p-2 text-slate-600 hover:border-brand-400 hover:bg-brand-50 hover:text-brand-700"
           title="ดูรายละเอียด">
           <Eye className="h-4 w-4" />
         </Link>
         <button
-          onClick={onReceive}
+          onClick={(e) => { e.stopPropagation(); onReceive(); }}
           className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-100">
-          📥 รับเพิ่ม
+          📥 รับเข้า
         </button>
       </div>
     </div>
