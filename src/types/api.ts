@@ -66,6 +66,8 @@ export interface VariantResponse {
   imageUrl: string | null;
   imageUrls?: string[] | null;
   active: boolean;
+  /** "มือ" ของ SKU (FIX-113): NEW=มือ1 · SECOND_HAND=มือ2 · null=ยังไม่ผูกมือ (ไม่เคยมีเครื่อง) */
+  condition?: 'NEW' | 'SECOND_HAND' | null;
   downPayment?: number | null;         // ผ่อนดาวน์ มือ 1 (แผนแรก · back-compat เว็บหน้าร้าน)
   installmentTerms?: string | null;    // JSON: [{"months":12,"monthly":2190}, ...]
   installmentPromo?: string | null;
@@ -282,6 +284,7 @@ export interface InventoryResponse {
   lowStock: boolean;
   newInStock?: number;            // จำนวนพร้อมขาย "มือ 1"
   secondHandInStock?: number;     // จำนวนพร้อมขาย "มือ 2"
+  everReceived?: boolean;         // เคยมีเครื่องเข้า SKU นี้ไหม — แยก "ขายหมด" vs "ยังไม่เคยรับเข้า" (FIX-113)
   imageUrl?: string | null;       // รูปปก
   imageUrls?: string[] | null;    // รูปทั้งหมด (เว็บหน้าร้านดึงไปแสดง)
   updatedAt: string;

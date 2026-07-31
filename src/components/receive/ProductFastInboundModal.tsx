@@ -111,8 +111,10 @@ export function ProductFastInboundModal({ product, onClose, onDone }: {
       const key = `${e.condition}|${norm(e.color)}|${norm(e.storage)}`;
       const g = map.get(key);
       if (g) { g.count += 1; continue; }
+      // จับคู่แบบเดียวกับ backend (FIX-113): มือ+สี+ความจุ · SKU ยังไม่ผูกมือ (condition null) = adopt ได้
       const matched = activeVariants.some(
-        (v) => norm(v.color) === norm(e.color) && norm(v.storage) === norm(e.storage));
+        (v) => norm(v.color) === norm(e.color) && norm(v.storage) === norm(e.storage)
+            && (v.condition == null || v.condition === e.condition));
       map.set(key, { ...e, count: 1, matched });
     }
     return Array.from(map.values());
@@ -187,8 +189,10 @@ export function ProductFastInboundModal({ product, onClose, onDone }: {
       const blocks: WizardVariantBlock[] = Array.from(grouped.values()).map((grp) => {
         const first = grp[0];
         // spec ใช้จริงเฉพาะกรณีสร้าง SKU ใหม่ (กลุ่มที่จับ SKU เดิมได้ backend ข้าม spec)
-        const ref = activeVariants.find(
+        // ราคาอ้างอิง: เอา SKU มือเดียวกันก่อน (ราคามือ1/มือ2 ต่างกันมาก) แล้วค่อย fallback สี/ความจุตรง
+        const sameSpec = activeVariants.filter(
           (v) => norm(v.color) === norm(first.deviceColor) && norm(v.storage) === norm(first.deviceStorage));
+        const ref = sameSpec.find((v) => v.condition === first.condition) ?? sameSpec[0];
         return {
           spec: {
             sku: first.stockCode!,
