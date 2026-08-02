@@ -32,14 +32,17 @@ import type {
 
 type Cond = 'NEW' | 'SECOND_HAND';
 
+/* FIX-116: สี/ความจุ/มือ เป็นข้อมูลของ "เครื่อง" — อยู่ในแถวเครื่องเท่านั้น (เดิมมีช่องค่าเริ่มต้นซ้ำ
+   แล้วแถวที่เว้นว่างสืบทอดแบบมองไม่เห็น → เสี่ยงเครื่องคละสีตกไป SKU สีของค่าเริ่มต้นเงียบๆ)
+   เครื่องใหม่คัดลอกค่าจากเครื่องก่อนหน้า — เห็นค่าจริงในช่อง แก้ได้ ไม่มีการสืบทอดล่องหน */
 interface DeviceRow {
   imei: string;
   serialNumber: string;
-  color: string;          // เว้น = ใช้ค่าเริ่มต้น
-  storage: string;        // เว้น = ใช้ค่าเริ่มต้น
-  condition: '' | Cond;   // เว้น = ใช้ค่าเริ่มต้น
+  color: string;          // จำเป็น (จับ SKU)
+  storage: string;        // จำเป็น (จับ SKU)
+  condition: Cond;
   batteryHealth: string;  // มือ 2
-  purchasePrice: string;  // เว้น = ทุนเริ่มต้น
+  purchasePrice: string;  // เว้น = ทุน/เครื่อง ของล็อต
   sellingPrice: string;   // มือ 2 ควรตั้งรายเครื่อง · มือ 1 เว้น = ราคา SKU
   // รายละเอียดเพิ่มเติม (พับเก็บ — ไม่บังคับ) เดิมมีเฉพาะฟอร์ม "เพิ่มสี + เครื่อง"
   extraOpen: boolean;
@@ -49,10 +52,17 @@ interface DeviceRow {
 }
 
 const EMPTY_ROW: DeviceRow = {
-  imei: '', serialNumber: '', color: '', storage: '', condition: '',
+  imei: '', serialNumber: '', color: '', storage: '', condition: 'NEW',
   batteryHealth: '', purchasePrice: '', sellingPrice: '',
   extraOpen: false, warrantyTerms: '', warrantyExpire: '', imageUrls: [],
 };
+
+/** เครื่องใหม่ลอก สี/ความจุ/มือ/ราคา จากเครื่องล่าสุด (เคลียร์ IMEI/Serial/แบต/รูป/ประกัน) */
+const cloneRow = (last: DeviceRow): DeviceRow => ({
+  ...EMPTY_ROW,
+  color: last.color, storage: last.storage, condition: last.condition,
+  purchasePrice: last.purchasePrice, sellingPrice: last.sellingPrice,
+});
 
 const norm = (s: string | null | undefined) => (s ?? '').trim().toLowerCase();
 
@@ -77,13 +87,7 @@ export function ProductFastInboundModal({ product, initialVariant, onClose, onDo
   const colorOptions = Array.from(new Set(activeVariants.map((v) => (v.color ?? '').trim()).filter(Boolean))).sort();
   const storageOptions = Array.from(new Set(activeVariants.map((v) => (v.storage ?? '').trim()).filter(Boolean))).sort();
 
-  // ─── ค่าเริ่มต้นของทั้งล็อต ─────────────────────────────────────────
-  const [batchCondition, setBatchCondition] = useState<Cond>(
-    initialVariant?.condition === 'SECOND_HAND' ? 'SECOND_HAND' : 'NEW');
-  const [batchColor, setBatchColor] = useState(initialVariant?.color ?? '');
-  // รุ่นมีความจุเดียว → เติมให้เลย (เคสร้านส่วนใหญ่)
-  const [batchStorage, setBatchStorage] = useState(
-    initialVariant?.storage ?? (storageOptions.length === 1 ? storageOptions[0] : ''));
+  // ─── ข้อมูลระดับ "ล็อต" (ที่มา/ทุน/เอกสาร/เครือข่าย) — สี/ความจุ/มือ อยู่ที่แถวเครื่อง (FIX-116)
   const [batchNetwork, setBatchNetwork] = useState(initialVariant?.network ?? '');
   const [acquisitionType, setAcquisitionType] = useState<AcquisitionType>('PURCHASE');
   const [unitCost, setUnitCost] = useState('');
@@ -95,7 +99,13 @@ export function ProductFastInboundModal({ product, initialVariant, onClose, onDo
   const [plansOpen, setPlansOpen] = useState(false);
 
   // ─── เครื่องรายตัว ──────────────────────────────────────────────────
-  const [rows, setRows] = useState<DeviceRow[]>([{ ...EMPTY_ROW }]);
+  // แถวแรก prefill จาก SKU ที่กดมา (📥 ท้ายแถว) หรือความจุเดียวที่รุ่นมี
+  const [rows, setRows] = useState<DeviceRow[]>([{
+    ...EMPTY_ROW,
+    color: initialVariant?.color ?? '',
+    storage: initialVariant?.storage ?? (storageOptions.length === 1 ? storageOptions[0] : ''),
+    condition: initialVariant?.condition === 'SECOND_HAND' ? 'SECOND_HAND' : 'NEW',
+  }]);
   const patchRow = (i: number, patch: Partial<DeviceRow>) =>
     setRows((p) => p.map((r, j) => (j === i ? { ...r, ...patch } : r)));
   const removeRow = (i: number) => setRows((p) => (p.length > 1 ? p.filter((_, j) => j !== i) : p));
@@ -111,7 +121,9 @@ export function ProductFastInboundModal({ product, initialVariant, onClose, onDo
       const firstEmpty = next.findIndex((r) => !r.imei && !r.serialNumber);
       let cursor = 0;
       if (firstEmpty >= 0) next[firstEmpty] = { ...next[firstEmpty], imei: tokens[cursor++] };
-      for (; cursor < tokens.length; cursor++) next.push({ ...EMPTY_ROW, imei: tokens[cursor] });
+      for (; cursor < tokens.length; cursor++) {
+        next.push({ ...cloneRow(next[next.length - 1] ?? EMPTY_ROW), imei: tokens[cursor] });
+      }
       return next;
     });
     return tokens.length;
@@ -119,27 +131,23 @@ export function ProductFastInboundModal({ product, initialVariant, onClose, onDo
 
   // ─── สรุปกลุ่ม (สภาพ×สี×ความจุ) + เช็คว่าจับ SKU เดิมได้ไหม ─────────
   const filled = rows.filter((r) => (r.imei || r.serialNumber).trim());
-  const eff = (r: DeviceRow) => ({
-    color: (r.color || batchColor).trim(),
-    storage: (r.storage || batchStorage).trim(),
-    condition: (r.condition || batchCondition) as Cond,
-  });
   const groups = useMemo(() => {
     const map = new Map<string, { color: string; storage: string; condition: Cond; count: number; matched: boolean }>();
     for (const r of filled) {
-      const e = eff(r);
-      const key = `${e.condition}|${norm(e.color)}|${norm(e.storage)}`;
+      const color = r.color.trim();
+      const storage = r.storage.trim();
+      const key = `${r.condition}|${norm(color)}|${norm(storage)}`;
       const g = map.get(key);
       if (g) { g.count += 1; continue; }
       // จับคู่แบบเดียวกับ backend (FIX-113): มือ+สี+ความจุ · SKU ยังไม่ผูกมือ (condition null) = adopt ได้
       const matched = activeVariants.some(
-        (v) => norm(v.color) === norm(e.color) && norm(v.storage) === norm(e.storage)
-            && (v.condition == null || v.condition === e.condition));
-      map.set(key, { ...e, count: 1, matched });
+        (v) => norm(v.color) === norm(color) && norm(v.storage) === norm(storage)
+            && (v.condition == null || v.condition === r.condition));
+      map.set(key, { color, storage, condition: r.condition, count: 1, matched });
     }
     return Array.from(map.values());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, batchColor, batchStorage, batchCondition]);
+  }, [rows]);
 
   const unitCostNum = Number(unitCost);
   const costDeviationWarning = useMemo(() => {
@@ -158,9 +166,9 @@ export function ProductFastInboundModal({ product, initialVariant, onClose, onDo
       // สี+ความจุจำเป็นทุกเครื่อง — ไม่งั้นจับ SKU ไม่ได้ (จะไปสร้าง SKU no-spec)
       const missing = filled
         .map((r, i) => ({ r, i }))
-        .filter(({ r }) => { const e = eff(r); return !e.color || !e.storage; });
+        .filter(({ r }) => !r.color.trim() || !r.storage.trim());
       if (missing.length > 0) {
-        throw new Error(`เครื่องที่ ${missing.map(({ i }) => i + 1).join(', ')} ยังไม่มีสี/ความจุ — ใส่ให้ครบ (ตั้งค่าเริ่มต้นด้านบนได้)`);
+        throw new Error(`เครื่องที่ ${missing.map(({ i }) => i + 1).join(', ')} ยังไม่มีสี/ความจุ — ใส่ให้ครบทุกแถว`);
       }
       // IMEI/Serial ซ้ำกันเองในฟอร์ม → แจ้งก่อนส่ง (backend ก็เช็กซ้ำอีกชั้น)
       const dupCheck = new Set<string>();
@@ -179,17 +187,16 @@ export function ProductFastInboundModal({ product, initialVariant, onClose, onDo
 
       const { sku: base } = await productsApi.nextSku();   // running DD ไม่ซ้ำ (ไล่ทั้งชุด)
       const items: (WizardInitialItem & { _key: string })[] = filled.map((r, i) => {
-        const e = eff(r);
-        const isNew = e.condition === 'NEW';
+        const isNew = r.condition === 'NEW';
         return {
-          _key: `${e.condition}|${norm(e.color)}|${norm(e.storage)}`,
+          _key: `${r.condition}|${norm(r.color)}|${norm(r.storage)}`,
           serialNumber: (r.serialNumber || r.imei).trim(),
           imei: r.imei.trim() || undefined,
           stockCode: deviceCode(base, i),
-          condition: e.condition,
+          condition: r.condition,
           batteryHealth: isNew ? 100 : (r.batteryHealth === '' ? undefined : Number(r.batteryHealth)),
-          deviceColor: e.color,
-          deviceStorage: e.storage,
+          deviceColor: r.color.trim(),
+          deviceStorage: r.storage.trim(),
           deviceNetwork: batchNetwork.trim() || undefined,
           modelNumber: product.modelNumber ?? undefined,
           acquisitionType,
@@ -288,31 +295,10 @@ export function ProductFastInboundModal({ product, initialVariant, onClose, onDo
         </div>
 
         <div className="flex-1 space-y-4 overflow-y-auto p-5">
-          {/* ค่าเริ่มต้นทั้งล็อต */}
+          {/* ข้อมูลระดับล็อต — สี/ความจุ/มือ อยู่ที่แถวเครื่องด้านล่าง (FIX-116) */}
           <div className="rounded-lg border border-slate-200 p-3">
-            <div className="mb-2 text-sm font-semibold text-slate-700">ค่าเริ่มต้นทุกเครื่อง <span className="font-normal text-slate-400">(เครื่องไหนต่างค่อยแก้รายแถว)</span></div>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <div>
-                <label className="mb-0.5 block text-xs font-semibold text-slate-600">สภาพ</label>
-                <div className="flex items-center gap-3 pt-1.5 text-sm">
-                  <label className="inline-flex items-center gap-1">
-                    <input type="radio" checked={batchCondition === 'NEW'} onChange={() => setBatchCondition('NEW')} /> มือ 1
-                  </label>
-                  <label className="inline-flex items-center gap-1">
-                    <input type="radio" checked={batchCondition === 'SECOND_HAND'} onChange={() => setBatchCondition('SECOND_HAND')} /> มือ 2
-                  </label>
-                </div>
-              </div>
-              <div>
-                <label className="mb-0.5 block text-xs font-semibold text-slate-600">สี</label>
-                <input className="input text-sm" list="pfi-colors" placeholder="เช่น Silver"
-                       value={batchColor} onChange={(e) => setBatchColor(e.target.value)} />
-              </div>
-              <div>
-                <label className="mb-0.5 block text-xs font-semibold text-slate-600">ความจุ</label>
-                <input className="input text-sm" list="pfi-storages" placeholder="เช่น 256GB"
-                       value={batchStorage} onChange={(e) => setBatchStorage(e.target.value)} />
-              </div>
+            <div className="mb-2 text-sm font-semibold text-slate-700">ข้อมูลล็อต <span className="font-normal text-slate-400">(ใช้ร่วมกันทุกเครื่องในบิลนี้)</span></div>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
               <div>
                 <label className="mb-0.5 block text-xs font-semibold text-slate-600">เครือข่าย</label>
                 <input className="input text-sm" list="pfi-networks" placeholder="เช่น TH / ZP"
@@ -401,8 +387,7 @@ export function ProductFastInboundModal({ product, initialVariant, onClose, onDo
               />
             )}
             {rows.map((r, idx) => {
-              const e = eff(r);
-              const isSecond = e.condition === 'SECOND_HAND';
+              const isSecond = r.condition === 'SECOND_HAND';
               return (
                 <div key={idx} className="space-y-1.5 rounded border border-slate-100 bg-slate-50 p-2">
                   <div className="grid grid-cols-12 gap-2">
@@ -428,15 +413,12 @@ export function ProductFastInboundModal({ product, initialVariant, onClose, onDo
                     </button>
                   </div>
                   <div className="grid grid-cols-2 gap-2 pl-6 sm:grid-cols-6">
-                    <input className="input text-xs" list="pfi-colors"
-                           placeholder={batchColor ? `สี (${batchColor})` : 'สี *'}
+                    <input className="input text-xs" list="pfi-colors" placeholder="สี *"
                            value={r.color} onChange={(ev) => patchRow(idx, { color: ev.target.value })} />
-                    <input className="input text-xs" list="pfi-storages"
-                           placeholder={batchStorage ? `ความจุ (${batchStorage})` : 'ความจุ *'}
+                    <input className="input text-xs" list="pfi-storages" placeholder="ความจุ *"
                            value={r.storage} onChange={(ev) => patchRow(idx, { storage: ev.target.value })} />
                     <select className="input text-xs" value={r.condition}
-                            onChange={(ev) => patchRow(idx, { condition: ev.target.value as '' | Cond })}>
-                      <option value="">{batchCondition === 'NEW' ? 'มือ 1 (default)' : 'มือ 2 (default)'}</option>
+                            onChange={(ev) => patchRow(idx, { condition: ev.target.value as Cond })}>
                       <option value="NEW">มือ 1</option>
                       <option value="SECOND_HAND">มือ 2</option>
                     </select>
@@ -494,9 +476,9 @@ export function ProductFastInboundModal({ product, initialVariant, onClose, onDo
             <datalist id="pfi-warranty">{WARRANTY_OPTIONS.map((w) => <option key={w} value={w} />)}</datalist>
             <button
               type="button"
-              onClick={() => setRows((p) => [...p, { ...EMPTY_ROW }])}
+              onClick={() => setRows((p) => [...p, cloneRow(p[p.length - 1] ?? EMPTY_ROW)])}
               className="flex w-full items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-emerald-400 bg-emerald-50 px-3 py-2.5 text-sm font-bold text-emerald-700 transition hover:bg-emerald-100">
-              <Plus className="h-5 w-5" /> เพิ่มเครื่องอีกตัว
+              <Plus className="h-5 w-5" /> เพิ่มเครื่องอีกตัว <span className="text-xs font-normal">(คัดลอก สี/ความจุ/มือ จากตัวบน)</span>
             </button>
           </div>
 
