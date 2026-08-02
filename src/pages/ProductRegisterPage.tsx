@@ -461,12 +461,14 @@ export function ProductRegisterPage() {
     return [...base, ...extras.sort()];
   }, [productPage, productKind]);
 
-  /* รุ่นนี้มีในระบบแล้วไหม — match ตามชื่อรุ่น → กดบันทึกจะ auto-merge เข้ารุ่นเดิม (FIX-080) */
+  /* รุ่นนี้มีในระบบแล้วไหม — match ตามชื่อรุ่น → กดบันทึกจะ auto-merge เข้ารุ่นเดิม (FIX-080)
+     FIX-117: เช็คในโหมด clone ด้วย — เดิม clone ข้ามตัวกันซ้ำ → กดบันทึกโดยไม่เปลี่ยนชื่อ = รุ่นซ้ำเงียบๆ
+     (หลักฐานจริง: iPhone 15 ตัวซ้ำเกิด 07-04 แล้วต้องตามรวมทีหลัง) */
   const existingProduct = useMemo(() => {
     const n = (name || '').trim().toLowerCase();
-    if (!n || isClone) return null;
+    if (!n) return null;
     return (productPage?.content ?? []).find((p) => p.name?.trim().toLowerCase() === n) ?? null;
-  }, [name, productPage, isClone]);
+  }, [name, productPage]);
 
   /* รุ่นมีอยู่แล้ว → เติมหมวดหมู่ + ยี่ห้อ จากรุ่นเดิมให้อัตโนมัติ (ถ้ายังไม่ได้เลือก) — FIX-080 */
   const categoryIdW = useWatch({ control, name: 'categoryId' });
@@ -702,7 +704,15 @@ export function ProductRegisterPage() {
     const req = buildPayload(d);
     if (!req) return;
     // รุ่นมีอยู่แล้ว → auto-merge เข้ารุ่นเดิม (backend แยกมือ1/2/สี/ความจุ) — ข้ามเช็ค SKU ซ้ำ เพราะ findMatchingVariant จัดการเอง
-    if (existingProduct && !isClone) {
+    if (existingProduct) {
+      // โหมด clone: เจตนาคือ "สร้างรุ่นใหม่ที่คล้ายกัน" — ชื่อชนรุ่นเดิมต้องถามก่อน ไม่สร้างซ้ำเงียบๆ (FIX-117)
+      if (isClone && !confirm(
+        `ชื่อ "${existingProduct.name}" มีในระบบแล้ว\n\n` +
+        `OK = เพิ่มเครื่องเข้า "รุ่นเดิม" (ไม่สร้างรุ่นซ้ำ)\n` +
+        `Cancel = กลับไปตั้งชื่อรุ่นใหม่ก่อนบันทึก`)) {
+        scrollToSection('section-general');
+        return;
+      }
       merge.mutate({ productId: existingProduct.id, req });
       return;
     }
@@ -746,7 +756,7 @@ export function ProductRegisterPage() {
       </header>
 
       {/* รุ่นนี้มีอยู่แล้ว → ไม่ต้องลงทะเบียนซ้ำ พาไป "รับสินค้าเข้า" เลย (ลด user งง) */}
-      {existingProduct && !isClone && (
+      {existingProduct && (
         <div className="flex flex-col gap-3 rounded-xl border-2 border-emerald-300 bg-emerald-50 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-2 text-sm text-emerald-900">
             <PackageOpen className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
@@ -1132,11 +1142,11 @@ export function ProductRegisterPage() {
           <div className="flex flex-wrap gap-2">
             <Link to="/products" className="btn-secondary">ยกเลิก</Link>
             <button type="submit"
-                    disabled={submit.isPending || merge.isPending || (skuStatus === 'taken' && !(existingProduct && !isClone))}
-                    className={`btn-primary ${existingProduct && !isClone ? 'bg-emerald-600 hover:bg-emerald-700' : ''}`}>
+                    disabled={submit.isPending || merge.isPending || (skuStatus === 'taken' && !existingProduct)}
+                    className={`btn-primary ${existingProduct ? 'bg-emerald-600 hover:bg-emerald-700' : ''}`}>
               <Save className="h-4 w-4" />
               {submit.isPending || merge.isPending ? 'กำลังบันทึก...'
-                : existingProduct && !isClone ? 'เพิ่มเข้ารุ่นเดิม'
+                : existingProduct ? 'เพิ่มเข้ารุ่นเดิม'
                 : isClone ? 'บันทึกเป็นสินค้าใหม่' : 'บันทึก'}
             </button>
           </div>
