@@ -470,6 +470,22 @@ export function ProductRegisterPage() {
     return (productPage?.content ?? []).find((p) => p.name?.trim().toLowerCase() === n) ?? null;
   }, [name, productPage]);
 
+  /* FIX-119: ชื่อเพี้ยนนิดเดียว ("iPhone15", เว้นวรรคเกิน) ไม่เข้า exact-match → เคยหลุดเป็นรุ่นซ้ำ
+     แนะนำรุ่นเดิมที่คล้ายกัน (เทียบแบบตัดช่องว่าง + containment) — กดชิปเดียวชื่อ snap เป็นตัวจริง
+     แล้วเข้า flow "เพิ่มเข้ารุ่นเดิม" ต่อทันที */
+  const similarProducts = useMemo(() => {
+    if (existingProduct) return [];   // ตรงเป๊ะแล้ว — แบนเนอร์เขียวจัดการต่อ
+    const canon = (name || '').trim().toLowerCase().replace(/\s+/g, '');
+    if (canon.length < 4) return [];
+    return (productPage?.content ?? [])
+      .filter((p) => p.active !== false)
+      .filter((p) => {
+        const pc = (p.name ?? '').trim().toLowerCase().replace(/\s+/g, '');
+        return pc.length > 0 && (pc === canon || pc.includes(canon) || canon.includes(pc));
+      })
+      .slice(0, 5);
+  }, [name, productPage, existingProduct]);
+
   /* รุ่นมีอยู่แล้ว → เติมหมวดหมู่ + ยี่ห้อ จากรุ่นเดิมให้อัตโนมัติ (ถ้ายังไม่ได้เลือก) — FIX-080 */
   const categoryIdW = useWatch({ control, name: 'categoryId' });
   useEffect(() => {
@@ -877,6 +893,21 @@ export function ProductRegisterPage() {
                        placeholder={productKind === 'accessory' ? 'เช่น Apple 20W USB-C Power Adapter' : 'เช่น iPhone 16 Pro Max'}
                        {...register('name', { required: 'กรุณาใส่ชื่อรุ่น' })} />
                 {errors.name && <p className="mt-1 text-xs text-red-600">{errors.name.message}</p>}
+                {/* FIX-119: ชื่อคล้ายรุ่นที่มีอยู่ → กดชิปเพื่อใช้ชื่อตรงแล้วเพิ่มเข้ารุ่นเดิม (กันรุ่นซ้ำจาก typo) */}
+                {similarProducts.length > 0 && (
+                  <div className="mt-1.5 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900">
+                    ⚠️ มีรุ่นชื่อคล้ายกันอยู่แล้ว — ถ้าตั้งใจเพิ่มเครื่องเข้า <strong>รุ่นเดิม</strong> กดเลือกเลย (กันสร้างรุ่นซ้ำ):
+                    <div className="mt-1 flex flex-wrap gap-1.5">
+                      {similarProducts.map((p) => (
+                        <button key={p.id} type="button"
+                                onClick={() => setValue('name', p.name, { shouldDirty: true })}
+                                className="rounded-full border border-amber-300 bg-white px-2 py-0.5 font-medium text-amber-800 hover:bg-amber-100">
+                          {p.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </FieldRow>
 
               <FieldRow label="ยี่ห้อ">
