@@ -1,8 +1,9 @@
 import { useMemo, useRef, useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { X, Plus, ScanLine, Save, AlertTriangle, Package, ChevronDown, ChevronRight } from 'lucide-react';
 import { productsApi } from '@/api/products';
+import { inventoryApi } from '@/api/inventory';
 import { extractErrorMessage } from '@/api/client';
 import { useBranchStore } from '@/stores/branchStore';
 import { useModalChrome, backdropCloseHandler } from '@/hooks/useModalChrome';
@@ -44,23 +45,37 @@ interface DeviceRow {
   batteryHealth: string;  // มือ 2
   purchasePrice: string;  // เว้น = ทุน/เครื่อง ของล็อต
   sellingPrice: string;   // มือ 2 ควรตั้งรายเครื่อง · มือ 1 เว้น = ราคา SKU
-  // รายละเอียดเพิ่มเติม (พับเก็บ — ไม่บังคับ) เดิมมีเฉพาะฟอร์ม "เพิ่มสี + เครื่อง"
+  // รายละเอียดเพิ่มเติม (พับเก็บ) — ครบเท่ารายเครื่องของหน้า "สร้างรุ่นใหม่" (FIX-118)
   extraOpen: boolean;
-  warrantyTerms: string;  // เว้น = มือ1 ใช้ประกันศูนย์ default · มือ2 ไม่ระบุ
-  warrantyExpire: string; // YYYY-MM-DD
+  modelNumber: string;      // เลขรุ่นรายเครื่อง (เว้น = ใช้เลขรุ่นระดับรุ่น)
+  deviceNetwork: string;    // เว้น = ใช้เครือข่ายของล็อต
+  acquisitionOverride: AcquisitionType | '';   // เว้น = ใช้ที่มาของล็อต
+  warrantyTerms: string;    // เว้น = มือ1 ใช้ประกันศูนย์ default · มือ2 ไม่ระบุ
+  warrantyExpire: string;   // YYYY-MM-DD (เช่น มือ2 ประกันศูนย์ activate แล้วเหลือถึงวันที่)
+  hasBox: boolean;          // อุปกรณ์เครื่องมือสอง (FIX-108)
+  hasCharger: boolean;
   imageUrls: string[];
+  // ผ่อนรายเครื่อง (มือ 2) — เว็บหน้าร้านดึงไปแสดง
+  downPayment: string;
+  instPromo: string;
+  instTerms: { months: string; monthly: string; down: string }[];
 }
 
 const EMPTY_ROW: DeviceRow = {
   imei: '', serialNumber: '', color: '', storage: '', condition: 'NEW',
   batteryHealth: '', purchasePrice: '', sellingPrice: '',
-  extraOpen: false, warrantyTerms: '', warrantyExpire: '', imageUrls: [],
+  extraOpen: false, modelNumber: '', deviceNetwork: '', acquisitionOverride: '',
+  warrantyTerms: '', warrantyExpire: '', hasBox: false, hasCharger: false, imageUrls: [],
+  downPayment: '', instPromo: '', instTerms: [],
 };
 
-/** เครื่องใหม่ลอก สี/ความจุ/มือ/ราคา จากเครื่องล่าสุด (เคลียร์ IMEI/Serial/แบต/รูป/ประกัน) */
+/** เครื่องใหม่ลอก สี/ความจุ/มือ/เลขรุ่น/เครือข่าย/ที่มา/ราคา จากเครื่องล่าสุด
+ *  (เคลียร์ IMEI/Serial/แบต/รูป/ประกัน/อุปกรณ์/ผ่อน — เป็นของเฉพาะเครื่อง) */
 const cloneRow = (last: DeviceRow): DeviceRow => ({
   ...EMPTY_ROW,
   color: last.color, storage: last.storage, condition: last.condition,
+  modelNumber: last.modelNumber, deviceNetwork: last.deviceNetwork,
+  acquisitionOverride: last.acquisitionOverride,
   purchasePrice: last.purchasePrice, sellingPrice: last.sellingPrice,
 });
 
@@ -86,6 +101,18 @@ export function ProductFastInboundModal({ product, initialVariant, onClose, onDo
   const activeVariants = product.variants.filter((v) => v.active);
   const colorOptions = Array.from(new Set(activeVariants.map((v) => (v.color ?? '').trim()).filter(Boolean))).sort();
   const storageOptions = Array.from(new Set(activeVariants.map((v) => (v.storage ?? '').trim()).filter(Boolean))).sort();
+
+  // autocomplete เลขรุ่น/สี จาก DB distinct — ชุดเดียวกับหน้า "สร้างรุ่นใหม่" (FIX-118)
+  const { data: serialSuggest } = useQuery({
+    queryKey: ['serial-suggestions'],
+    queryFn: () => inventoryApi.serialSuggestions(),
+    staleTime: 60 * 1000,
+  });
+  const colorList = Array.from(new Set([...colorOptions, ...(serialSuggest?.colors ?? [])])).sort();
+  const modelList = Array.from(new Set([
+    ...(product.modelNumber ? [product.modelNumber] : []),
+    ...(serialSuggest?.modelNumbers ?? []),
+  ])).sort();
 
   // ─── ข้อมูลระดับ "ล็อต" (ที่มา/ทุน/เอกสาร/เครือข่าย) — สี/ความจุ/มือ อยู่ที่แถวเครื่อง (FIX-116)
   const [batchNetwork, setBatchNetwork] = useState(initialVariant?.network ?? '');
@@ -186,6 +213,17 @@ export function ProductFastInboundModal({ product, initialVariant, onClose, onDo
       }
 
       const { sku: base } = await productsApi.nextSku();   // running DD ไม่ซ้ำ (ไล่ทั้งชุด)
+      // ตารางผ่อนรายเครื่อง มือ2 → JSON แบบเดียวกับหน้าสร้างรุ่นใหม่ (กรองแถวไม่ครบทิ้ง)
+      const termsJson = (terms: DeviceRow['instTerms']): string | undefined => {
+        const clean = terms
+          .map((t) => {
+            const down = t.down.trim() === '' ? undefined : Number(t.down);
+            return { months: Number(t.months), monthly: Number(t.monthly),
+                     ...(down != null && Number.isFinite(down) && down >= 0 ? { down } : {}) };
+          })
+          .filter((t) => Number.isFinite(t.months) && t.months > 0 && Number.isFinite(t.monthly) && t.monthly >= 0);
+        return clean.length ? JSON.stringify(clean) : undefined;
+      };
       const items: (WizardInitialItem & { _key: string })[] = filled.map((r, i) => {
         const isNew = r.condition === 'NEW';
         return {
@@ -195,16 +233,22 @@ export function ProductFastInboundModal({ product, initialVariant, onClose, onDo
           stockCode: deviceCode(base, i),
           condition: r.condition,
           batteryHealth: isNew ? 100 : (r.batteryHealth === '' ? undefined : Number(r.batteryHealth)),
+          hasBox: !isNew ? r.hasBox : undefined,          // อุปกรณ์เครื่องมือสอง (FIX-108)
+          hasCharger: !isNew ? r.hasCharger : undefined,
           deviceColor: r.color.trim(),
           deviceStorage: r.storage.trim(),
-          deviceNetwork: batchNetwork.trim() || undefined,
-          modelNumber: product.modelNumber ?? undefined,
-          acquisitionType,
+          deviceNetwork: (r.deviceNetwork || batchNetwork).trim() || undefined,
+          modelNumber: r.modelNumber.trim() || product.modelNumber || undefined,
+          acquisitionType: r.acquisitionOverride || acquisitionType,
           purchasePrice: r.purchasePrice !== '' ? Number(r.purchasePrice) : (unitCostNum || undefined),
           sellingPrice: r.sellingPrice === '' ? undefined : Number(r.sellingPrice),
           warrantyTerms: r.warrantyTerms.trim() || (isNew ? WARRANTY_NEW : undefined),
           warrantyExpire: r.warrantyExpire.trim() || undefined,
           imageUrls: r.imageUrls.length ? r.imageUrls : undefined,
+          // ผ่อนรายเครื่อง — มือ 2 เท่านั้น (มือ 1 ใช้แผนต่อรุ่นด้านล่าง)
+          downPayment: !isNew && r.downPayment !== '' ? Number(r.downPayment) : undefined,
+          installmentTerms: !isNew ? termsJson(r.instTerms) : undefined,
+          installmentPromo: !isNew ? (r.instPromo.trim() || undefined) : undefined,
         };
       });
 
@@ -341,11 +385,12 @@ export function ProductFastInboundModal({ product, initialVariant, onClose, onDo
                 <AlertTriangle className="h-3.5 w-3.5" /> {costDeviationWarning}
               </div>
             )}
-            <datalist id="pfi-colors">{colorOptions.map((c) => <option key={c} value={c} />)}</datalist>
+            <datalist id="pfi-colors">{colorList.map((c) => <option key={c} value={c} />)}</datalist>
             <datalist id="pfi-storages">
               {Array.from(new Set([...storageOptions, ...STORAGE_OPTIONS])).map((s) => <option key={s} value={s} />)}
             </datalist>
             <datalist id="pfi-networks">{NETWORK_OPTIONS.map((n) => <option key={n} value={n} />)}</datalist>
+            <datalist id="pfi-models">{modelList.map((m) => <option key={m} value={m} />)}</datalist>
           </div>
 
           {/* รายการเครื่อง */}
@@ -435,33 +480,108 @@ export function ProductFastInboundModal({ product, initialVariant, onClose, onDo
                            placeholder={isSecond ? 'ราคาขาย (มือ2)' : 'ราคาขาย (=SKU)'}
                            value={r.sellingPrice} onChange={(ev) => patchRow(idx, { sellingPrice: ev.target.value })} />
                   </div>
-                  {/* รายละเอียดเพิ่มเติม (ไม่บังคับ) — ประกัน/รูป รายเครื่อง (เดิมมีเฉพาะฟอร์มเพิ่มสี) */}
+                  {/* รายละเอียดเพิ่มเติม (ไม่บังคับ) — ครบเท่ารายเครื่องหน้า "สร้างรุ่นใหม่" (FIX-118) */}
                   <button type="button" onClick={() => patchRow(idx, { extraOpen: !r.extraOpen })}
                           className="ml-6 inline-flex items-center gap-0.5 text-[11px] text-slate-500 hover:text-slate-700">
                     {r.extraOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                    เพิ่มเติม (ประกัน / รูปเครื่อง)
-                    {(r.warrantyTerms || r.imageUrls.length > 0) && !r.extraOpen && (
+                    เพิ่มเติม (เลขรุ่น / ประกัน / อุปกรณ์ / รูป{isSecond ? ' / ผ่อน' : ''})
+                    {(r.warrantyTerms || r.modelNumber || r.deviceNetwork || r.acquisitionOverride
+                      || r.hasBox || r.hasCharger || r.imageUrls.length > 0
+                      || r.downPayment || r.instTerms.length > 0) && !r.extraOpen && (
                       <span className="ml-1 rounded bg-indigo-100 px-1 text-[10px] text-indigo-700">มีข้อมูล</span>
                     )}
                   </button>
                   {r.extraOpen && (
                     <div className="space-y-2 pl-6">
+                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                        <div>
+                          <label className="mb-0.5 block text-[11px] font-semibold text-slate-600">เลขรุ่น</label>
+                          <input className="input font-mono text-xs" list="pfi-models"
+                                 placeholder={product.modelNumber ? `เว้น = ${product.modelNumber}` : 'เช่น MG2N4ZP/A'}
+                                 value={r.modelNumber}
+                                 onChange={(ev) => patchRow(idx, { modelNumber: ev.target.value })} />
+                        </div>
+                        <div>
+                          <label className="mb-0.5 block text-[11px] font-semibold text-slate-600">เครือข่าย</label>
+                          <input className="input text-xs" list="pfi-networks" placeholder="เว้น = ตามล็อต"
+                                 value={r.deviceNetwork}
+                                 onChange={(ev) => patchRow(idx, { deviceNetwork: ev.target.value })} />
+                        </div>
+                        <div>
+                          <label className="mb-0.5 block text-[11px] font-semibold text-slate-600">ที่มา</label>
+                          <select className="input text-xs" value={r.acquisitionOverride}
+                                  onChange={(ev) => patchRow(idx, { acquisitionOverride: ev.target.value as AcquisitionType | '' })}>
+                            <option value="">ตามล็อต ({ACQ_INFO[acquisitionType].th})</option>
+                            {ACQ_ORDER.map((k) => <option key={k} value={k}>{ACQ_INFO[k].th}</option>)}
+                          </select>
+                        </div>
+                      </div>
                       <div className="grid grid-cols-2 gap-2">
                         <div>
                           <label className="mb-0.5 block text-[11px] font-semibold text-slate-600">ประกัน</label>
                           <input className="input text-xs" list="pfi-warranty"
-                                 placeholder={isSecond ? 'เช่น ประกันร้าน 1 เดือน' : `เว้น = ${WARRANTY_NEW}`}
+                                 placeholder={isSecond ? 'เช่น ประกันศูนย์เหลือ / ประกันร้าน 1 เดือน' : `เว้น = ${WARRANTY_NEW}`}
                                  value={r.warrantyTerms}
                                  onChange={(ev) => patchRow(idx, { warrantyTerms: ev.target.value })} />
                         </div>
-                        {warrantyNeedsExpire(r.warrantyTerms || (isSecond ? '' : WARRANTY_NEW)) && (
+                        {(isSecond || warrantyNeedsExpire(r.warrantyTerms || WARRANTY_NEW)) && (
                           <div>
-                            <label className="mb-0.5 block text-[11px] font-semibold text-slate-600">ประกันถึงวันที่</label>
+                            <label className="mb-0.5 block text-[11px] font-semibold text-slate-600">
+                              ประกันถึงวันที่ <span className="font-normal text-slate-400">(เครื่อง activate แล้วใส่วันหมดจริง)</span>
+                            </label>
                             <input type="date" className="input text-xs" value={r.warrantyExpire}
                                    onChange={(ev) => patchRow(idx, { warrantyExpire: ev.target.value })} />
                           </div>
                         )}
                       </div>
+                      {isSecond && (
+                        <div className="flex items-center gap-4 rounded-md bg-slate-100 px-2 py-1.5 text-xs">
+                          <span className="font-semibold text-slate-600">อุปกรณ์ที่มากับเครื่อง:</span>
+                          <label className="inline-flex items-center gap-1">
+                            <input type="checkbox" checked={r.hasBox}
+                                   onChange={(ev) => patchRow(idx, { hasBox: ev.target.checked })} /> 📦 กล่อง
+                          </label>
+                          <label className="inline-flex items-center gap-1">
+                            <input type="checkbox" checked={r.hasCharger}
+                                   onChange={(ev) => patchRow(idx, { hasCharger: ev.target.checked })} /> 🔌 สายชาร์จ
+                          </label>
+                        </div>
+                      )}
+                      {isSecond && (
+                        <div className="space-y-1.5 rounded-md border border-amber-200 bg-amber-50/60 p-2">
+                          <div className="text-[11px] font-semibold text-amber-900">
+                            💳 ผ่อนเครื่องนี้ (มือ 2) <span className="font-normal text-amber-700">— โชว์บนเว็บ · เว้นว่าง = ไม่ผ่อน</span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <input type="number" min={0} className="input text-xs" placeholder="เงินดาวน์ (บาท)"
+                                   value={r.downPayment}
+                                   onChange={(ev) => patchRow(idx, { downPayment: ev.target.value })} />
+                            <input className="input text-xs" placeholder="โปรโมชัน เช่น ฟรีเคส"
+                                   value={r.instPromo}
+                                   onChange={(ev) => patchRow(idx, { instPromo: ev.target.value })} />
+                          </div>
+                          {r.instTerms.map((t, ti) => (
+                            <div key={ti} className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                              <input type="number" min={1} className="input w-16 text-xs" placeholder="งวด"
+                                     value={t.months}
+                                     onChange={(ev) => patchRow(idx, { instTerms: r.instTerms.map((x, j) => j === ti ? { ...x, months: ev.target.value } : x) })} />
+                              <span className="text-slate-500">เดือน ×</span>
+                              <input type="number" min={0} className="input w-24 text-xs" placeholder="บาท/เดือน"
+                                     value={t.monthly}
+                                     onChange={(ev) => patchRow(idx, { instTerms: r.instTerms.map((x, j) => j === ti ? { ...x, monthly: ev.target.value } : x) })} />
+                              <span className="text-slate-500">· ดาวน์</span>
+                              <input type="number" min={0} className="input w-24 text-xs" placeholder="เว้น=ค่าบน"
+                                     value={t.down}
+                                     onChange={(ev) => patchRow(idx, { instTerms: r.instTerms.map((x, j) => j === ti ? { ...x, down: ev.target.value } : x) })} />
+                              <button type="button" className="rounded p-0.5 text-red-500 hover:bg-red-50"
+                                      onClick={() => patchRow(idx, { instTerms: r.instTerms.filter((_, j) => j !== ti) })}>✕</button>
+                            </div>
+                          ))}
+                          <button type="button"
+                                  onClick={() => patchRow(idx, { instTerms: [...r.instTerms, { months: '', monthly: '', down: '' }] })}
+                                  className="text-[11px] font-medium text-amber-700 hover:text-amber-900">+ เพิ่มงวด</button>
+                        </div>
+                      )}
                       <div>
                         <label className="mb-0.5 block text-[11px] font-semibold text-slate-600">
                           รูปเครื่องนี้ <span className="font-normal text-slate-400">(รูปแรก = ปก · SKU ใหม่ใช้เป็นรูปปกด้วย)</span>
