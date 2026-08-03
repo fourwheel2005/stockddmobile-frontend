@@ -74,6 +74,11 @@ export const inventoryApi = {
     api.post<void>(`/inventory/serials/${serialItemId}/move-variant`, null,
       { params: { targetVariantId } }).then((r) => r.data),
 
+  /** ย้ายเครื่องไป "รุ่นอื่น" — แก้เพิ่มผิดรุ่น · ระบบจับ SKU ปลายทางตามมือ+สี+ความจุให้เอง (FIX-120) */
+  moveSerialToProduct: (serialItemId: string, targetProductId: string) =>
+    api.post<void>(`/inventory/serials/${serialItemId}/move-product`, null,
+      { params: { targetProductId } }).then((r) => r.data),
+
   // ─── ประวัติซ่อม/อะไหล่รายเครื่อง (เครื่องมือสอง) ──────────────────
   listServiceLogs: (serialItemId: string) =>
     api.get<DeviceServiceLogResponse[]>(`/inventory/serials/${serialItemId}/service-logs`).then((r) => r.data),

@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { X, Wrench, ShieldAlert, Undo2, BatteryMedium, Pencil, Save, Plus, Trash2, ArrowLeftRight, QrCode } from 'lucide-react';
 import { inventoryApi } from '@/api/inventory';
+import { productsApi } from '@/api/products';
 import { extractErrorMessage } from '@/api/client';
 import { useAuthStore } from '@/stores/authStore';
 import { printOrchestrator } from '@/lib/printer/PrintOrchestrator';
@@ -323,6 +324,29 @@ function MoveVariantModal({ item, targets, onClose, onMoved }: {
     onSuccess: () => { toast.success('ย้าย SKU แล้ว'); onMoved(); },
     onError: (e) => toast.error(extractErrorMessage(e)),
   });
+
+  // ย้ายไป "รุ่นอื่น" — แก้เพิ่มผิดรุ่น (FIX-120): backend จับ SKU ปลายทางตามมือ+สี+ความจุให้เอง
+  const [prodSearch, setProdSearch] = useState('');
+  const [targetProductId, setTargetProductId] = useState('');
+  const { data: productList } = useQuery({
+    queryKey: ['products', 'all'],
+    queryFn: () => productsApi.list({ page: 0, size: 500 }),
+    staleTime: 60_000,
+  });
+  const currentProductId = targets[0]?.productId;
+  const productMatches = (prodSearch.trim().length >= 2 ? (productList?.content ?? []) : [])
+    .filter((p) => p.active !== false && p.serialized && p.id !== currentProductId)
+    .filter((p) => (p.name ?? '').toLowerCase().includes(prodSearch.trim().toLowerCase()))
+    .slice(0, 6);
+  const targetProduct = (productList?.content ?? []).find((p) => p.id === targetProductId) ?? null;
+  const moveProduct = useMutation({
+    mutationFn: () => inventoryApi.moveSerialToProduct(item.id, targetProductId),
+    onSuccess: () => {
+      toast.success(`ย้ายไปรุ่น "${targetProduct?.name ?? ''}" แล้ว — ระบบจับ SKU ตามมือ+สี+ความจุให้เรียบร้อย`);
+      onMoved();
+    },
+    onError: (e) => toast.error(extractErrorMessage(e)),
+  });
   // ปลายทางเรียง "มือตรงกับเครื่อง" ขึ้นก่อน + มือไม่ตรงกดไม่ได้ (backend กันอีกชั้นด้วย FIX-113)
   const itemGroup = item.condition === 'NEW' ? 'NEW' : 'SECOND_HAND';
   const handTh = (c?: 'NEW' | 'SECOND_HAND' | null) =>
@@ -350,22 +374,61 @@ function MoveVariantModal({ item, targets, onClose, onMoved }: {
           </div>
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-600">ย้ายไป SKU (รุ่นเดียวกัน)</label>
-            <select className="input" value={targetId} onChange={(e) => setTargetId(e.target.value)}>
+            <select className="input" value={targetId}
+                    onChange={(e) => { setTargetId(e.target.value); if (e.target.value) setTargetProductId(''); }}>
               <option value="">— เลือก SKU ปลายทาง —</option>
               {sortedTargets.map((v) => (
                 <option key={v.id} value={v.id} disabled={mismatched(v)}>{label(v)}</option>
               ))}
             </select>
           </div>
+
+          {/* ย้ายไป "รุ่นอื่น" — เคสเพิ่มผิดรุ่น เช่น iPhone 13 หลุดไปอยู่ 13 Pro Max (FIX-120) */}
+          <div className="border-t border-slate-200 pt-3">
+            <label className="mb-1 block text-xs font-semibold text-slate-600">
+              หรือย้ายไป "รุ่นอื่น" <span className="font-normal text-slate-400">(กรณีเพิ่มผิดรุ่น)</span>
+            </label>
+            <input className="input text-sm" placeholder="พิมพ์ค้นชื่อรุ่นปลายทาง เช่น iPhone 13"
+                   value={prodSearch}
+                   onChange={(e) => { setProdSearch(e.target.value); setTargetProductId(''); }} />
+            {prodSearch.trim().length >= 2 && !targetProductId && (
+              <div className="mt-1.5 max-h-40 space-y-1 overflow-y-auto">
+                {productMatches.map((p) => (
+                  <button key={p.id} type="button"
+                          onClick={() => { setTargetProductId(p.id); setTargetId(''); }}
+                          className="block w-full rounded-md border border-slate-200 px-2.5 py-1.5 text-left text-sm hover:border-brand-400 hover:bg-brand-50">
+                    {p.name} <span className="text-xs text-slate-400">· {p.categoryName}</span>
+                  </button>
+                ))}
+                {productMatches.length === 0 && (
+                  <p className="px-1 text-xs text-slate-400">ไม่พบรุ่นที่ตรง</p>
+                )}
+              </div>
+            )}
+            {targetProduct && (
+              <div className="mt-1.5 rounded-md border border-emerald-300 bg-emerald-50 px-2.5 py-1.5 text-xs text-emerald-900">
+                ✅ ปลายทาง: <strong>{targetProduct.name}</strong> — ระบบจะจับ SKU ตาม
+                <strong> มือ+สี+ความจุ</strong> ของเครื่อง ({item.deviceColor ?? '?'} / {item.deviceStorage ?? '?'})
+                ให้อัตโนมัติ · ไม่มี SKU ตรง = สร้างใหม่ให้พร้อมประทับมือ
+                <button type="button" onClick={() => { setTargetProductId(''); setProdSearch(''); }}
+                        className="ml-2 text-emerald-700 underline">เปลี่ยน</button>
+              </div>
+            )}
+          </div>
+
           <p className="text-[11px] text-slate-500">
-            ระบบจะย้ายสต๊อกเครื่องนี้ไป SKU ที่เลือก + บันทึกประวัติ · ราคา/สภาพรายเครื่องคงเดิม (แก้เพิ่มได้ที่ ✏️)
+            ระบบจะย้ายสต๊อกเครื่องนี้ + บันทึกประวัติ · ราคา/สภาพรายเครื่องคงเดิม (แก้เพิ่มได้ที่ ✏️)
           </p>
         </div>
         <div className="flex justify-end gap-2 border-t px-5 py-3">
           <button type="button" onClick={onClose} className="btn-secondary">ยกเลิก</button>
-          <button type="button" disabled={!targetId || move.isPending} onClick={() => move.mutate()}
+          <button type="button"
+                  disabled={(!targetId && !targetProductId) || move.isPending || moveProduct.isPending}
+                  onClick={() => (targetProductId ? moveProduct.mutate() : move.mutate())}
                   className="btn-primary">
-            <ArrowLeftRight className="h-4 w-4" /> {move.isPending ? 'กำลังย้าย...' : 'ย้าย'}
+            <ArrowLeftRight className="h-4 w-4" />
+            {move.isPending || moveProduct.isPending ? 'กำลังย้าย...'
+              : targetProductId ? 'ย้ายไปรุ่นนี้' : 'ย้าย'}
           </button>
         </div>
       </div>
