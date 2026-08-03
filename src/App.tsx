@@ -15,6 +15,7 @@ import { PosTerminalPage } from '@/pages/PosTerminalPage';
 import { RepairListPage } from '@/pages/RepairListPage';
 import { CustomersPage } from '@/pages/CustomersPage';
 import { LotsPage } from '@/pages/LotsPage';
+import { InstallmentPresetsPage } from '@/pages/InstallmentPresetsPage';
 import { SalesHistoryPage } from '@/pages/SalesHistoryPage';
 import { OrderDetailPage } from '@/pages/OrderDetailPage';
 import { ReportsPage } from '@/pages/ReportsPage';
@@ -77,6 +78,8 @@ export default function App() {
           <Route path="/transactions" element={<TransactionsPage />} />
           <Route path="/alerts" element={<AlertsPage />} />
           <Route path="/lots" element={<LotsPage />} />
+          {/* ตารางดาวน์/ผ่อนมือ 2 ต่อ รุ่น×ความจุ — auto-apply ตอนรับเครื่องเข้า (FIX-123) */}
+          <Route path="/installment-presets" element={<InstallmentPresetsPage />} />
           <Route path="/reports" element={<ReportsPage />} />
           {/* V31 — ไฟแนนซ์ค้างจ่าย */}
           <Route path="/finance-pending" element={<FinancePendingPage />} />

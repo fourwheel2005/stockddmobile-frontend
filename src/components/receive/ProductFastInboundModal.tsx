@@ -550,7 +550,7 @@ export function ProductFastInboundModal({ product, initialVariant, onClose, onDo
                       {isSecond && (
                         <div className="space-y-1.5 rounded-md border border-amber-200 bg-amber-50/60 p-2">
                           <div className="text-[11px] font-semibold text-amber-900">
-                            💳 ผ่อนเครื่องนี้ (มือ 2) <span className="font-normal text-amber-700">— โชว์บนเว็บ · เว้นว่าง = ไม่ผ่อน</span>
+                            💳 ผ่อนเครื่องนี้ (มือ 2) <span className="font-normal text-amber-700">— โชว์บนเว็บ · เว้นว่าง = ใช้ "ตารางผ่อนมือ 2" ของรุ่นอัตโนมัติ (FIX-123)</span>
                           </div>
                           <div className="grid grid-cols-2 gap-2">
                             <input type="number" min={0} className="input text-xs" placeholder="เงินดาวน์ (บาท)"
