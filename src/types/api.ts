@@ -842,6 +842,8 @@ export interface SalesOrderItemResponse {
   sellPrice: number;
   quantity: number;
   lineTotal: number;
+  /** "จ่ายวันนี้" ในบิลผ่อน ตามที่เลือกจริงตอนคิดเงิน (FIX-122) · null = บิลเก่า → FE เดาแบบเดิม */
+  payToday?: boolean | null;
 }
 
 export interface SalesOrderResponse {

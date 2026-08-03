@@ -58,10 +58,11 @@ export function ReceiptPrintView({ order, shopName = 'Stockdd Mobile' }: Props) 
       {/* ผ่อน → ไม่โชว์ราคาเครื่องเต็ม (ลูกค้าเห็นยอดดาวน์+อุปกรณ์เสริมที่จ่ายวันนี้ + ค่างวด) — FIX-070/FIX-090 */}
       {(() => {
       const hidePrice = order.paymentMethod === 'INSTALLMENT';
-      // อุปกรณ์เสริมจ่ายสดวันนี้ในบิลผ่อน = บรรทัดไม่มี IMEI/SN (หัวชาร์จ/เคส)
+      // อุปกรณ์เสริมจ่ายสดวันนี้ในบิลผ่อน (FIX-122): flag จริงจากตอนคิดเงินก่อน · บิลเก่า (null) เดาแบบเดิม
+      const isPayToday = (it: (typeof order.items)[number]) =>
+        it.payToday ?? (!hasRealImei(it.imei) && !it.serialNumber);
       const addOn = hidePrice
-        ? order.items.filter((it) => !hasRealImei(it.imei) && !it.serialNumber)
-            .reduce((s, it) => s + (it.lineTotal ?? 0), 0)
+        ? order.items.filter(isPayToday).reduce((s, it) => s + (it.lineTotal ?? 0), 0)
         : 0;
       return (
       <>
@@ -87,8 +88,8 @@ export function ReceiptPrintView({ order, shopName = 'Stockdd Mobile' }: Props) 
                   : it.serialNumber
                     ? <div className="text-xs text-slate-600">SN: {it.serialNumber}</div>
                     : <div className="text-xs text-slate-600">{it.sku}</div>}
-                {/* บิลผ่อน: อุปกรณ์เสริมจ่ายสดวันนี้ → โชว์ราคา (เครื่องที่ผ่อนไม่โชว์) FIX-090 */}
-                {hidePrice && !hasRealImei(it.imei) && !it.serialNumber && (it.lineTotal ?? 0) > 0 && (
+                {/* บิลผ่อน: อุปกรณ์เสริมจ่ายสดวันนี้ → โชว์ราคา (เครื่องที่ผ่อนไม่โชว์) FIX-090/122 */}
+                {hidePrice && isPayToday(it) && (it.lineTotal ?? 0) > 0 && (
                   <div className="text-xs text-emerald-700">
                     จ่ายวันนี้: {it.quantity} × {formatTHB(it.sellPrice)} = {formatTHB(it.lineTotal)}
                   </div>

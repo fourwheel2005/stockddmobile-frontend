@@ -30,6 +30,8 @@ export interface ReceiptData {
     quantity: number;
     sellPrice: number;
     lineTotal: number;
+    /** "จ่ายวันนี้" ในบิลผ่อน ตามที่เลือกจริง (FIX-122) · null = บิลเก่า → เดาแบบเดิม */
+    payToday?: boolean | null;
   }>;
   subtotal: number;
   discountAmount: number;
@@ -169,7 +171,8 @@ export function buildDDMobileReceipt(
     }
 
     // Line 4: qty x price = total (ผ่อน → ซ่อนราคาเครื่อง แต่ "อุปกรณ์เสริมจ่ายสดวันนี้" โชว์ราคา — FIX-090)
-    const isAddOn = !hasRealImei(it.imei) && !it.serialNumber && (it.lineTotal ?? 0) > 0;
+    // FIX-122: ใช้ flag จริงที่บันทึกตอนคิดเงินก่อน · บิลเก่า (null) fallback เดา "ไม่มี IMEI/SN"
+    const isAddOn = (it.payToday ?? (!hasRealImei(it.imei) && !it.serialNumber)) && (it.lineTotal ?? 0) > 0;
     if (!hidePrice) {
       const qty = it.quantity.toString();
       const price = fmtTHB(it.sellPrice);
