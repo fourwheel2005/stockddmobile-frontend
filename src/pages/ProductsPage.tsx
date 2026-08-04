@@ -2,8 +2,9 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { PackagePlus, Plus, Eye, Sparkles, FolderOpen, Trash2, ArrowDownToLine } from 'lucide-react';
+import { PackagePlus, Plus, Eye, Sparkles, FolderOpen, Trash2, ArrowDownToLine, Smartphone } from 'lucide-react';
 import { productsApi } from '@/api/products';
+import { inventoryApi } from '@/api/inventory';
 import { extractErrorMessage } from '@/api/client';
 import { useAuthStore } from '@/stores/authStore';
 import { formatDate, formatTHB } from '@/lib/format';
@@ -104,6 +105,18 @@ export function ProductsPage() {
   });
 
   const isSearchMode = query.trim().length > 0;
+  // เลขยาวๆ = น่าจะเป็น IMEI/Serial ไม่ใช่ชื่อรุ่น (FIX-124)
+  const looksLikeCode = /^\d{8,}$/.test(query.trim());
+  // ค้น "ตัวเครื่อง" ด้วย IMEI/Serial ควบคู่ — เดิมช่องนี้ค้นแค่ระดับ SKU ทำให้ยิง IMEI แล้วไม่เจอ
+  // ทั้งที่เครื่องอยู่ในระบบ แถมเสนอสร้างรุ่นชื่อเป็นเลข IMEI (FIX-124)
+  const serialLookup = useQuery({
+    queryKey: ['serial-lookup', query],
+    queryFn: () => inventoryApi.lookupSerial(query.trim()),
+    enabled: isSearchMode && query.trim().length >= 8,
+    retry: false,       // 404 = ไม่เจอ (ปกติ) ไม่ต้อง retry
+    staleTime: 10_000,
+  });
+  const foundDevice = serialLookup.data ?? null;
 
   return (
     <div className="space-y-4">
@@ -168,27 +181,66 @@ export function ProductsPage() {
       {/* SEARCH RESULTS view */}
       {isSearchMode && (
         <div className="space-y-3">
+          {/* เจอ "ตัวเครื่อง" จาก IMEI/Serial — โชว์การ์ดเครื่อง + ทางไปต่อ (FIX-124) */}
+          {foundDevice && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border-2 border-emerald-300 bg-emerald-50 p-4">
+              <div className="flex items-start gap-3">
+                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-emerald-100 text-emerald-700">
+                  <Smartphone className="h-5 w-5" />
+                </div>
+                <div className="text-sm">
+                  <div className="font-semibold text-slate-800">
+                    เจอเครื่องในระบบ: {foundDevice.productName ?? foundDevice.sku}
+                    <span className="font-normal text-slate-500">
+                      {' '}· {[foundDevice.deviceColor, foundDevice.deviceStorage].filter(Boolean).join(' / ')}
+                    </span>
+                  </div>
+                  <div className="mt-0.5 font-mono text-xs text-slate-600">
+                    {foundDevice.stockCode && <span className="mr-2 rounded bg-emerald-100 px-1 font-semibold text-emerald-800">{foundDevice.stockCode}</span>}
+                    IMEI/SN: {foundDevice.imei ?? foundDevice.serialNumber}
+                  </div>
+                </div>
+              </div>
+              {foundDevice.productId && (
+                <Link to={`/products/${foundDevice.productId}`} className="btn-primary shrink-0">
+                  <Eye className="h-4 w-4" /> เปิดรุ่นนี้
+                </Link>
+              )}
+            </div>
+          )}
+
           {variantSearch.isFetching && (
             <div className="rounded-lg border border-slate-200 p-6 text-center text-sm text-slate-500">
               กำลังค้นหา...
             </div>
           )}
 
-          {!variantSearch.isFetching && variantSearch.data && variantSearch.data.content.length === 0 && (
+          {!variantSearch.isFetching && variantSearch.data && variantSearch.data.content.length === 0
+            && !foundDevice && !serialLookup.isFetching && (
             <div className="rounded-lg border-2 border-amber-300 bg-amber-50 p-6 text-center">
               <Sparkles className="mx-auto h-10 w-10 text-amber-500" />
               <p className="mt-2 text-sm font-semibold text-amber-900">
                 ไม่พบสินค้าที่ตรงกับ "{query}"
               </p>
-              <p className="mt-1 text-xs text-amber-800">
-                ถ้าเป็นสินค้าใหม่ที่ยังไม่เคยมีในระบบ — กดด้านล่างเพื่อลงทะเบียน
-              </p>
-              <Link
-                to={`/products/new?name=${encodeURIComponent(query)}`}
-                className="btn-primary mt-3 bg-emerald-600 hover:bg-emerald-700">
-                <Plus className="h-4 w-4" />
-                สร้างรุ่นใหม่ "{query.slice(0, 30)}{query.length > 30 ? '…' : ''}" + รับเข้าเลย
-              </Link>
+              {looksLikeCode ? (
+                // เลขล้วน = น่าจะเป็น IMEI/Serial — ห้ามชวนสร้าง "รุ่น" ชื่อเป็นตัวเลข (FIX-124)
+                <p className="mt-1 text-xs text-amber-800">
+                  เลขนี้ดูเป็น IMEI/Serial แต่ไม่พบเครื่องในระบบ — ตรวจเลขอีกครั้ง ·
+                  ถ้าเป็นเครื่องใหม่ที่จะรับเข้า ให้<strong>ค้นด้วยชื่อรุ่น</strong> (เช่น iPhone 13) แล้วกดรับเข้า
+                </p>
+              ) : (
+                <>
+                  <p className="mt-1 text-xs text-amber-800">
+                    ถ้าเป็นสินค้าใหม่ที่ยังไม่เคยมีในระบบ — กดด้านล่างเพื่อลงทะเบียน
+                  </p>
+                  <Link
+                    to={`/products/new?name=${encodeURIComponent(query)}`}
+                    className="btn-primary mt-3 bg-emerald-600 hover:bg-emerald-700">
+                    <Plus className="h-4 w-4" />
+                    สร้างรุ่นใหม่ "{query.slice(0, 30)}{query.length > 30 ? '…' : ''}" + รับเข้าเลย
+                  </Link>
+                </>
+              )}
             </div>
           )}
 

@@ -318,6 +318,7 @@ export type SerializedCondition = 'NEW' | 'SECOND_HAND' | 'LIKE_NEW' | 'REFURBIS
 export interface SerializedItemResponse {
   id: string;
   variantId: string;
+  productId?: string | null;   // ลิงก์ไปหน้ารุ่นตรงๆ (FIX-124)
   sku: string;
   productName: string | null;
   imei: string | null;
