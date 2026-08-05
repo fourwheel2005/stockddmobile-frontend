@@ -231,9 +231,11 @@ export function SerialsModal({ variantId, productName, sku, onClose, highlightId
                           </button>
                         </>
                       )}
-                      {s.status === 'DEFECTIVE' && (
+                      {(s.status === 'DEFECTIVE' || s.status === 'RETURNED') && (
                         <button className="rounded p-1.5 text-emerald-700 hover:bg-emerald-50"
-                                title="ซ่อม/เคลมเสร็จ — คืนเข้าสต็อก"
+                                title={s.status === 'RETURNED'
+                                  ? 'รับคืนจากลูกค้า ตรวจสภาพผ่าน — คืนเข้าสต็อก'
+                                  : 'ซ่อม/เคลมเสร็จ — คืนเข้าสต็อก'}
                                 onClick={() => backToStock.mutate(s.id)}>
                           <Undo2 className="h-4 w-4" />
                         </button>
@@ -257,7 +259,7 @@ export function SerialsModal({ variantId, productName, sku, onClose, highlightId
         </div>
 
         <div className="border-t px-5 py-2 text-xs text-slate-500">
-          ✏️ แก้ไข · 🔧 ส่งซ่อม · 🛡️ ส่งเคลม · ↩️ คืนเข้าสต็อก (หลังซ่อม/เคลมเสร็จ) · 🔧 เครื่องขายแล้ว = เปิดใบรับซ่อมลูกค้า
+          ✏️ แก้ไข · 🔧 ส่งซ่อม · 🛡️ ส่งเคลม · ↩️ คืนเข้าสต็อก (หลังซ่อม/เคลมเสร็จ หรือรับคืนจากลูกค้าผ่อนแล้วตรวจผ่าน) · 🔧 เครื่องขายแล้ว = เปิดใบรับซ่อมลูกค้า
         </div>
       </div>
     </div>
