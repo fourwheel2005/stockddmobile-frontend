@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Search, Smartphone, X, ChevronRight, ChevronDown } from 'lucide-react';
 import { inventoryApi } from '@/api/inventory';
 import { useBranchStore } from '@/stores/branchStore';
+import { useAuthStore } from '@/stores/authStore';
 import { SerialsModal } from '@/components/SerialsModal';
 import { formatNumber, formatDateTime } from '@/lib/format';
 import type { SerializedItemResponse } from '@/types/api';
@@ -67,6 +68,14 @@ export function InventoryPage() {
     queryFn: () => inventoryApi.summary(),
   });
 
+  // F-12 (FIX-135): reconciliation — เตือน manager/admin เมื่อยอด inventory ไม่ตรงจำนวน IMEI จริง (read-only)
+  const canReconcile = useAuthStore((s) => s.hasRole('ADMIN', 'MANAGER'));
+  const { data: drift } = useQuery({
+    queryKey: ['inventory-reconciliation'],
+    enabled: canReconcile,
+    queryFn: () => inventoryApi.reconciliation(),
+  });
+
   const pickCondition = (c: ConditionFilter) => { setCondition(c); setPage(0); };
   const pickView = (v: ViewMode) => { setViewMode(v); setPage(0); };
 
@@ -112,6 +121,33 @@ export function InventoryPage() {
 
   return (
     <div className="space-y-4">
+      {/* F-12: เตือนสต็อกเพี้ยน (serialized SKU ยอดไม่ตรงจำนวน IMEI จริง) — เห็นเฉพาะ manager/admin */}
+      {drift && drift.length > 0 && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm">
+          <div className="font-semibold text-amber-800">
+            ⚠️ พบสต็อกไม่ตรงจำนวนเครื่องจริง {drift.length} SKU
+          </div>
+          <p className="mt-0.5 text-xs text-amber-700">
+            ยอดในระบบไม่เท่ากับจำนวน IMEI ที่พร้อมขายจริง — ตรวจและแก้ผ่านการรับเข้า/ลบเครื่อง/ส่งซ่อม (ระบบไม่แก้อัตโนมัติ)
+          </p>
+          <div className="mt-2 space-y-1">
+            {drift.slice(0, 8).map((d) => (
+              <div key={d.variantId} className="flex items-center justify-between gap-2 text-xs">
+                <span className="font-mono text-slate-700">{d.sku}</span>
+                <span className="truncate text-slate-500">{d.productName}</span>
+                <span className="whitespace-nowrap text-amber-800">
+                  ระบบ {formatNumber(d.inventoryQty)} · จริง {formatNumber(d.actualInStock)}
+                  <span className="ml-1 font-semibold">({d.diff > 0 ? '+' : ''}{d.diff})</span>
+                </span>
+              </div>
+            ))}
+            {drift.length > 8 && (
+              <div className="text-xs text-amber-700">…และอีก {drift.length - 8} SKU</div>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="page-title">Inventory</h1>

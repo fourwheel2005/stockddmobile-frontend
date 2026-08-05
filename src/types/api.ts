@@ -297,6 +297,16 @@ export interface StockSummaryResponse {
   secondHandAvailable: number;
 }
 
+/** F-12 (FIX-135): แถว reconciliation — serialized SKU ที่ inventory.quantity ไม่ตรงจำนวน IMEI พร้อมขายจริง */
+export interface StockReconciliationRow {
+  variantId: string;
+  sku: string;
+  productName: string;
+  inventoryQty: number;
+  actualInStock: number;
+  diff: number;
+}
+
 /** จำนวนบิล/ยอดรวมต่อวัน — มาร์กวันที่มีการขายบนปฏิทิน */
 export interface SalesDayCount {
   date: string;   // YYYY-MM-DD

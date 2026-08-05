@@ -9,6 +9,7 @@ import type {
   ServiceActionRequest,
   StockMovementResponse,
   StockSummaryResponse,
+  StockReconciliationRow,
   StockTransactionResponse,
   StockTxType,
   UpdateSerialRequest,
@@ -22,6 +23,10 @@ export const inventoryApi = {
 
   summary: () =>
     api.get<StockSummaryResponse>('/inventory/summary').then((r) => r.data),
+
+  // F-12 (FIX-135): reconciliation — serialized SKU ที่ยอด inventory ไม่ตรงจำนวน IMEI พร้อมขายจริง
+  reconciliation: () =>
+    api.get<StockReconciliationRow[]>('/inventory/reconciliation').then((r) => r.data),
 
   get: (variantId: string) =>
     api.get<InventoryResponse>(`/inventory/${variantId}`).then((r) => r.data),
