@@ -916,6 +916,9 @@ export interface SalesSummaryResponse {
   totalOrders: number;
   totalItems: number;
   totalRevenue: number;
+  bookedSales: number;             // ยอดขายตามบิล (รวมยอดผ่อนเต็ม) — F-14
+  cashCollected: number;           // เก็บชำระแล้ว ณ วันขาย (ผ่อน = เฉพาะดาวน์) — F-14
+  uncollectedInstallment: number;  // ยอดผ่อนค้างจากบิลในช่วงนี้ — F-14
   totalCost: number;
   totalProfit: number;
   shippingExpense: number;   // ค่าส่งที่จ่ายออก (รายจ่าย — หักจากกำไรแล้ว)

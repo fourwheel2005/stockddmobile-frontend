@@ -94,6 +94,10 @@ export function ReportsPage() {
                  sub={`${formatNumber(summary.data?.totalOrders ?? 0)} บิล`
                    + ((summary.data?.repairRevenue ?? 0) > 0
                        ? ` · ค่าซ่อม ${formatTHB(summary.data!.repairRevenue)} (${formatNumber(summary.data!.repairCount)} งาน)`
+                       : '')
+                   // F-14: ผ่อนค้าง — ยอดขายตามบิลยังเก็บเงินไม่ครบ (booked > collected)
+                   + ((summary.data?.uncollectedInstallment ?? 0) > 0
+                       ? ` · เก็บแล้ว ${formatTHB(summary.data!.cashCollected)} · ผ่อนค้าง ${formatTHB(summary.data!.uncollectedInstallment)}`
                        : '')}
                  color="bg-emerald-100 text-emerald-700" />
         <KpiCard icon={<Wallet className="h-5 w-5" />}
