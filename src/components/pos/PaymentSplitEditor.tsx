@@ -11,8 +11,9 @@ interface Props {
   hasSlip?: boolean;
 }
 
-const EPSILON = 0.01;
 const ZERO_SPLIT: PaymentSplit = { cash: 0, transfer: 0, card: 0, qr: 0 };
+/** ปัด 2 ตำแหน่ง — เทียบยอดแบบ exact หลังปัด (F-11/FIX-130): กัน float noise แต่ไม่ยอมต่าง 1 สตางค์จริง */
+const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
 /**
  * Editor 4-channel split payment (สด/โอน/บัตร/QR) สำหรับ MIXED order.
@@ -32,9 +33,9 @@ export function PaymentSplitEditor({ value, onChange, grandTotal, hasSlip }: Pro
         + (safeVal.card || 0) + (safeVal.qr || 0),
     [safeVal],
   );
-  const diff = grandTotal - sum;       // > 0 = ยังขาด, < 0 = เกิน
-  const matched = Math.abs(diff) <= EPSILON;
-  const overflow = diff < -EPSILON;
+  const diff = round2(grandTotal - sum);   // > 0 = ยังขาด, < 0 = เกิน (ปัด 2 ตำแหน่ง)
+  const matched = diff === 0;               // F-11: ต้องตรงเป๊ะหลังปัด (ไม่ยอม ±0.01)
+  const overflow = diff < 0;
 
   const update = (key: keyof PaymentSplit, raw: string) => {
     const n = Math.max(0, Number(raw) || 0);
@@ -68,7 +69,7 @@ export function PaymentSplitEditor({ value, onChange, grandTotal, hasSlip }: Pro
           <div key={key} className={`rounded-lg border-2 ${accent} p-2.5`}>
             <label className="flex items-center justify-between text-xs font-semibold text-slate-700">
               <span className="flex items-center gap-1.5">{icon} {label}</span>
-              {diff > EPSILON && (
+              {diff > 0 && (
                 <button
                   type="button"
                   onClick={() => fillRemaining(key)}
@@ -110,7 +111,7 @@ export function PaymentSplitEditor({ value, onChange, grandTotal, hasSlip }: Pro
         </div>
         <div className="text-xs font-medium">
           {matched && <span className="text-emerald-700">✓ ยอดตรง</span>}
-          {!matched && diff > 0 && (
+          {diff > 0 && (
             <span className="text-amber-700">ขาดอีก {formatTHB(diff)}</span>
           )}
           {overflow && (
@@ -133,12 +134,13 @@ export function PaymentSplitEditor({ value, onChange, grandTotal, hasSlip }: Pro
   );
 }
 
-/** ตรวจ split ผ่านเกณฑ์ก่อน submit checkout */
+/** ตรวจ split ผ่านเกณฑ์ก่อน submit checkout — ต้องตรงเป๊ะหลังปัด 2 ตำแหน่ง (F-11/FIX-130) */
 export function validateSplit(split: PaymentSplit, grandTotal: number): string | null {
   const sum = split.cash + split.transfer + split.card + split.qr;
-  if (Math.abs(grandTotal - sum) > EPSILON) {
-    if (sum < grandTotal) return `ยอดผสมขาด ${formatTHB(grandTotal - sum)}`;
-    return `ยอดผสมเกิน ${formatTHB(sum - grandTotal)} — ห้ามรับเกิน`;
+  const diff = round2(grandTotal - sum);
+  if (diff !== 0) {
+    if (diff > 0) return `ยอดผสมขาด ${formatTHB(diff)}`;
+    return `ยอดผสมเกิน ${formatTHB(-diff)} — ห้ามรับเกิน`;
   }
   return null;
 }
