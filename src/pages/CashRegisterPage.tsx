@@ -166,7 +166,10 @@ export function CashRegisterPage() {
                       </td>
                     </tr>
                   )}
-                  {session.movements?.map((m) => {
+                  {/* แสดงล่าสุดอยู่บนสุด (เรียง createdAt จากใหม่→เก่า) — copy ก่อน sort ไม่กระทบ balance */}
+                  {[...(session.movements ?? [])]
+                    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+                    .map((m) => {
                     // แยก "กระทบเก๊ะ" (amount) ออกจาก "ยอดที่แสดง" (displayAmount)
                     // โอน/บัตร/QR: amount=0 (ไม่กระทบเก๊ะ) แต่โชว์ยอดจริงแบบสีเทา + ป้าย "เข้าบัญชี" กันเข้าใจผิดว่าเงินสดเพิ่ม
                     const disp = m.displayAmount ?? m.amount;
