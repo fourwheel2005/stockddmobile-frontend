@@ -167,7 +167,14 @@ export function CashRegisterPage() {
                     </tr>
                   )}
                   {session.movements?.map((m) => {
-                    const positive = m.amount >= 0;
+                    // แยก "กระทบเก๊ะ" (amount) ออกจาก "ยอดที่แสดง" (displayAmount)
+                    // โอน/บัตร/QR: amount=0 (ไม่กระทบเก๊ะ) แต่โชว์ยอดจริงแบบสีเทา + ป้าย "เข้าบัญชี" กันเข้าใจผิดว่าเงินสดเพิ่ม
+                    const disp = m.displayAmount ?? m.amount;
+                    const affectsDrawer = m.amount !== 0;
+                    const positive = disp >= 0;
+                    const amountCls = !affectsDrawer
+                      ? 'text-slate-400'                                  // ไม่กระทบเก๊ะ = เทา
+                      : positive ? 'text-emerald-700' : 'text-rose-700';
                     return (
                       <tr key={m.id} className="hover:bg-slate-50">
                         <td className="px-4 py-2 text-xs text-slate-500">{formatDateTime(m.createdAt)}</td>
@@ -177,10 +184,17 @@ export function CashRegisterPage() {
                           {m.referenceNo ?? '-'}
                           {m.note && <div className="font-sans text-slate-400">{m.note}</div>}
                         </td>
-                        <td className={`px-4 py-2 text-right font-bold ${positive ? 'text-emerald-700' : 'text-rose-700'}`}>
+                        <td className={`px-4 py-2 text-right font-bold ${amountCls}`}>
                           <span className="inline-flex items-center gap-1">
-                            {positive ? <ArrowDownCircle className="h-3.5 w-3.5" /> : <ArrowUpCircle className="h-3.5 w-3.5" />}
-                            {formatTHB(Math.abs(m.amount))}
+                            {affectsDrawer && (positive
+                              ? <ArrowDownCircle className="h-3.5 w-3.5" />
+                              : <ArrowUpCircle className="h-3.5 w-3.5" />)}
+                            {formatTHB(Math.abs(disp))}
+                            {!affectsDrawer && disp !== 0 && (
+                              <span className="ml-1 rounded bg-slate-100 px-1 text-[10px] font-normal text-slate-500">
+                                {positive ? 'เข้าบัญชี' : 'ออกบัญชี'}
+                              </span>
+                            )}
                           </span>
                         </td>
                         <td className="px-4 py-2 text-xs text-slate-500">{m.createdBy ?? '-'}</td>

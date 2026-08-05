@@ -697,7 +697,8 @@ export type SessionStatus = 'OPEN' | 'CLOSED';
 export interface CashMovementLine {
   id: string;
   type: CashMovementType;
-  amount: number;
+  amount: number;         // กระทบเก๊ะ (โอน/บัตร/QR = 0)
+  displayAmount: number;  // ยอดจริงเพื่อแสดงผล (โอน/บัตร/QR = ยอดที่รับจริง)
   paidFrom: PaidFrom;
   referenceType: string | null;
   referenceNo: string | null;
