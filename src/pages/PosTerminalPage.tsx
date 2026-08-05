@@ -82,9 +82,25 @@ const PAYMENT_OPTIONS: PaymentOption[] = [
   { value: 'INSTALLMENT', label: 'ผ่อนชำระรายเดือน',         icon: '💳', requiresRef: true,  refLabel: 'เลขสัญญาผ่อน' },
 ];
 
+/** UUID v4 — ใช้ crypto.randomUUID ถ้ามี (secure context) · fallback สำหรับ http บน LAN ที่ไม่มี. */
+function newRequestId(): string {
+  const c = globalThis.crypto;
+  if (c && typeof c.randomUUID === 'function') return c.randomUUID();
+  const b = new Uint8Array(16);
+  if (c && typeof c.getRandomValues === 'function') c.getRandomValues(b);
+  else for (let i = 0; i < 16; i++) b[i] = Math.floor(Math.random() * 256);
+  b[6] = (b[6] & 0x0f) | 0x40;
+  b[8] = (b[8] & 0x3f) | 0x80;
+  const h = Array.from(b, (x) => x.toString(16).padStart(2, '0'));
+  return `${h.slice(0, 4).join('')}-${h.slice(4, 6).join('')}-${h.slice(6, 8).join('')}-${h.slice(8, 10).join('')}-${h.slice(10).join('')}`;
+}
+
 export function PosTerminalPage() {
   const qc = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
+  // F-03 (FIX-132): idempotency key ต่อ "ตะกร้าปัจจุบัน" — สร้าง lazy ตอน checkout ครั้งแรก,
+  // คงเดิมตอน retry (ปิดบิลซ้ำ backend คืนบิลเดิม), เคลียร์เป็น null หลังปิดสำเร็จ → บิลถัดไปได้ key ใหม่.
+  const clientRequestIdRef = useRef<string | null>(null);
   const [scanQuery, setScanQuery] = useState('');
   // เครื่องที่เพิ่งสแกน → โชว์การ์ดรายละเอียด (battery + ประวัติซ่อม/อะไหล่ + ใบรับซ่อม) FIX-103
   const [scannedDevice, setScannedDevice] = useState<ScannedDeviceRef | null>(null);
@@ -384,7 +400,10 @@ export function PosTerminalPage() {
       const payNetToday = Math.max(0, payToday - (isInstallment && tradeInActive ? tradeInValueNum : 0));
       const effTransfer = Math.min(payTransferClamped, payNetToday);
       const effCash = payNetToday - effTransfer;
+      // idempotency: gen ครั้งแรกของตะกร้านี้ · retry ใช้ key เดิม (ยังไม่ success จึงยังไม่ถูกเคลียร์)
+      if (!clientRequestIdRef.current) clientRequestIdRef.current = newRequestId();
       return posApi.checkout({
+        clientRequestId: clientRequestIdRef.current,
         customerId: customer?.id,
         branchId: useBranchStore.getState().activeBranchId ?? undefined,  // ขายที่สาขาที่เลือก (Phase 2C)
         items: cart.map((l) => ({
@@ -459,6 +478,7 @@ export function PosTerminalPage() {
       printer.printReceipt(order.id, { openDrawer: true }).catch((e) => {
         console.error('Auto-print failed:', e);
       });
+      clientRequestIdRef.current = null;   // F-03: บิลถัดไปได้ idempotency key ใหม่
       setCart([]);
       setCustomer(null);
       setDiscount(0);

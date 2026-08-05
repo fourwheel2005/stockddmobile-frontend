@@ -773,6 +773,8 @@ export interface OwnerLedgerResponse {
 }
 
 export interface CheckoutRequest {
+  /** F-03 (FIX-132): idempotency key ต่อตะกร้า — กันปิดบิลซ้ำจาก retry/timeout/กดซ้ำ */
+  clientRequestId?: string;
   customerId?: string;
   branchId?: string;                 // ขายที่สาขาไหน (Phase 2C)
   items: CheckoutLine[];
