@@ -291,6 +291,23 @@ export interface InventoryResponse {
 }
 
 /** สรุปจำนวนเครื่องพร้อมขาย (IN_STOCK) แยกมือ1/มือ2 — total = new + secondHand */
+/** F-มือ1 (FIX-138): แถวตารางผ่อนมือ 1 (ต่อ รุ่น×ความจุ) — อ่าน/เขียน ProductVariant มือ 1 โดยตรง */
+export interface FirstHandInstallmentRow {
+  productId: string;
+  productName: string;
+  storage: string;                 // digits ("128")
+  downPayment: number | null;
+  installmentTerms: string | null; // JSON [{months,monthly}]
+  variantCount: number;
+}
+
+export interface UpsertFirstHandInstallmentRequest {
+  productId: string;
+  storage: string;
+  downPayment?: number | null;     // null = ล้างค่าผ่อนกลุ่มนี้
+  installmentTerms?: string | null;
+}
+
 export interface StockSummaryResponse {
   totalAvailable: number;
   newAvailable: number;
