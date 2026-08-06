@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { CreditCard, Save } from 'lucide-react';
+import { CreditCard, Plus, Save } from 'lucide-react';
 import {
   firstHandInstallmentApi,
 } from '@/api/firstHandInstallment';
+import { productsApi } from '@/api/products';
 import type { FirstHandInstallmentRow } from '@/types/api';
 import { extractErrorMessage } from '@/api/client';
 import { formatTHB } from '@/lib/format';
@@ -51,6 +52,16 @@ export function FirstHandInstallmentPage() {
     queryFn: firstHandInstallmentApi.list,
   });
 
+  // รายการรุ่น (โทรศัพท์/แท็บเล็ต serialized) สำหรับ dropdown เพิ่มรุ่น
+  const { data: productPage } = useQuery({
+    queryKey: ['products', 'all'],
+    queryFn: () => productsApi.list({ page: 0, size: 500 }),
+    staleTime: 60_000,
+  });
+  const phoneProducts = useMemo(
+    () => (productPage?.content ?? []).filter((p) => p.serialized && p.active !== false),
+    [productPage]);
+
   const [drafts, setDrafts] = useState<Record<string, RowDraft>>({});
   const draftOf = (r: FirstHandInstallmentRow): RowDraft =>
     drafts[rowKey(r)] ?? {
@@ -95,6 +106,23 @@ export function FirstHandInstallmentPage() {
     });
   };
 
+  // ─── เพิ่ม/ตั้งราคารุ่น (เหมือนมือ 2) — ใช้กับรุ่น×ความจุที่มี SKU มือ 1 อยู่แล้ว ───
+  const [newProductId, setNewProductId] = useState('');
+  const [newStorage, setNewStorage] = useState('');
+  const [newDown, setNewDown] = useState('');
+  const [newMonthly, setNewMonthly] = useState<Record<number, string>>({});
+  const addRow = () => {
+    if (!newProductId) { toast.error('เลือกรุ่นก่อน'); return; }
+    if (!newStorage.trim()) { toast.error('กรอกความจุ เช่น 128'); return; }
+    if (newDown.trim() === '' || Number(newDown) < 0) { toast.error('กรอกเงินดาวน์'); return; }
+    const terms = buildTerms(newMonthly);
+    if (terms === '[]') { toast.error('กรอกค่างวดอย่างน้อย 1 ช่อง'); return; }
+    upsert.mutate(
+      { productId: newProductId, storage: newStorage, downPayment: Number(newDown), installmentTerms: terms },
+      { onSuccess: () => { setNewProductId(''); setNewStorage(''); setNewDown(''); setNewMonthly({}); } },
+    );
+  };
+
   return (
     <div className="space-y-4">
       <div>
@@ -106,6 +134,44 @@ export function FirstHandInstallmentPage() {
           และเว็บหน้าร้านทันที · SKU สีใหม่ที่สร้างทีหลังจะได้ค่าผ่อนนี้อัตโนมัติ ·
           <span className="text-amber-700">ตารางนี้ตั้งแผนมาตรฐาน 1 ชุด (ทับโปรโม/แผนหลายชั้นเดิมของ SKU)</span>
         </p>
+      </div>
+
+      {/* เพิ่ม/ตั้งราคารุ่น (เหมือนมือ 2) — ใช้กับรุ่น×ความจุที่มี SKU มือ 1 ในสต็อกแล้ว */}
+      <div className="card">
+        <div className="card-body flex flex-wrap items-end gap-2">
+          <div className="min-w-52 flex-1">
+            <label className="mb-0.5 block text-xs font-semibold text-slate-600">รุ่น</label>
+            <select className="input" value={newProductId} onChange={(e) => setNewProductId(e.target.value)}>
+              <option value="">— เลือกรุ่น —</option>
+              {phoneProducts.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </div>
+          <div className="w-24">
+            <label className="mb-0.5 block text-xs font-semibold text-slate-600">ความจุ</label>
+            <input className="input" placeholder="128" value={newStorage}
+                   onChange={(e) => setNewStorage(e.target.value)} />
+          </div>
+          <div className="w-28">
+            <label className="mb-0.5 block text-xs font-semibold text-slate-600">ดาวน์ (บาท)</label>
+            <input type="number" min={0} className="input" placeholder="4590" value={newDown}
+                   onChange={(e) => setNewDown(e.target.value)} />
+          </div>
+          {MONTH_COLS.map((m) => (
+            <div key={m} className="w-24">
+              <label className="mb-0.5 block text-xs font-semibold text-slate-600">{m} เดือน</label>
+              <input type="number" min={0} className="input" placeholder="—" value={newMonthly[m] ?? ''}
+                     onChange={(e) => setNewMonthly((v) => ({ ...v, [m]: e.target.value }))} />
+            </div>
+          ))}
+          <button type="button" onClick={addRow} disabled={upsert.isPending}
+                  className="btn-primary bg-emerald-600 hover:bg-emerald-700">
+            <Plus className="h-4 w-4" /> เพิ่ม/ตั้งราคา
+          </button>
+        </div>
+        <div className="border-t border-slate-100 px-5 py-2 text-xs text-slate-500">
+          ℹ️ รุ่นมือ 1 จะโผล่ในตารางเองเมื่อมีสต็อก · ฟอร์มนี้ใช้ตั้ง/ทับราคาของรุ่น×ความจุที่มี SKU มือ 1 อยู่แล้ว
+          (ถ้ายังไม่มีสต็อกจะแจ้งเตือน)
+        </div>
       </div>
 
       <div className="card">
