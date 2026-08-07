@@ -17,6 +17,7 @@ import { CustomersPage } from '@/pages/CustomersPage';
 import { LotsPage } from '@/pages/LotsPage';
 import { InstallmentPresetsPage } from '@/pages/InstallmentPresetsPage';
 import { FirstHandInstallmentPage } from '@/pages/FirstHandInstallmentPage';
+import { PendingIntakePage } from '@/pages/PendingIntakePage';
 import { SalesHistoryPage } from '@/pages/SalesHistoryPage';
 import { OrderDetailPage } from '@/pages/OrderDetailPage';
 import { ReportsPage } from '@/pages/ReportsPage';
@@ -83,6 +84,8 @@ export default function App() {
           <Route path="/installment-presets" element={<InstallmentPresetsPage />} />
           {/* ตารางดาวน์/ผ่อนมือ 1 ต่อ รุ่น×ความจุ — เขียนลง SKU มือ 1 (FIX-138) */}
           <Route path="/firsthand-installment" element={<FirstHandInstallmentPage />} />
+          {/* เครื่องเทิร์นรอลงสต็อก — แก้ข้อมูล/เพิ่มรูป แล้วรับเข้าสต็อก (FIX-142) */}
+          <Route path="/pending-intake" element={<PendingIntakePage />} />
           <Route path="/reports" element={<ReportsPage />} />
           {/* V31 — ไฟแนนซ์ค้างจ่าย */}
           <Route path="/finance-pending" element={<FinancePendingPage />} />

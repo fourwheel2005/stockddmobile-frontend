@@ -332,7 +332,7 @@ export interface SalesDayCount {
 }
 
 export type SerializedStatus =
-  | 'IN_STOCK' | 'RESERVED' | 'SOLD' | 'DEFECTIVE' | 'RETURNED' | 'TRANSFERRED';
+  | 'IN_STOCK' | 'PENDING_INTAKE' | 'RESERVED' | 'SOLD' | 'DEFECTIVE' | 'RETURNED' | 'TRANSFERRED';
 
 export type AcquisitionType =
   // ประเภทธุรกรรม

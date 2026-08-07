@@ -28,6 +28,7 @@ interface Props {
 
 const STATUS_BADGE: Record<SerializedStatus, string> = {
   IN_STOCK: 'badge-green',
+  PENDING_INTAKE: 'badge-amber',
   RESERVED: 'badge-blue',
   SOLD: 'badge-slate',
   DEFECTIVE: 'badge-red',
@@ -37,6 +38,7 @@ const STATUS_BADGE: Record<SerializedStatus, string> = {
 
 const STATUS_TH: Record<SerializedStatus, string> = {
   IN_STOCK: 'พร้อมขาย',
+  PENDING_INTAKE: 'รอลงสต็อก',
   RESERVED: 'จองแล้ว',
   SOLD: 'ขายแล้ว',
   DEFECTIVE: 'ชำรุด/บริการ',
@@ -441,7 +443,7 @@ function MoveVariantModal({ item, targets, onClose, onMoved }: {
 /* ─── แก้ไขข้อมูลเครื่อง (typo correction) ──────────────────────────── */
 const EDIT_CONDITIONS: SerializedCondition[] = ['NEW', 'SECOND_HAND', 'LIKE_NEW', 'REFURBISHED', 'DEFECTIVE'];
 
-function EditSerialModal({ item, variantCondition, onClose, onSaved, onConditionMismatch }: {
+export function EditSerialModal({ item, variantCondition, onClose, onSaved, onConditionMismatch }: {
   item: SerializedItemResponse;
   /** มือของ SKU ที่เครื่องอยู่ (null = ยังไม่ผูกมือ) — ใช้เตือนตอนแก้มือเครื่องไม่ตรง SKU (FIX-115) */
   variantCondition?: 'NEW' | 'SECOND_HAND' | null;

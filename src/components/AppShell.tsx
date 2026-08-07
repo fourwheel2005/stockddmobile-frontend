@@ -12,7 +12,7 @@ import {
   LayoutDashboard, Boxes, Package, ArrowUpFromLine,
   History, BellRing, LogOut, SlidersHorizontal, ScanLine, Users, Layers, Receipt,
   BarChart3, ShieldCheck, Tag, Wrench, Menu, X, Wallet, Landmark, Building2, ArrowLeftRight, UserCog,
-  CreditCard,
+  CreditCard, PackageOpen,
 } from 'lucide-react';
 
 /**
@@ -29,6 +29,7 @@ const navItems = [
   { to: '/cash-register', label: 'เก๊ะเงินสด',      icon: Wallet,            roles: ALL_ROLES },
   { to: '/repairs',      label: 'งานซ่อม',        icon: Wrench,            roles: ALL_ROLES },
   { to: '/inventory',    label: 'คลังสต็อก',     icon: Boxes,             roles: BACK_OFFICE },
+  { to: '/pending-intake', label: 'รอลงสต็อก',   icon: PackageOpen,       roles: BACK_OFFICE },
   { to: '/products',     label: 'สินค้า + คลัง', icon: Package,           roles: BACK_OFFICE },
   { to: '/outbound',     label: 'จ่ายสินค้า',     icon: ArrowUpFromLine,   roles: BACK_OFFICE },
   { to: '/warranty',     label: 'เช็คประกัน',     icon: ShieldCheck,       roles: BACK_OFFICE },

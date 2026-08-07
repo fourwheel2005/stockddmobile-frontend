@@ -10,6 +10,7 @@ import type { SerializedItemResponse } from '@/types/api';
 
 const STATUS_LABEL: Record<string, { text: string; cls: string }> = {
   IN_STOCK: { text: 'อยู่ในสต็อก', cls: 'badge-green' },
+  PENDING_INTAKE: { text: 'รอลงสต็อก', cls: 'badge-amber' },
   RESERVED: { text: 'จองแล้ว', cls: 'badge-amber' },
   SOLD: { text: 'ขายแล้ว', cls: 'bg-slate-200 text-slate-600 rounded-full px-2 py-0.5 text-xs font-medium' },
   IN_SERVICE: { text: 'ส่งซ่อม/เคลม', cls: 'badge-amber' },
