@@ -24,6 +24,8 @@ export function ReturnDeviceModal({ order, onClose, onConfirm, loading }: Props)
 
   const paid = order.paidAmount ?? 0;
   const refund = Number(refundText);
+  // F-05 (FIX-134): รับคืนเฉพาะ "เครื่อง" (มี IMEI/SN) ไม่รวมอุปกรณ์เสริม
+  const deviceCount = order.items.filter((i) => i.imei || i.serialNumber).length;
   const refundValid = Number.isFinite(refund) && refund >= 0 && refund <= paid;
   const canConfirm = !loading && refundValid && reason.trim().length > 0;
 
@@ -57,9 +59,11 @@ export function ReturnDeviceModal({ order, onClose, onConfirm, loading }: Props)
             </div>
           </div>
 
-          {/* คืนเครื่องเข้าสต็อก */}
-          <div className="rounded-md border border-emerald-200 bg-emerald-50 p-2.5 text-xs text-emerald-800">
-            📦 เครื่อง {order.items.length} รายการจะถูกคืนกลับเข้าสต็อก (ขายใหม่ได้)
+          {/* F-05 (FIX-134): รับคืนเฉพาะเครื่อง → เข้าพักตรวจสภาพ (ยังขายไม่ได้ทันที) */}
+          <div className="rounded-md border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-800">
+            📦 เฉพาะ <strong>เครื่อง {deviceCount} รายการ</strong> จะถูกรับคืนเข้าสถานะ <strong>“คืน”</strong> (พักตรวจสภาพ) —
+            ยังขายไม่ได้ทันที · ไปที่ <strong>คลังสต็อก</strong> ตรวจแล้วกด <strong>↩️ คืนเข้าสต็อก</strong> ถึงจะขายได้
+            (หรือส่งซ่อมถ้าเสีย) · อุปกรณ์เสริมที่จ่ายแล้วไม่ถูกดึงกลับ
           </div>
 
           {/* จำนวนเงินคืน */}
