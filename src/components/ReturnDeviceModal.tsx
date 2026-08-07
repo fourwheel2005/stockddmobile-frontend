@@ -59,11 +59,10 @@ export function ReturnDeviceModal({ order, onClose, onConfirm, loading }: Props)
             </div>
           </div>
 
-          {/* F-05 (FIX-134): รับคืนเฉพาะเครื่อง → เข้าพักตรวจสภาพ (ยังขายไม่ได้ทันที) */}
-          <div className="rounded-md border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-800">
-            📦 เฉพาะ <strong>เครื่อง {deviceCount} รายการ</strong> จะถูกรับคืนเข้าสถานะ <strong>“คืน”</strong> (พักตรวจสภาพ) —
-            ยังขายไม่ได้ทันที · ไปที่ <strong>คลังสต็อก</strong> ตรวจแล้วกด <strong>↩️ คืนเข้าสต็อก</strong> ถึงจะขายได้
-            (หรือส่งซ่อมถ้าเสีย) · อุปกรณ์เสริมที่จ่ายแล้วไม่ถูกดึงกลับ
+          {/* FIX-140: รับคืนเฉพาะเครื่อง → กลับเข้าสต็อกขายได้ทันที (ไม่ต้องกดรับเข้าสต็อกอีก) */}
+          <div className="rounded-md border border-emerald-200 bg-emerald-50 p-2.5 text-xs text-emerald-800">
+            📦 เฉพาะ <strong>เครื่อง {deviceCount} รายการ</strong> จะกลับเข้าสต็อก <strong>ขายได้ทันที</strong> ·
+            อุปกรณ์เสริมที่จ่ายแล้วไม่ถูกดึงกลับ
           </div>
 
           {/* จำนวนเงินคืน */}
