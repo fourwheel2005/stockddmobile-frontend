@@ -23,7 +23,7 @@ import type {
 import { productsApi } from '@/api/products';
 import { PaymentSplitEditor, validateSplit } from '@/components/pos/PaymentSplitEditor';
 import { CustomItemForm, type CustomItemDraft } from '@/components/pos/CustomItemForm';
-import { MultiSlipUpload, type SlipEntry } from '@/components/pos/MultiSlipUpload';
+import { type SlipEntry } from '@/components/pos/MultiSlipUpload';
 import { cashRegisterApi } from '@/api/cashRegister';
 import { OpenSessionModal } from '@/components/OpenSessionModal';
 import { PrinterStatusBadge } from '@/components/PrinterStatusBadge';
@@ -548,16 +548,7 @@ export function PosTerminalPage() {
     onError: (e) => toast.error(extractErrorMessage(e)),
   });
 
-  // โอนเงินต้องแนบสลิปก่อนปิดบิล — รวม MIXED ที่มี transfer > 0
-  // ผ่อน+เทิร์นดาวน์: ใช้ยอดโอน "หลังหักเทิร์น" — เทิร์นคลุมดาวน์หมดแล้วต้องไม่บังคับแนบสลิป ฿0 (FIX-110)
-  const instNetToday = Math.max(0, payToday - (isInstallmentSel && tradeInActive ? tradeInValueNum : 0));
-  const instEffTransfer = Math.min(payTransferClamped, instNetToday);
-  const needSlip =
-    paymentMethod === 'TRANSFER'
-    || (paymentMethod === 'MIXED' && mixedSplit.transfer > 0)
-    || (paymentMethod === 'INSTALLMENT' && instEffTransfer > 0);
-  const slipMissing = needSlip && slips.length === 0;
-  const hasAnySlip = slips.length > 0;
+  // สลิปโอน: ยกเลิกการบังคับแนบสลิป + เอาช่องอัปโหลดออกทุกวิธีจ่าย — ร้านไม่เช็กสลิปแล้ว (FIX-141)
 
   // MIXED — split must equal grandTotal (computed below in JSX scope)
   const mixedError = paymentMethod === 'MIXED'
@@ -584,7 +575,6 @@ export function PosTerminalPage() {
   const checkoutBlockedReason =
     !hasOpenSession ? 'กรุณาเปิดเก๊ะก่อน' :
     cart.length === 0 ? 'ยังไม่มีสินค้าในตะกร้า' :
-    slipMissing ? 'ต้องแนบสลิปโอนเงินก่อน' :
     discountExceedsSubtotal ? 'ส่วนลดเกินยอดรวมสินค้า' :
     shippingSplitOver ? 'ค่าส่งของตา+ยาย เกินค่าส่งรวม' :
     onlineNeedsIdentity ? 'ออนไลน์: ต้องระบุชื่อลูกค้า' :
@@ -802,7 +792,6 @@ export function PosTerminalPage() {
                   value={mixedSplit}
                   onChange={setMixedSplit}
                   grandTotal={grandTotal}
-                  hasSlip={hasAnySlip}
                 />
               </div>
             )}
@@ -810,14 +799,7 @@ export function PosTerminalPage() {
             {/* Finance Partner dropdown — ซ่อนชั่วคราว (ร้านผ่อนเองโดยตรง ไม่ผ่านไฟแนนซ์)
                 เก็บโค้ดไว้ใน git history + backend + types ครบ — ถ้าวันหน้าต้องการ uncomment block นี้ */}
 
-            {/* V31 Q1 — Multi-slip upload (รองรับหลายใบ) */}
-            {needSlip && (
-              <MultiSlipUpload
-                slips={slips}
-                onChange={setSlips}
-                required={slipMissing}
-              />
-            )}
+            {/* สลิปโอน: เอาช่องอัปโหลดออกทั้งหมด (ร้านไม่เช็กสลิปแล้ว — FIX-141) */}
           </div>
         </div>
       </div>

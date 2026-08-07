@@ -7,8 +7,6 @@ interface Props {
   value: PaymentSplit;
   onChange: (v: PaymentSplit) => void;
   grandTotal: number;
-  /** ถ้าจริง — แสดง slip warning เมื่อ transfer > 0 + ไม่มีสลิป */
-  hasSlip?: boolean;
 }
 
 const ZERO_SPLIT: PaymentSplit = { cash: 0, transfer: 0, card: 0, qr: 0 };
@@ -23,9 +21,8 @@ const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
  *  - Quick-fill: ปุ่ม "เติมส่วนที่ขาด" ลงช่องที่กำลังโฟกัส
  *  - ห้ามรับเกิน (Q2) → input cap ที่ grandTotal
  *  - Tolerance ±0.01 (rounding) — match backend EPSILON
- *  - Warn ถ้า transfer > 0 + ไม่ได้ upload slip
  */
-export function PaymentSplitEditor({ value, onChange, grandTotal, hasSlip }: Props) {
+export function PaymentSplitEditor({ value, onChange, grandTotal }: Props) {
   const safeVal = value ?? ZERO_SPLIT;
 
   const sum = useMemo(
@@ -119,17 +116,6 @@ export function PaymentSplitEditor({ value, onChange, grandTotal, hasSlip }: Pro
           )}
         </div>
       </div>
-
-      {/* ────── Transfer-slip warning ────── */}
-      {safeVal.transfer > 0 && !hasSlip && (
-        <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>
-            มียอดโอน <strong>{formatTHB(safeVal.transfer)}</strong> —
-            ต้องแนบสลิปก่อนปิดบิล (อนุญาตหลายใบ)
-          </span>
-        </div>
-      )}
     </div>
   );
 }
