@@ -1,10 +1,17 @@
-import { useQuery } from '@tanstack/react-query';
-import { X, Smartphone, BatteryMedium, Wrench, ShieldCheck, History } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
+import { X, Smartphone, BatteryMedium, Wrench, ShieldCheck, History, PackageOpen } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { inventoryApi } from '@/api/inventory';
 import { repairApi } from '@/api/repair';
+import { posApi } from '@/api/pos';
+import { extractErrorMessage } from '@/api/client';
 import { formatTHB, formatDate } from '@/lib/format';
 import { formatInShopZone } from '@/lib/datetime';
-import type { RepairStatus } from '@/types/api';
+import type { RepairStatus, SalesOrderResponse } from '@/types/api';
+import { ReturnDeviceModal } from '@/components/ReturnDeviceModal';
+import { SecurityCodeModal } from '@/components/SecurityCodeModal';
+import { useAuthStore } from '@/stores/authStore';
 
 const CONDITION_TH: Record<string, string> = {
   NEW: 'มือ 1 (ใหม่)', SECOND_HAND: 'มือ 2', LIKE_NEW: 'สภาพดีมาก',
@@ -66,6 +73,31 @@ export function DeviceScanDetailPanel({ device, onClose }: { device: ScannedDevi
   const d = detail.data;
   const spec = d ? [d.deviceColor, d.deviceStorage].filter(Boolean).join(' / ') : '';
   const st = d ? STATUS_TH[d.status] : null;
+
+  // FIX-143: "รับเครื่องคืน (ผ่อนไม่ไหว)" จากหน้า device — หาบิลผ่อนของเครื่อง (เฉพาะเครื่องที่ SOLD)
+  const qc = useQueryClient();
+  const canReturn = useAuthStore((s) => s.hasRole('ADMIN', 'MANAGER', 'STAFF'));
+  const serialId = d?.id ?? device.serialItemId ?? null;
+  const instOrder = useQuery({
+    queryKey: ['device-installment-order', serialId],
+    queryFn: () => posApi.findInstallmentBySerial(serialId!),
+    enabled: !!serialId && d?.status === 'SOLD',
+  });
+  const [returnOrder, setReturnOrder] = useState<SalesOrderResponse | null>(null);
+  const [pendingReturn, setPendingReturn] = useState<{ order: SalesOrderResponse; refundAmount: number; reason: string } | null>(null);
+  const returnDevice = useMutation({
+    mutationFn: ({ id, refundAmount, reason, securityCode }:
+                 { id: string; refundAmount: number; reason: string; securityCode: string }) =>
+      posApi.returnDevice(id, refundAmount, securityCode, reason),
+    onSuccess: (order) => {
+      toast.success(`รับเครื่องคืนบิล ${order.billNo} สำเร็จ — เครื่องเข้าสต็อกแล้ว`);
+      qc.invalidateQueries({ queryKey: ['scan-detail'] });
+      qc.invalidateQueries({ queryKey: ['inventory'] });
+      qc.invalidateQueries({ queryKey: ['device-installment-order'] });
+      onClose();
+    },
+    onError: (e) => toast.error(extractErrorMessage(e)),
+  });
 
   return (
     <div className="rounded-lg border border-brand-200 bg-white shadow-sm">
@@ -199,6 +231,43 @@ export function DeviceScanDetailPanel({ device, onClose }: { device: ScannedDevi
               )}
           </div>
         </div>
+      )}
+
+      {/* FIX-143: รับเครื่องคืน (ผ่อนไม่ไหว) — โชว์เมื่อเครื่องขายแล้วและมีบิลผ่อน (ทำงานเหมือนหน้าประวัติบิล) */}
+      {canReturn && instOrder.data && (
+        <div className="border-t border-slate-100 px-4 py-2.5">
+          <button
+            onClick={() => setReturnOrder(instOrder.data!)}
+            className="inline-flex w-full items-center justify-center gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-100">
+            <PackageOpen className="h-4 w-4" /> รับเครื่องคืน (ผ่อนไม่ไหว) — บิล {instOrder.data.billNo}
+          </button>
+        </div>
+      )}
+
+      {returnOrder && (
+        <ReturnDeviceModal
+          order={returnOrder}
+          loading={returnDevice.isPending}
+          onClose={() => setReturnOrder(null)}
+          onConfirm={(refundAmount, reason) => {
+            setPendingReturn({ order: returnOrder, refundAmount, reason });
+            setReturnOrder(null);
+          }}
+        />
+      )}
+      {pendingReturn && (
+        <SecurityCodeModal
+          action={`รับเครื่องคืนบิล ${pendingReturn.order.billNo}`}
+          warning="เครื่องจะกลับเข้าสต็อกและยอดที่ชำระถูกปรับ — ย้อนกลับไม่ได้"
+          pending={returnDevice.isPending}
+          onClose={() => setPendingReturn(null)}
+          onConfirm={(securityCode) => {
+            returnDevice.mutate(
+              { id: pendingReturn.order.id, refundAmount: pendingReturn.refundAmount, reason: pendingReturn.reason, securityCode },
+              { onSuccess: () => setPendingReturn(null) },
+            );
+          }}
+        />
       )}
     </div>
   );
