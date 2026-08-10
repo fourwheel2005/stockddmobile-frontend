@@ -1,8 +1,10 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { X, Wrench, ShieldAlert, Undo2, BatteryMedium, Pencil, Save, Plus, Trash2, ArrowLeftRight, QrCode } from 'lucide-react';
+import { X, Wrench, ShieldAlert, Undo2, BatteryMedium, Pencil, Save, Plus, Trash2, ArrowLeftRight, QrCode, PackageOpen } from 'lucide-react';
 import { inventoryApi } from '@/api/inventory';
+import { posApi } from '@/api/pos';
 import { productsApi } from '@/api/products';
 import { extractErrorMessage } from '@/api/client';
 import { useAuthStore } from '@/stores/authStore';
@@ -12,8 +14,10 @@ import { deviceProductUrl } from '@/lib/storefront';
 import { formatDate, formatTHB } from '@/lib/format';
 import { acqLabel, ACQ_ORDER, ACQ_INFO } from '@/lib/acquisition';
 import { RepairIntakeModal } from '@/components/RepairIntakeModal';
+import { ReturnDeviceModal } from '@/components/ReturnDeviceModal';
+import { SecurityCodeModal } from '@/components/SecurityCodeModal';
 import { ImageEditor } from '@/components/MultiImageUpload';
-import type { SerializedStatus, ServiceState, SerializedItemResponse, SerializedCondition, AcquisitionType, DeviceServiceType, VariantResponse } from '@/types/api';
+import type { SerializedStatus, ServiceState, SerializedItemResponse, SerializedCondition, AcquisitionType, DeviceServiceType, VariantResponse, SalesOrderResponse } from '@/types/api';
 
 interface Props {
   variantId: string;
@@ -111,6 +115,30 @@ export function SerialsModal({ variantId, productName, sku, onClose, highlightId
     onError: (e) => toast.error(extractErrorMessage(e)),
   });
 
+  // FIX-143: รับเครื่องคืน (ผ่อนไม่ไหว) จากหน้าเครื่องในคลัง — เครื่อง SOLD ที่มีบิลผ่อน
+  const canReturn = useAuthStore((s) => s.hasRole('ADMIN', 'MANAGER', 'STAFF'));
+  const [returnOrder, setReturnOrder] = useState<SalesOrderResponse | null>(null);
+  const [pendingReturn, setPendingReturn] = useState<{ order: SalesOrderResponse; refundAmount: number; reason: string } | null>(null);
+  const loadReturn = useMutation({
+    mutationFn: (serialId: string) => posApi.findInstallmentBySerial(serialId),
+    onSuccess: (order) => {
+      if (!order) { toast.error('ไม่พบบิลผ่อนของเครื่องนี้ (อาจไม่ได้ขายแบบผ่อน)'); return; }
+      setReturnOrder(order);
+    },
+    onError: (e) => toast.error(extractErrorMessage(e)),
+  });
+  const returnDevice = useMutation({
+    mutationFn: ({ id, refundAmount, reason, securityCode }:
+                 { id: string; refundAmount: number; reason: string; securityCode: string }) =>
+      posApi.returnDevice(id, refundAmount, securityCode, reason),
+    onSuccess: (order) => {
+      toast.success(`รับเครื่องคืนบิล ${order.billNo} สำเร็จ — เครื่องเข้าสต็อกแล้ว`);
+      qc.invalidateQueries({ queryKey: ['serials', variantId] });
+      qc.invalidateQueries({ queryKey: ['inventory'] });
+    },
+    onError: (e) => toast.error(extractErrorMessage(e)),
+  });
+
   const handleService = (id: string, state: ServiceState) => {
     const defect = window.prompt(
       `${SERVICE_TH[state]} — กรอกอาการเสีย:`,
@@ -119,21 +147,26 @@ export function SerialsModal({ variantId, productName, sku, onClose, highlightId
     sendService.mutate({ id, state, defect: defect.trim() });
   };
 
-  return (
+  return createPortal(
     <>
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="flex max-h-[90vh] w-full max-w-5xl flex-col rounded-lg bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b px-5 py-3">
-          <div>
-            <h2 className="font-semibold">เครื่องในรุ่นนี้ — {productName}</h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-2 sm:p-4">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="serials-modal-title"
+        className="flex max-h-[calc(100vh-1rem)] w-full max-w-6xl flex-col overflow-hidden rounded-lg bg-white shadow-2xl sm:max-h-[90vh]"
+      >
+        <div className="flex shrink-0 items-center justify-between border-b px-5 py-3">
+          <div className="min-w-0">
+            <h2 id="serials-modal-title" className="truncate font-semibold">เครื่องในรุ่นนี้ — {productName}</h2>
             <p className="font-mono text-xs text-slate-500">{sku}</p>
           </div>
-          <button onClick={onClose} className="rounded p-1 hover:bg-slate-100">
+          <button onClick={onClose} className="ml-3 shrink-0 rounded p-1 hover:bg-slate-100" aria-label="ปิดหน้าต่างรายการเครื่อง">
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="border-b px-5 py-2">
+        <div className="shrink-0 border-b px-5 py-2">
           <select className="input w-56" value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value as SerializedStatus | '')}>
             <option value="">ทุกสถานะ</option>
@@ -144,18 +177,28 @@ export function SerialsModal({ variantId, productName, sku, onClose, highlightId
           </select>
         </div>
 
-        <div className="flex-1 overflow-y-auto">
-          <table className="w-full text-sm">
-            <thead className="sticky top-0 bg-slate-50 text-left text-xs uppercase text-slate-500">
+        <div className="min-h-0 flex-1 overflow-auto">
+          <table className="w-full min-w-[1080px] table-fixed text-sm">
+            <colgroup>
+              <col className="w-[190px]" />
+              <col className="w-[160px]" />
+              <col className="w-[90px]" />
+              <col className="w-[90px]" />
+              <col className="w-[110px]" />
+              <col className="w-[130px]" />
+              <col className="w-[120px]" />
+              <col className="w-[190px]" />
+            </colgroup>
+            <thead className="sticky top-0 z-10 bg-slate-50 text-left text-xs uppercase text-slate-500 shadow-[0_1px_0_0_rgb(226_232_240)]">
               <tr>
-                <th className="px-4 py-2.5">IMEI / SN</th>
-                <th className="px-4 py-2.5">สี / ความจุ</th>
-                <th className="px-4 py-2.5">สภาพ</th>
-                <th className="px-4 py-2.5">แบต</th>
-                <th className="px-4 py-2.5">ที่มา</th>
-                <th className="px-4 py-2.5">สถานะ</th>
-                <th className="px-4 py-2.5">รับเข้า</th>
-                <th className="px-4 py-2.5 text-right">จัดการ</th>
+                <th className="whitespace-nowrap px-4 py-2.5">IMEI / SN</th>
+                <th className="whitespace-nowrap px-4 py-2.5">สี / ความจุ</th>
+                <th className="whitespace-nowrap px-4 py-2.5">สภาพ</th>
+                <th className="whitespace-nowrap px-4 py-2.5">แบต</th>
+                <th className="whitespace-nowrap px-4 py-2.5">ที่มา</th>
+                <th className="whitespace-nowrap px-4 py-2.5">สถานะ</th>
+                <th className="whitespace-nowrap px-4 py-2.5">รับเข้า</th>
+                <th className="whitespace-nowrap px-4 py-2.5 text-right">จัดการ</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -164,7 +207,7 @@ export function SerialsModal({ variantId, productName, sku, onClose, highlightId
               )}
               {data?.content.map((s) => (
                 <tr key={s.id} className={s.id === highlightId ? 'bg-amber-50 ring-1 ring-inset ring-amber-300' : 'hover:bg-slate-50'}>
-                  <td className="px-4 py-2">
+                  <td className="align-top px-4 py-2.5">
                     {s.stockCode && (
                       <div className="mb-0.5 inline-block rounded bg-brand-100 px-1.5 font-mono text-[11px] font-semibold text-brand-700">
                         {s.stockCode}
@@ -173,21 +216,21 @@ export function SerialsModal({ variantId, productName, sku, onClose, highlightId
                     <div className="font-mono text-xs">{s.imei ?? '-'}</div>
                     <div className="font-mono text-xs text-slate-500">{s.serialNumber}</div>
                   </td>
-                  <td className="px-4 py-2">
-                    <div>{s.deviceColor ?? '-'}</div>
+                  <td className="align-top px-4 py-2.5">
+                    <div className="break-words">{s.deviceColor ?? '-'}</div>
                     {s.deviceStorage && <div className="text-xs text-slate-500">{s.deviceStorage}</div>}
                   </td>
-                  <td className="px-4 py-2">{CONDITION_TH[s.condition] ?? s.condition}</td>
-                  <td className="px-4 py-2">
+                  <td className="whitespace-nowrap align-top px-4 py-2.5">{CONDITION_TH[s.condition] ?? s.condition}</td>
+                  <td className="whitespace-nowrap align-top px-4 py-2.5">
                     {s.batteryHealth != null
                       ? <span className="inline-flex items-center gap-1">
                           <BatteryMedium className="h-3.5 w-3.5 text-slate-400" />{s.batteryHealth}%
                         </span>
                       : '-'}
                   </td>
-                  <td className="px-4 py-2 text-xs">{acqLabel(s.acquisitionType)}</td>
-                  <td className="px-4 py-2">
-                    <span className={STATUS_BADGE[s.status]}>{STATUS_TH[s.status]}</span>
+                  <td className="whitespace-nowrap align-top px-4 py-2.5 text-xs">{acqLabel(s.acquisitionType)}</td>
+                  <td className="align-top px-4 py-2.5">
+                    <span className={`${STATUS_BADGE[s.status]} whitespace-nowrap`}>{STATUS_TH[s.status]}</span>
                     {s.serviceState && (
                       <div className="mt-0.5 text-xs text-red-600">{SERVICE_TH[s.serviceState]}</div>
                     )}
@@ -197,9 +240,9 @@ export function SerialsModal({ variantId, productName, sku, onClose, highlightId
                       </div>
                     )}
                   </td>
-                  <td className="px-4 py-2 text-xs text-slate-500">{formatDate(s.receivedAt)}</td>
-                  <td className="px-4 py-2">
-                    <div className="flex items-center justify-end gap-1">
+                  <td className="whitespace-nowrap align-top px-4 py-2.5 text-xs text-slate-500">{formatDate(s.receivedAt)}</td>
+                  <td className="align-top px-4 py-2.5">
+                    <div className="flex min-w-[158px] flex-nowrap items-center justify-end gap-1">
                       <button className="rounded p-1.5 text-brand-700 hover:bg-brand-50"
                               title="แก้ไขข้อมูลเครื่อง (IMEI/สี/แบต)"
                               onClick={() => setEditing(s)}>
@@ -242,6 +285,14 @@ export function SerialsModal({ variantId, productName, sku, onClose, highlightId
                           <Undo2 className="h-4 w-4" />
                         </button>
                       )}
+                      {s.status === 'SOLD' && canReturn && (
+                        <button className="rounded p-1.5 text-amber-700 hover:bg-amber-50 disabled:opacity-40"
+                                title="รับเครื่องคืน (ผ่อนไม่ไหว)"
+                                disabled={loadReturn.isPending}
+                                onClick={() => loadReturn.mutate(s.id)}>
+                          <PackageOpen className="h-4 w-4" />
+                        </button>
+                      )}
                       {s.status === 'SOLD' && (
                         <button className="rounded p-1.5 text-amber-700 hover:bg-amber-50"
                                 title="ลูกค้าส่งเครื่องกลับมาซ่อม (เปิดใบรับซ่อม)"
@@ -260,8 +311,12 @@ export function SerialsModal({ variantId, productName, sku, onClose, highlightId
           </table>
         </div>
 
-        <div className="border-t px-5 py-2 text-xs text-slate-500">
-          ✏️ แก้ไข · 🔧 ส่งซ่อม · 🛡️ ส่งเคลม · ↩️ คืนเข้าสต็อก (หลังซ่อม/เคลมเสร็จ หรือรับคืนจากลูกค้าผ่อนแล้วตรวจผ่าน) · 🔧 เครื่องขายแล้ว = เปิดใบรับซ่อมลูกค้า
+        <div className="flex shrink-0 flex-wrap gap-x-3 gap-y-1 border-t px-5 py-2 text-xs text-slate-500">
+          <span>✏️ แก้ไข</span>
+          <span>🔧 ส่งซ่อม</span>
+          <span>🛡️ ส่งเคลม</span>
+          <span>↩️ คืนเข้าสต็อกหลังตรวจผ่าน</span>
+          <span>📦 เครื่องขายแล้ว (ผ่อน) = รับเครื่องคืน · 🔧 เปิดใบรับซ่อมลูกค้า</span>
         </div>
       </div>
     </div>
@@ -311,7 +366,35 @@ export function SerialsModal({ variantId, productName, sku, onClose, highlightId
         }}
       />
     )}
-    </>
+
+    {/* FIX-143: รับเครื่องคืน (ผ่อนไม่ไหว) — flow เดียวกับหน้าประวัติบิล */}
+    {returnOrder && (
+      <ReturnDeviceModal
+        order={returnOrder}
+        loading={returnDevice.isPending}
+        onClose={() => setReturnOrder(null)}
+        onConfirm={(refundAmount, reason) => {
+          setPendingReturn({ order: returnOrder, refundAmount, reason });
+          setReturnOrder(null);
+        }}
+      />
+    )}
+    {pendingReturn && (
+      <SecurityCodeModal
+        action={`รับเครื่องคืนบิล ${pendingReturn.order.billNo}`}
+        warning="เครื่องจะกลับเข้าสต็อกและยอดที่ชำระถูกปรับ — ย้อนกลับไม่ได้"
+        pending={returnDevice.isPending}
+        onClose={() => setPendingReturn(null)}
+        onConfirm={(securityCode) => {
+          returnDevice.mutate(
+            { id: pendingReturn.order.id, refundAmount: pendingReturn.refundAmount, reason: pendingReturn.reason, securityCode },
+            { onSuccess: () => setPendingReturn(null) },
+          );
+        }}
+      />
+    )}
+    </>,
+    document.body,
   );
 }
 

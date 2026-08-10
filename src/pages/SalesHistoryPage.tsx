@@ -199,7 +199,7 @@ export function SalesHistoryPage() {
             <input
               type="text"
               className="input w-56 pl-8"
-              placeholder="ค้นหาเลขบิล / ชื่อลูกค้า"
+              placeholder="ค้นหาเลขบิล / ชื่อลูกค้า / IMEI / Serial"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
