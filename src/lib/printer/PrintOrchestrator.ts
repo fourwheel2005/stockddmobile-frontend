@@ -66,7 +66,12 @@ export class PrintOrchestrator {
       }
     }
 
-    throw new Error(`ทุก strategy ล้มเหลว:\n${errors.join('\n')}`);
+    // FIX-148: ข้อความ actionable — เดิมตกถึง BROWSER แล้ว window.print() หน้าขาว + ตอบสำเร็จปลอม ตอนนี้ fail ชัด
+    throw new Error(
+      'ไม่พบเครื่องพิมพ์ความร้อนที่พร้อมใช้ — เปิด Local Bridge บนเครื่องที่เสียบปริ้นเตอร์ '
+      + 'หรือเชื่อม WebUSB ใน "ตั้งค่าเครื่องพิมพ์" แล้วลองใหม่ '
+      + `(รายละเอียด: ${errors.join(' · ')})`,
+    );
   }
 
   /**

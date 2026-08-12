@@ -105,6 +105,9 @@ export function RepairListPage() {
       toast.success(strategy === 'PULL_AGENT' ? 'ส่งเข้าคิวปริ้นแล้ว ☁️' : `พิมพ์แล้ว (${strategy})`);
     } catch (e) {
       toast.error(extractErrorMessage(e));
+    } finally {
+      // FIX-148: เคลียร์ callback เสมอ — ค้างบน singleton แล้วงานพิมพ์อื่น (ป้าย/ใบเสร็จ) จะ render ใบซ่อมเก่าผิดงาน
+      printOrchestrator.getBrowserPrint().clearPrintCallback();
     }
   };
 
