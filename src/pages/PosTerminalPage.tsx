@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { ScanLine, Trash2, ShoppingCart, Receipt, Search, ListChecks, UserCircle2, Printer, Upload, X, Wrench, Truck, Globe, Store, Plus, ChevronDown, ChevronUp, ArrowLeftRight } from 'lucide-react';
+import { ScanLine, Trash2, ShoppingCart, Receipt, Search, ListChecks, UserCircle2, Printer, Upload, X, Wrench, Truck, Globe, Store, Plus, ChevronDown, ChevronUp, ArrowLeftRight, FileText } from 'lucide-react';
 import { posApi } from '@/api/pos';
 import { filesApi } from '@/api/files';
 import { extractErrorMessage } from '@/api/client';
@@ -15,6 +15,7 @@ import { DeviceScanDetailPanel, type ScannedDeviceRef } from '@/components/Devic
 import { inventoryApi } from '@/api/inventory';
 import { RepairIntakeModal } from '@/components/RepairIntakeModal';
 import { ReceiptPrintView } from '@/components/ReceiptPrintView';
+import { TaxInvoiceModal } from '@/components/TaxInvoiceModal';
 import { RepairBillPrintView } from '@/components/RepairBillPrintView';
 import type {
   CartScanResponse, Customer, InStockItem, OrderChannel,
@@ -129,6 +130,8 @@ export function PosTerminalPage() {
   const [vatRate, setVatRate] = useState<number>(0); // % (0 = ไม่คิด VAT)
   const [note, setNote] = useState('');
   const [lastBill, setLastBill] = useState<SalesOrderResponse | null>(null);
+  // FIX-150: ออกใบกำกับภาษีเต็มรูปแบบจากบิลที่เพิ่งปิด
+  const [taxInvoiceFor, setTaxInvoiceFor] = useState<SalesOrderResponse | null>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [showCustomerPicker, setShowCustomerPicker] = useState(false);
   const [showImeiPicker, setShowImeiPicker] = useState(false);
@@ -655,6 +658,15 @@ export function PosTerminalPage() {
               {printer.printing ? 'กำลังพิมพ์...' : `พิมพ์ซ้ำ ${lastBill.billNo}`}
             </button>
           )}
+          {/* FIX-150: ออกใบกำกับภาษีเต็มรูปแบบให้บิลที่เพิ่งปิด (ลูกค้าขอ ณ จุดขาย) */}
+          {lastBill && (
+            <button
+              className="btn-secondary"
+              onClick={() => setTaxInvoiceFor(lastBill)}>
+              <FileText className="h-4 w-4" />
+              ใบกำกับภาษี
+            </button>
+          )}
           {/* ⭐ Quick Reprint — always visible (สำหรับบิลเก่า / ลูกค้าใบหาย) */}
           <button
             className="btn-secondary"
@@ -809,6 +821,11 @@ export function PosTerminalPage() {
           </div>
         </div>
       </div>
+
+      {/* FIX-150: ใบกำกับภาษีเต็มรูปแบบ */}
+      {taxInvoiceFor && (
+        <TaxInvoiceModal order={taxInvoiceFor} onClose={() => setTaxInvoiceFor(null)} />
+      )}
 
       {/* ─── รายละเอียด/ประวัติเครื่องที่เพิ่งสแกน (FIX-103) ──────────── */}
       {scannedDevice && (

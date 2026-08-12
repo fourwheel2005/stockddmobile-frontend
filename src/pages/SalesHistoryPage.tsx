@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { Receipt, Printer, Undo2, Landmark, CheckCircle2, Clock, XCircle, PackageOpen, Search, Wrench } from 'lucide-react';
+import { Receipt, Printer, Undo2, Landmark, CheckCircle2, Clock, XCircle, PackageOpen, Search, Wrench, FileText } from 'lucide-react';
 import { posApi } from '@/api/pos';
 import { repairApi } from '@/api/repair';
 import { SalesCalendar } from '@/components/SalesCalendar';
@@ -12,6 +12,7 @@ import { useBranchStore } from '@/stores/branchStore';
 import { ReceiptPrintView } from '@/components/ReceiptPrintView';
 import { RefundMethodModal } from '@/components/RefundMethodModal';
 import { ReturnDeviceModal } from '@/components/ReturnDeviceModal';
+import { TaxInvoiceModal } from '@/components/TaxInvoiceModal';
 import { SecurityCodeModal } from '@/components/SecurityCodeModal';
 import { usePrinter } from '@/hooks/usePrinter';
 import { formatTHB, formatDateTime } from '@/lib/format';
@@ -89,6 +90,8 @@ export function SalesHistoryPage() {
   const [printOrder, setPrintOrder] = useState<SalesOrderResponse | null>(null);
   const [refundOrder, setRefundOrder] = useState<SalesOrderResponse | null>(null);
   const [returnOrder, setReturnOrder] = useState<SalesOrderResponse | null>(null);
+  // FIX-150: ออกใบกำกับภาษีเต็มรูปแบบ (บิล PAID)
+  const [taxInvoiceFor, setTaxInvoiceFor] = useState<SalesOrderResponse | null>(null);
   // ขั้นยืนยันด้วยรหัสความปลอดภัย — เก็บสิ่งที่จะทำไว้ระหว่างรอรหัส (FIX-103)
   const [pendingRefund, setPendingRefund] =
     useState<{ order: SalesOrderResponse; reason: string } | null>(null);
@@ -264,6 +267,14 @@ export function SalesHistoryPage() {
                         onClick={() => handlePrint(row.sale.id)}>
                         <Printer className="h-4 w-4" />
                       </button>
+                      {row.sale.status === 'PAID' && (
+                        <button
+                          className="rounded p-1.5 text-brand-700 hover:bg-brand-50"
+                          title="ออกใบกำกับภาษีเต็มรูปแบบ"
+                          onClick={() => setTaxInvoiceFor(row.sale)}>
+                          <FileText className="h-4 w-4" />
+                        </button>
+                      )}
                       {canRefund && row.sale.status === 'PAID' && row.sale.paymentMethod === 'INSTALLMENT' && (
                         <button
                           className="rounded p-1.5 text-amber-700 hover:bg-amber-50"
@@ -366,6 +377,10 @@ export function SalesHistoryPage() {
             );
           }}
         />
+      )}
+
+      {taxInvoiceFor && (
+        <TaxInvoiceModal order={taxInvoiceFor} onClose={() => setTaxInvoiceFor(null)} />
       )}
 
       {returnOrder && (
