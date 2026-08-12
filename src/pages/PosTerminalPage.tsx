@@ -518,7 +518,12 @@ export function PosTerminalPage() {
       qc.invalidateQueries({ queryKey: ['cash-session'] });
       inputRef.current?.focus();
     },
-    onError: (e) => toast.error(extractErrorMessage(e)),
+    onError: (e) => {
+      const msg = extractErrorMessage(e);
+      // FIX-147 (QA D3): key ถูกใช้กับบิลอื่นไปแล้ว → ต้องได้ key ใหม่ ไม่งั้นปิดบิลไม่ได้ถาวรจน refresh
+      if (msg.includes('IDEMPOTENCY_KEY_REUSED')) clientRequestIdRef.current = null;
+      toast.error(msg);
+    },
   });
 
   // รับชำระค่างวด (เงินสด) — ออกบิลไม่ตัดสต็อก + auto-print (FIX-085)
@@ -1306,9 +1311,9 @@ export function PosTerminalPage() {
                     {r}%
                   </button>
                 ))}
-                <input type="number" step="0.01" min={0} max={100}
+                <input type="number" step="0.01" min={0} max={7}
                        className="input w-20 text-right"
-                       value={vatRate} onChange={(e) => setVatRate(Math.min(100, Math.max(0, Number(e.target.value) || 0)))} />
+                       value={vatRate} onChange={(e) => setVatRate(Math.min(7, Math.max(0, Number(e.target.value) || 0)))} />
               </div>
             </div>
             {vatAmount > 0 && (

@@ -19,6 +19,7 @@ const CONDITION_TH: Record<string, string> = {
 };
 const STATUS_TH: Record<string, { text: string; cls: string }> = {
   IN_STOCK:   { text: 'พร้อมขาย',   cls: 'bg-emerald-100 text-emerald-700' },
+  PENDING_INTAKE: { text: 'รอลงสต็อก', cls: 'bg-amber-100 text-amber-700' },
   RESERVED:   { text: 'จองแล้ว',    cls: 'bg-amber-100 text-amber-700' },
   IN_TRANSIT: { text: 'กำลังโอน',   cls: 'bg-blue-100 text-blue-700' },
   SOLD:       { text: 'ขายแล้ว',    cls: 'bg-slate-200 text-slate-600' },
