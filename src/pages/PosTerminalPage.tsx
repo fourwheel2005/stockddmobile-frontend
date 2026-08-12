@@ -479,6 +479,7 @@ export function PosTerminalPage() {
         console.error('Auto-print failed:', e);
       });
       clientRequestIdRef.current = null;   // F-03: บิลถัดไปได้ idempotency key ใหม่
+      setScannedDevice(null);              // FIX-146: การ์ดเครื่องที่สแกนไม่ค้างหลังปิดบิล (เคยต้องกด X เอง)
       setCart([]);
       setCustomer(null);
       setDiscount(0);
