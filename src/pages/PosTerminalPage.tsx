@@ -694,30 +694,44 @@ export function PosTerminalPage() {
 
       {/* Scanner + Payment selector */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        {/* UX redesign (FIX-152): เลิกกล่องดำ+3 สีตีกัน (navy/amber/emerald) → การ์ดขาวภาษาเดียวกับทั้งหน้า
+            เด่นด้วย "ขนาด input + accent เดียว (brand)" · สถานะพร้อมสแกนใช้ chip เดียวมุมขวา — flow/logic เดิมทุกตัว */}
         <form onSubmit={handleScan} className="lg:col-span-2">
-          <div className={`space-y-2 rounded-lg bg-slate-800 p-5 shadow-sm transition-all
-                          ${scanReady ? 'ring-2 ring-emerald-400 ring-offset-2' : ''}`}>
-            <label className="flex items-center justify-between text-xs font-semibold uppercase text-amber-400">
-              <span>📦 สแกน/พิมพ์ บาร์โค้ด · IMEI · Serial (iPad/Watch ใช้ Serial)</span>
-              {scanReady
-                ? <span className="text-emerald-400">🟢 พร้อมรับสแกน</span>
-                : <span className="text-slate-400">⚪ คลิกในช่องเพื่อเริ่มสแกน</span>}
-            </label>
+          <div className={`card space-y-2.5 p-5 transition-all
+                          ${scanReady ? 'border-brand-400 shadow-md shadow-brand-100' : ''}`}>
+            <div className="flex items-center justify-between gap-2">
+              <label htmlFor="pos-scan" className="flex min-w-0 items-center gap-2 text-sm font-semibold text-slate-700">
+                <ScanLine className="h-4 w-4 shrink-0 text-brand-600" />
+                <span className="truncate">สแกนบาร์โค้ด / IMEI / Serial</span>
+                <span className="hidden text-xs font-normal text-slate-400 sm:inline">· iPad/Watch ใช้ Serial</span>
+              </label>
+              {scanReady ? (
+                <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
+                  <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" /> พร้อมรับสแกน
+                </span>
+              ) : (
+                <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-500">
+                  <span className="h-2 w-2 rounded-full bg-slate-300" /> คลิกในช่องเพื่อเริ่ม
+                </span>
+              )}
+            </div>
             <div className="flex gap-2">
               <input
+                id="pos-scan"
                 ref={inputRef}
                 type="text"
-                style={{ backgroundColor: '#0f172a', color: '#ffffff' }}
-                className="flex-1 rounded-md border border-slate-600 px-3 py-2 text-sm shadow-sm
-                           placeholder:text-slate-500 focus:border-amber-500 focus:outline-none
-                           focus:ring-2 focus:ring-amber-500/40"
+                inputMode="search"
+                autoComplete="off"
+                className="h-12 flex-1 rounded-lg border border-slate-300 bg-white px-4 font-mono text-base
+                           text-slate-800 shadow-sm placeholder:font-sans placeholder:text-sm placeholder:text-slate-400
+                           focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/25"
                 placeholder="ยิงบาร์โค้ด / IMEI / Serial หรือพิมพ์ที่นี่..."
                 value={scanQuery}
                 onChange={(e) => setScanQuery(e.target.value)}
                 onFocus={() => setScanReady(true)}
                 onBlur={() => setScanReady(false)}
               />
-              <button type="submit" className="btn-primary" disabled={scan.isPending}>
+              <button type="submit" className="btn-primary h-12 shrink-0 px-5" disabled={scan.isPending}>
                 <Search className="h-4 w-4" /> ค้นหา
               </button>
             </div>
