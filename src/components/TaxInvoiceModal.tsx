@@ -28,22 +28,31 @@ export function TaxInvoiceModal({ order, onClose }: {
 
   const issueAndPrint = async () => {
     setBusy(true);
+    // QA FIX-151 (m2): แยก error "ออกใบ" กับ "พิมพ์" — ใบออกแล้วพิมพ์ไม่ได้ ต้องเห็นเลข TIV ชัด
+    let issued: Awaited<ReturnType<typeof taxInvoiceApi.issue>> | null = null;
     try {
-      const data = await taxInvoiceApi.issue(order.id, {
+      issued = await taxInvoiceApi.issue(order.id, {
         customerName: name.trim(),
         customerTaxId: taxId.trim(),
         customerAddress: address.trim(),
       });
-      // พิมพ์ 80mm ผ่าน chain ปกติ (Epson — เครื่องเดียวกับใบเสร็จ)
-      printOrchestrator.setBridgeToken(localStorage.getItem('ddmobile.bridge.token'));
-      const bytes = buildTaxInvoice(data);
-      await printOrchestrator.print(bytes, { billNo: data.taxInvoiceNo });
-      toast.success(`ออกใบกำกับภาษีแล้ว — ${data.taxInvoiceNo}`);
-      onClose();
     } catch (e) {
       toast.error(extractErrorMessage(e));
+      setBusy(false);
+      return;
+    }
+    try {
+      // พิมพ์ 80mm ผ่าน chain ปกติ (Epson — เครื่องเดียวกับใบเสร็จ)
+      printOrchestrator.setBridgeToken(localStorage.getItem('ddmobile.bridge.token'));
+      await printOrchestrator.print(buildTaxInvoice(issued), { billNo: issued.taxInvoiceNo });
+      toast.success(`ออกใบกำกับภาษีแล้ว — ${issued.taxInvoiceNo}`);
+    } catch (e) {
+      // ใบออกแล้ว (เลขถูกบันทึก) แค่พิมพ์ไม่สำเร็จ — กดออกซ้ำ = ได้ใบเดิม (reprint)
+      toast.success(`ออกใบกำกับแล้ว — ${issued.taxInvoiceNo} (บันทึกในระบบ)`, { duration: 6000 });
+      toast.error(`พิมพ์ไม่สำเร็จ: ${extractErrorMessage(e)} — กดออกใบกำกับซ้ำเพื่อพิมพ์อีกครั้ง`, { duration: 8000 });
     } finally {
       setBusy(false);
+      onClose();
     }
   };
 

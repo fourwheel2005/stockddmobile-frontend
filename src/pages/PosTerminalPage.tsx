@@ -96,6 +96,10 @@ function newRequestId(): string {
   return `${h.slice(0, 4).join('')}-${h.slice(4, 6).join('')}-${h.slice(6, 8).join('')}-${h.slice(8, 10).join('')}-${h.slice(10).join('')}`;
 }
 
+/** ปัด 2 ตำแหน่ง — เงินที่ "คำนวณต่อ" ฝั่ง FE เป็น float ต้องปัดก่อนส่ง ไม่งั้นชน @Digits(fraction=2) ฝั่ง BE
+ *  เช่น 2099.99−1500 = 599.9899999999998 → 400 ปิดบิลไม่ได้ (QA FIX-151) */
+const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+
 export function PosTerminalPage() {
   const qc = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -343,7 +347,7 @@ export function PosTerminalPage() {
   const grandTotal = Math.max(0, taxBase + vatAmount + (Number(shippingFee) || 0));
   // เทิร์น (FIX-105): ยอดขายเต็ม − มูลค่าเทิร์น = net (≥0 รับจากลูกค้า · <0 จ่ายคืน)
   const tradeInActive = tradeInOpen && tradeInVariant != null && Number(tradeInValueStr) > 0;
-  const tradeInValueNum = tradeInActive ? Number(tradeInValueStr) : 0;
+  const tradeInValueNum = tradeInActive ? r2(Number(tradeInValueStr)) : 0;
   const netCollect = grandTotal - tradeInValueNum;
   // เทิร์นดาวน์ (FIX-106): ผ่อน + เทิร์น → หักเทิร์นจากเงินดาวน์ที่ลูกค้าจ่ายจริงวันนี้
   const isInstallmentSel = paymentMethod === 'INSTALLMENT';
@@ -360,7 +364,7 @@ export function PosTerminalPage() {
     return () => clearTimeout(t);
   }, [tradeInSkuQuery, tradeInVariant]);
   // บิลผ่อน: บรรทัดที่ "จ่ายสดวันนี้" (อุปกรณ์เสริม) = ไม่รวมยอดผ่อน · ติ๊กต่อบรรทัดได้ (FIX-090/094)
-  const addOnToday = cart.filter((l) => l.payToday).reduce((s, l) => s + l.sellPrice * l.quantity, 0);
+  const addOnToday = r2(cart.filter((l) => l.payToday).reduce((s, l) => s + l.sellPrice * l.quantity, 0));
   const payToday = downAmount + addOnToday;
   // แยกยอดรับวันนี้: โอนเท่าที่กรอก (ไม่เกินยอดรวม) · ที่เหลือ = เงินสด (FIX-097)
   const payTransferClamped = Math.min(Math.max(0, payTransfer), payToday);
@@ -396,13 +400,21 @@ export function PosTerminalPage() {
     setSlips([]);
   }
 
+  /** QA FIX-151 (M1): เครื่องไม่มี Bridge/WebUSB → พิมพ์ผ่านหน้าต่างเบราว์เซอร์แทน (ReceiptPrintView
+   *  ใน DOM render จาก lastBill = บิลเดียวกับที่สั่งพิมพ์เสมอ) — เดิม FIX-148 ทำให้ร้าน browser-print
+   *  พิมพ์ใบเสร็จจาก POS ไม่ได้เลย */
+  const printBrowserFallback = () => {
+    toast('ไม่พบเครื่องพิมพ์ — เปิดหน้าต่างพิมพ์ของเบราว์เซอร์แทน', { icon: '🖨️' });
+    setTimeout(() => window.print(), 300);
+  };
+
   const checkout = useMutation({
     mutationFn: () => {
       const isInstallment = paymentMethod === 'INSTALLMENT';
       // เทิร์นดาวน์ (FIX-106): ยอดจ่ายจริงวันนี้ = payToday − มูลค่าเทิร์น (เทิร์นแทนเงินดาวน์)
-      const payNetToday = Math.max(0, payToday - (isInstallment && tradeInActive ? tradeInValueNum : 0));
-      const effTransfer = Math.min(payTransferClamped, payNetToday);
-      const effCash = payNetToday - effTransfer;
+      const payNetToday = r2(Math.max(0, payToday - (isInstallment && tradeInActive ? tradeInValueNum : 0)));
+      const effTransfer = r2(Math.min(payTransferClamped, payNetToday));
+      const effCash = r2(payNetToday - effTransfer);   // QA FIX-151: กัน float noise ชน @Digits → 400
       // idempotency: gen ครั้งแรกของตะกร้านี้ · retry ใช้ key เดิม (ยังไม่ success จึงยังไม่ถูกเคลียร์)
       if (!clientRequestIdRef.current) clientRequestIdRef.current = newRequestId();
       return posApi.checkout({
@@ -480,6 +492,7 @@ export function PosTerminalPage() {
       // ไม่ blocking — ถ้า print fail ก็ยังถือว่าขายสำเร็จ
       printer.printReceipt(order.id, { openDrawer: true }).catch((e) => {
         console.error('Auto-print failed:', e);
+        printBrowserFallback();
       });
       clientRequestIdRef.current = null;   // F-03: บิลถัดไปได้ idempotency key ใหม่
       setScannedDevice(null);              // FIX-146: การ์ดเครื่องที่สแกนไม่ค้างหลังปิดบิล (เคยต้องกด X เอง)
@@ -546,6 +559,7 @@ export function PosTerminalPage() {
       setLastBill(order);
       printer.printReceipt(order.id, { openDrawer: true }).catch((e) => {
         console.error('Auto-print (ค่างวด) failed:', e);
+        printBrowserFallback();
       });
       setCollectAmount(0);
       setCollectName('');
@@ -653,7 +667,7 @@ export function PosTerminalPage() {
             <button
               className="btn-secondary"
               disabled={printer.printing}
-              onClick={() => printer.printReceipt(lastBill.id, { duplicate: true, openDrawer: false })}>
+              onClick={() => printer.printReceipt(lastBill.id, { duplicate: true, openDrawer: false }).catch(printBrowserFallback)}>
               <Printer className="h-4 w-4" />
               {printer.printing ? 'กำลังพิมพ์...' : `พิมพ์ซ้ำ ${lastBill.billNo}`}
             </button>
@@ -1086,7 +1100,8 @@ export function PosTerminalPage() {
       {/* ─── Installment details panel (only for INSTALLMENT) ───────── */}
       {paymentMethod === 'INSTALLMENT' && (
         <InstallmentPanel
-          grandTotalTarget={Math.max(0, cart.reduce((s, l) => s + l.sellPrice * l.quantity, 0) - discount)}
+          // QA FIX-151 (Critical): ฐานแผนผ่อนต้องรวม VAT+ค่าส่ง (grandTotal) — เดิมไม่รวม → เก็บขาดทั้งแผน
+          grandTotalTarget={grandTotal}
           addOnToday={addOnToday}
           months={installmentMonths} setMonths={setInstallmentMonths}
           monthly={installmentMonthly} setMonthly={setInstallmentMonthly}
@@ -1161,7 +1176,7 @@ export function PosTerminalPage() {
                       step="0.01"
                       className="input w-32 text-right"
                       value={l.sellPrice}
-                      onChange={(e) => updateLine(l.key, { sellPrice: Number(e.target.value) || 0 })}
+                      onChange={(e) => updateLine(l.key, { sellPrice: r2(Number(e.target.value) || 0) })}
                     />
                   </td>
                   <td className="px-4 py-3 text-right">
@@ -1259,7 +1274,7 @@ export function PosTerminalPage() {
                      value={tradeInSerial} onChange={(e) => setTradeInSerial(e.target.value)} />
               <input type="number" min={0} max={100} className="input" placeholder="แบต %"
                      value={tradeInBattery} onChange={(e) => setTradeInBattery(e.target.value)} />
-              <input type="number" min={0} className="input text-right font-semibold" placeholder="มูลค่าตีเทิร์น (บาท)"
+              <input type="number" min={0} step="0.01" className="input text-right font-semibold" placeholder="มูลค่าตีเทิร์น (บาท)"
                      value={tradeInValueStr} onChange={(e) => setTradeInValueStr(e.target.value)} />
             </div>
             {/* สภาพเครื่องเทิร์น (FIX-106) */}
@@ -1313,7 +1328,7 @@ export function PosTerminalPage() {
               <span className="text-slate-500">ส่วนลด (บาท)</span>
               <input type="number" step="0.01" min={0} max={subtotal}
                      className={`input w-32 text-right ${discountExceedsSubtotal ? 'border-red-400 ring-red-300' : ''}`}
-                     value={discount} onChange={(e) => setDiscount(Math.max(0, Number(e.target.value) || 0))} />
+                     value={discount} onChange={(e) => setDiscount(r2(Math.max(0, Number(e.target.value) || 0)))} />
             </div>
             {discountExceedsSubtotal && (
               <div className="text-xs text-red-600">⚠️ ส่วนลดเกินยอดรวม</div>
@@ -1441,7 +1456,7 @@ export function PosTerminalPage() {
               <button
                 className="btn-secondary w-full"
                 disabled={printer.printing}
-                onClick={() => printer.printReceipt(lastBill.id, { duplicate: true, openDrawer: false })}>
+                onClick={() => printer.printReceipt(lastBill.id, { duplicate: true, openDrawer: false }).catch(printBrowserFallback)}>
                 <Printer className="h-4 w-4" />
                 {printer.printing ? 'กำลังพิมพ์...' : `พิมพ์ซ้ำ ${lastBill.billNo}`}
               </button>

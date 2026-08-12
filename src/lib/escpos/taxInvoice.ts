@@ -69,6 +69,8 @@ export function buildTaxInvoice(
   // ─── ส่วนที่ 4: สรุปยอด (VAT ถอดใน — ราคาขายรวม VAT แล้ว) ───
   b.justify('รวม/TOTAL', fmtMoney(data.total), W);
   b.justify('ส่วนลด/DISCOUNT', fmtMoney(data.discount), W);
+  // QA FIX-151 (M3): ต้องแสดงค่าส่ง ไม่งั้น NET ≠ TOTAL−DISCOUNT เลขเอกสารภาษีไม่ tie
+  if (data.shipping > 0) b.justify('ค่าจัดส่ง/SHIPPING', fmtMoney(data.shipping), W);
   b.bold(true).justify('รวมเงินทั้งสิ้น/NET TOTAL', fmtMoney(data.netTotal), W).bold(false);
   b.justify('ภาษีมูลค่าเพิ่ม/VAT 7%', fmtMoney(data.vat), W);
   b.justify('มูลค่าสินค้า/SUB TOTAL', fmtMoney(data.subTotal), W);

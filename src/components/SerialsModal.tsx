@@ -86,6 +86,11 @@ export function SerialsModal({ variantId, productName, sku, onClose, highlightId
         toast.error('พิมพ์ป้ายต้องต่อผ่าน Local Bridge (เครื่องที่เสียบ TSC TTP-247) — เปิด Bridge แล้วลองใหม่');
         return;
       }
+      // QA FIX-151 (M4): bridge เก่า/ไม่เจอ TSC → บล็อก (กัน TSPL ไปออก Epson เป็นกระดาษขยะ)
+      if (!(await bridge.labelReady())) {
+        toast.error('Bridge ยังไม่พร้อมพิมพ์ป้าย — อัปเดต bridge เป็นรุ่นล่าสุด + เสียบ TSC TTP-247 (Zadig/WinUSB) แล้วลองใหม่');
+        return;
+      }
       const bytes = buildDeviceLabelTspl(s, deviceProductUrl(s.id));
       await bridge.print(bytes, { billNo: s.stockCode ?? s.imei ?? s.id, target: 'label' });
       toast.success('พิมพ์ป้ายแล้ว (TSC)');
@@ -178,6 +183,7 @@ export function SerialsModal({ variantId, productName, sku, onClose, highlightId
                   onChange={(e) => setStatusFilter(e.target.value as SerializedStatus | '')}>
             <option value="">ทุกสถานะ</option>
             <option value="IN_STOCK">พร้อมขาย</option>
+            <option value="PENDING_INTAKE">รอลงสต็อก</option>
             <option value="SOLD">ขายแล้ว</option>
             <option value="DEFECTIVE">ชำรุด/บริการ</option>
             <option value="RETURNED">คืน</option>

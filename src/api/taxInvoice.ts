@@ -27,6 +27,7 @@ export interface TaxInvoiceData {
   }>;
   total: number;       // รวมราคาสินค้า
   discount: number;
+  shipping: number;    // ค่าจัดส่ง (QA FIX-151 — ให้เลข tie: NET = TOTAL − DISCOUNT + SHIPPING)
   netTotal: number;    // รวมเงินทั้งสิ้น (ลูกค้าจ่าย — รวม VAT)
   vat: number;         // ถอดใน 7/107
   subTotal: number;    // มูลค่าสินค้าก่อน VAT

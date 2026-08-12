@@ -35,7 +35,9 @@ export function PaymentSplitEditor({ value, onChange, grandTotal }: Props) {
   const overflow = diff < 0;
 
   const update = (key: keyof PaymentSplit, raw: string) => {
-    const n = Math.max(0, Number(raw) || 0);
+    // QA FIX-151 (M): ปัด 2 ตำแหน่ง "ต่อช่อง" ให้ตรงกับ BE ที่ setScale(2) ต่อ field ก่อนบวก —
+    // เดิมกรอก 33.333×3 FE บวกก่อนปัด = 100.00 "ยอดตรง" แต่ BE ปัดก่อนบวก = 99.99 → 400 ปริศนา
+    const n = round2(Math.max(0, Number(raw) || 0));
     // ห้ามใส่เกิน grandTotal ในแต่ละช่อง (Q2)
     const capped = Math.min(n, grandTotal);
     onChange({ ...safeVal, [key]: capped });

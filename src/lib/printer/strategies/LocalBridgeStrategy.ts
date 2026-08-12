@@ -66,6 +66,25 @@ export class LocalBridgeStrategy implements PrinterStrategy {
     }
   }
 
+  /** QA FIX-151 (M4): bridge รองรับเครื่องป้าย TSC ไหม — /health ต้องตอบ labelPrinterReady === true.
+   *  bridge เก่า (ก่อน multi-target) ไม่มี field นี้ → false → FE บล็อกก่อนส่ง TSPL ไปพิมพ์ขยะบน Epson */
+  async labelReady(): Promise<boolean> {
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 1500);
+      const res = await fetch(`${getBridgeUrl()}/health`, {
+        signal: ctrl.signal,
+        headers: { 'ngrok-skip-browser-warning': 'true' },
+      });
+      clearTimeout(t);
+      if (!res.ok) return false;
+      const j = await res.json().catch(() => null);
+      return j?.labelPrinterReady === true;
+    } catch {
+      return false;
+    }
+  }
+
   async print(bytes: Uint8Array, meta: PrintJobMeta): Promise<void> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/octet-stream',
