@@ -1200,15 +1200,27 @@ export function PosTerminalPage() {
                 <input className="input" placeholder="ค้นหา SKU / รุ่น เช่น iPhone 13"
                        value={tradeInSkuQuery} onChange={(e) => setTradeInSkuQuery(e.target.value)} />
                 {tradeInResults.length > 0 && (
-                  <div className="mt-1 max-h-44 overflow-y-auto rounded-md border border-slate-200">
-                    {tradeInResults.map((v) => (
-                      <button type="button" key={v.id}
-                              onClick={() => { setTradeInVariant(v); setTradeInResults([]); }}
-                              className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-slate-50">
-                        <span><span className="font-mono">{v.sku}</span> · {v.productName} <span className="text-slate-500">{[v.color, v.storage].filter(Boolean).join(' ')}</span></span>
-                      </button>
-                    ))}
-                  </div>
+                  <>
+                    {/* FIX-145: บอกชัดว่าต้อง "กดเลือก" — พิมพ์เฉยๆ ไม่นับ (เคยทำปิดบิลไม่ได้โดยไม่รู้สาเหตุ) */}
+                    <p className="mt-1 text-xs font-medium text-amber-700">
+                      ⚠️ กดเลือกรุ่นจากรายการด้านล่าง (พิมพ์อย่างเดียวยังไม่ได้เลือก)
+                    </p>
+                    <div className="mt-1 max-h-44 overflow-y-auto rounded-md border border-amber-300">
+                      {tradeInResults.map((v) => (
+                        <button type="button" key={v.id}
+                                onClick={() => { setTradeInVariant(v); setTradeInResults([]); }}
+                                className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-violet-50">
+                          <span><span className="font-mono">{v.sku}</span> · {v.productName} <span className="text-slate-500">{[v.color, v.storage].filter(Boolean).join(' ')}</span></span>
+                          <span className="shrink-0 rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold text-violet-700">เลือก</span>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+                {tradeInSkuQuery.trim() !== '' && tradeInResults.length === 0 && (
+                  <p className="mt-1 text-xs text-slate-500">
+                    ไม่พบรุ่น "{tradeInSkuQuery.trim()}" ในระบบ — สร้าง SKU ก่อนแล้วกลับมาค้นใหม่
+                  </p>
                 )}
                 <a href="/products/new" target="_blank" rel="noreferrer"
                    className="mt-1 inline-block text-xs font-medium text-violet-700 hover:underline">
