@@ -13,6 +13,8 @@ export interface PrintJobMeta {
   duplicate?: boolean;
   /** PrintJob id (backend) — ใช้โดย PULL_AGENT เพื่อฝาก ESC/POS เข้างานเดิม */
   jobId?: string;
+  /** FIX-149: เครื่องปลายทางบน bridge — receipt (Epson/ESC-POS, default) · label (TSC TTP-247/TSPL) */
+  target?: 'receipt' | 'label';
 }
 
 export interface PrinterStrategy {

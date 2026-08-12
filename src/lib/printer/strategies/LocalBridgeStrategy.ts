@@ -73,6 +73,8 @@ export class LocalBridgeStrategy implements PrinterStrategy {
       'X-Bill-No': meta.billNo,
       'X-Duplicate': meta.duplicate ? '1' : '0',
       'X-Open-Drawer': meta.openDrawer ? '1' : '0',
+      // FIX-149: label = TSC TTP-247 (TSPL) · receipt = Epson (ESC/POS) — bridge เลือกเครื่องตามนี้
+      'X-Printer-Target': meta.target ?? 'receipt',
     };
     if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
 

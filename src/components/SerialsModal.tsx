@@ -9,7 +9,7 @@ import { productsApi } from '@/api/products';
 import { extractErrorMessage } from '@/api/client';
 import { useAuthStore } from '@/stores/authStore';
 import { printOrchestrator } from '@/lib/printer/PrintOrchestrator';
-import { buildDeviceLabel } from '@/lib/escpos/deviceLabel';
+import { buildDeviceLabelTspl } from '@/lib/tspl/deviceLabel';
 import { deviceProductUrl } from '@/lib/storefront';
 import { formatDate, formatTHB } from '@/lib/format';
 import { acqLabel, ACQ_ORDER, ACQ_INFO } from '@/lib/acquisition';
@@ -74,14 +74,21 @@ export function SerialsModal({ variantId, productName, sku, onClose, highlightId
   // มือของ SKU ปัจจุบัน (FIX-115) — ใช้เตือนเมื่อแก้มือเครื่องแล้วไม่ตรงกับ SKU
   const variantCondition = (productVariants ?? []).find((v) => v.id === variantId)?.condition ?? null;
 
-  // ปุ่มพิมพ์ป้าย QR แปะเครื่อง — เฉพาะ ADMIN (FIX-104)
+  // ปุ่มพิมพ์ป้ายสติกเกอร์แปะเครื่อง — เฉพาะ ADMIN (FIX-104)
+  // FIX-149: ป้ายออกเครื่อง TSC TTP-247 (ภาษา TSPL) ผ่าน Local Bridge เท่านั้น —
+  // ห้ามใช้ orchestrator fallback (WebUSB/คิว = Epson ESC/POS จะพิมพ์ TSPL เป็นขยะ)
   const isAdmin = useAuthStore((s) => s.hasRole('ADMIN'));
   const printLabel = async (s: SerializedItemResponse) => {
     try {
       printOrchestrator.setBridgeToken(localStorage.getItem('ddmobile.bridge.token'));
-      const bytes = buildDeviceLabel(s, deviceProductUrl(s.id));
-      const { strategy } = await printOrchestrator.print(bytes, { billNo: s.stockCode ?? s.imei ?? s.id });
-      toast.success(strategy === 'PULL_AGENT' ? 'ส่งป้ายเข้าคิวปริ้นแล้ว ☁️' : `พิมพ์ป้ายแล้ว (${strategy})`);
+      const bridge = printOrchestrator.getLocalBridge();
+      if (!(await bridge.isReady())) {
+        toast.error('พิมพ์ป้ายต้องต่อผ่าน Local Bridge (เครื่องที่เสียบ TSC TTP-247) — เปิด Bridge แล้วลองใหม่');
+        return;
+      }
+      const bytes = buildDeviceLabelTspl(s, deviceProductUrl(s.id));
+      await bridge.print(bytes, { billNo: s.stockCode ?? s.imei ?? s.id, target: 'label' });
+      toast.success('พิมพ์ป้ายแล้ว (TSC)');
     } catch (e) {
       toast.error(extractErrorMessage(e));
     }
