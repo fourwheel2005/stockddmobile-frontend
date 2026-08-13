@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { SerializedItemResponse } from '@/types/api';
 import { buildDeviceLabelsTspl, type DeviceLabelInput } from '../deviceLabel';
 import { DEFAULT_LABEL_CONFIG } from '../labelConfig';
@@ -22,6 +22,23 @@ function commands(inputs: DeviceLabelInput[]): string {
 function occurrences(text: string, token: string): number {
   return text.split(token).length - 1;
 }
+
+function stubCanvas(): void {
+  vi.stubGlobal('document', {
+    createElement: () => ({
+      getContext: () => ({
+        measureText: (text: string) => ({ width: text.length * 8 }),
+        fillRect: () => undefined,
+        fillText: () => undefined,
+        getImageData: (_x: number, _y: number, width: number, height: number) => ({
+          data: new Uint8ClampedArray(width * height * 4).fill(255),
+        }),
+      }),
+    }),
+  });
+}
+
+afterEach(() => vi.unstubAllGlobals());
 
 describe('buildDeviceLabelsTspl', () => {
   it('prints one machine on only one physical sticker in a two-up row', () => {
@@ -51,5 +68,14 @@ describe('buildDeviceLabelsTspl', () => {
     expect(tspl).toContain('SPEED 3');
     expect(tspl).toContain('DENSITY 8');
     expect(tspl).toContain(',A,0,M2,S7,"https://www.ddmobileshop.com/d/DD00004"');
+  });
+
+  it('keeps text and barcode three millimetres inside each sticker left edge', () => {
+    stubCanvas();
+    const tspl = commands([input('DD00004'), input('DD00005')]);
+    expect(tspl).toContain('BITMAP 24,8,');
+    expect(tspl).toContain('BARCODE 24,238,');
+    expect(tspl).toContain('BITMAP 448,8,');
+    expect(tspl).toContain('BARCODE 448,238,');
   });
 });

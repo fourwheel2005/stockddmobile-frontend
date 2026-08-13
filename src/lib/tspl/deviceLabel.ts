@@ -5,6 +5,7 @@ import { getLabelConfig, labelRowWidth, validateLabelConfig, type LabelConfig } 
 
 const DPMM = 8;
 const LABEL_MARGIN_DOTS = 8;
+const LABEL_LEFT_SAFE_DOTS = 24;
 const QR_CELL_DOTS = 4;
 const QR_QUIET_MODULES = 4;
 const QR_BYTE_CAPACITY_L = [17, 32, 53, 78, 106];
@@ -112,11 +113,11 @@ function geometry(config: LabelConfig, url: string): LabelGeometry {
   const qrQuiet = QR_QUIET_MODULES * QR_CELL_DOTS;
   const qrSymbol = qrModules(url) * QR_CELL_DOTS;
   const qrArea = qrSymbol + qrQuiet * 2;
-  const remaining = width - qrArea - LABEL_MARGIN_DOTS * 3;
+  const remaining = width - qrArea - LABEL_LEFT_SAFE_DOTS - LABEL_MARGIN_DOTS * 2;
   const big = height >= 30 * DPMM && remaining >= 150;
   const smallQr = !big && config.code === 'qr' && height >= qrArea + LABEL_MARGIN_DOTS * 2;
   return { width, height, qrArea, qrQuiet, qrSymbol, big, smallQr,
-    textWidth: big || smallQr ? Math.max(80, remaining) : width - LABEL_MARGIN_DOTS * 2 };
+    textWidth: big || smallQr ? Math.max(80, remaining) : width - LABEL_LEFT_SAFE_DOTS - LABEL_MARGIN_DOTS };
 }
 
 function drawText(builder: TsplBuilder, input: DeviceLabelInput, x: number, geo: LabelGeometry): void {
@@ -134,7 +135,7 @@ function drawText(builder: TsplBuilder, input: DeviceLabelInput, x: number, geo:
   for (const [text, size, bold] of lines) {
     const image = textBitmap(text, size, bold, geo.textWidth);
     if (!image) continue;
-    builder.bitmap(x + LABEL_MARGIN_DOTS, y, image);
+    builder.bitmap(x + LABEL_LEFT_SAFE_DOTS, y, image);
     y += image.h + 2;
   }
 }
@@ -155,7 +156,7 @@ function drawBarcode(builder: TsplBuilder, input: DeviceLabelInput, x: number, g
   if (!code) return;
   const height = geo.big ? 52 : 44;
   const zone = height + 26 + 4;
-  builder.raw(`BARCODE ${x + LABEL_MARGIN_DOTS},${geo.height - zone},"128",${height},1,0,2,3,"${code}"`);
+  builder.raw(`BARCODE ${x + LABEL_LEFT_SAFE_DOTS},${geo.height - zone},"128",${height},1,0,2,3,"${code}"`);
 }
 
 function drawLabel(builder: TsplBuilder, input: DeviceLabelInput, column: number, config: LabelConfig): void {
