@@ -39,6 +39,9 @@ export function PrinterSettingsModal({
   onSetBridgeUrl, getBridgeUrl, onOpenDrawer, onSetAgentMode, getAgentConfig,
 }: Props) {
   const [token, setToken] = useState(localStorage.getItem('ddmobile.bridge.token') ?? '');
+  // FIX-153: ขนาดม้วนป้ายสติกเกอร์ TSC (ต่อดวง + ดวง/แถว)
+  const [labelSize, setLabelSize] = useState(localStorage.getItem('ddmobile.label.size') ?? '35x25');
+  const [labelAcross, setLabelAcross] = useState(localStorage.getItem('ddmobile.label.across') ?? '2');
   const [bridgeUrl, setBridgeUrl] = useState(
     getBridgeUrl?.() ?? localStorage.getItem('ddmobile.bridge.url') ?? 'http://localhost:8765',
   );
@@ -250,6 +253,37 @@ export function PrinterSettingsModal({
                   toast.success('บันทึก token แล้ว');
                 }}
                 className="btn-primary">
+                บันทึก
+              </button>
+            </div>
+          </div>
+
+          {/* FIX-153: ขนาดม้วนป้ายสติกเกอร์ (TSC TTP-247) */}
+          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+            <h3 className="mb-2 text-sm font-semibold">🏷️ ป้ายสติกเกอร์ (TSC)</h3>
+            <p className="mb-2 text-xs text-slate-500">
+              วัดจากม้วนจริง: ขนาด <strong>ต่อดวง</strong> กว้าง×สูง (มม.) และมีกี่ดวงต่อแถว —
+              ตั้งผิดป้ายจะพิมพ์คร่อมดวง
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <input className="input w-28 text-center font-mono" placeholder="35x25"
+                     value={labelSize} onChange={(e) => setLabelSize(e.target.value)} />
+              <select className="input w-32" value={labelAcross}
+                      onChange={(e) => setLabelAcross(e.target.value)}>
+                <option value="1">1 ดวง/แถว</option>
+                <option value="2">2 ดวง/แถว</option>
+                <option value="3">3 ดวง/แถว</option>
+              </select>
+              <button className="btn-primary"
+                      onClick={() => {
+                        if (!/^\d{2,3}\s*[xX×]\s*\d{2,3}$/.test(labelSize.trim())) {
+                          toast.error('รูปแบบขนาดต้องเป็น กว้างxสูง เช่น 35x25');
+                          return;
+                        }
+                        localStorage.setItem('ddmobile.label.size', labelSize.trim());
+                        localStorage.setItem('ddmobile.label.across', labelAcross);
+                        toast.success('บันทึกขนาดป้ายแล้ว — ลองพิมพ์ป้ายใหม่ได้เลย');
+                      }}>
                 บันทึก
               </button>
             </div>
