@@ -992,6 +992,7 @@ export interface InStockItem {
   color: string | null;
   storage: string | null;
   sellingPrice: number;
+  warrantyTerms: string | null;
   warrantyExpire: string | null;
   receivedAt: string;
 }

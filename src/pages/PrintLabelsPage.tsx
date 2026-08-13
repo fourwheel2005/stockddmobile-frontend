@@ -6,7 +6,7 @@ import { posApi } from '@/api/pos';
 import { BarcodeDisplay } from '@/components/BarcodeDisplay';
 import { LabelsPrintView, type LabelItem } from '@/components/LabelsPrintView';
 import { formatTHB } from '@/lib/format';
-import { formatLabelWarrantyExpire } from '@/lib/tspl/deviceLabel';
+import { formatLabelWarrantyLines } from '@/lib/tspl/deviceLabel';
 
 /**
  * Lets staff select IMEIs (or SKUs) from inventory and print barcode labels
@@ -43,7 +43,7 @@ export function PrintLabelsPage() {
         productName: i.productName,
         detail: [i.color, i.storage].filter(Boolean).join(' / ') || undefined,
         price: formatTHB(i.sellingPrice),
-        warranty: formatLabelWarrantyExpire(i.warrantyExpire) ?? undefined,
+        warrantyLines: formatLabelWarrantyLines(i.warrantyTerms, i.warrantyExpire),
       })),
     [items, selected]
   );
@@ -140,9 +140,9 @@ export function PrintLabelsPage() {
                       <div className="text-xs text-slate-500">
                         {[it.color, it.storage].filter(Boolean).join(' / ')}
                       </div>
-                      {it.warrantyExpire && (
-                        <div className="text-xs text-sky-700">{formatLabelWarrantyExpire(it.warrantyExpire)}</div>
-                      )}
+                      {formatLabelWarrantyLines(it.warrantyTerms, it.warrantyExpire).map((line) => (
+                        <div className="text-xs text-sky-700" key={line}>{line}</div>
+                      ))}
                     </td>
                     <td className="px-4 py-2 text-right">{formatTHB(it.sellingPrice)}</td>
                     <td className="px-4 py-2">

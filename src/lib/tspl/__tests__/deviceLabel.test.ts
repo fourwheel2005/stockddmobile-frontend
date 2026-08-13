@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { SerializedItemResponse } from '@/types/api';
-import { buildDeviceLabelsTspl, formatLabelWarrantyExpire, type DeviceLabelInput } from '../deviceLabel';
+import {
+  buildDeviceLabelsTspl,
+  formatLabelWarrantyExpire,
+  formatLabelWarrantyLines,
+  type DeviceLabelInput,
+} from '../deviceLabel';
 import { DEFAULT_LABEL_CONFIG } from '../labelConfig';
 
 const URL = 'https://www.ddmobileshop.com/d/DD00004';
@@ -94,11 +99,23 @@ describe('buildDeviceLabelsTspl', () => {
   it('prints the stored warranty expiry using the shop timezone and Buddhist year', () => {
     const renderedText = stubCanvas();
     const phone = input('DD00004');
+    phone.item.warrantyTerms = 'ประกันศูนย์ Apple 1 ปี';
     phone.item.warrantyExpire = '2026-12-26T16:59:59';
     commands([phone]);
-    expect(renderedText).toContain('ประกันถึง 26/12/2569');
+    expect(renderedText).toContain('ประกันศูนย์ Apple 1 ปี');
+    expect(renderedText).toContain('หมดประกัน 26/12/2569');
     expect(formatLabelWarrantyExpire(null)).toBeNull();
     expect(formatLabelWarrantyExpire('not-a-date')).toBeNull();
+  });
+
+  it('prints warranty terms even when an unactivated device has no expiry date', () => {
+    const renderedText = stubCanvas();
+    const phone = input('DD00004');
+    phone.item.warrantyTerms = 'ประกันศูนย์ 1 ปี (Apple)';
+    commands([phone]);
+    expect(renderedText).toContain('ประกันศูนย์ 1 ปี (Apple)');
+    expect(formatLabelWarrantyLines('  ประกันศูนย์ 1 ปี (Apple)  ', null))
+      .toEqual(['ประกันศูนย์ 1 ปี (Apple)']);
   });
 
   it('keeps second-hand battery, warranty, and price above the barcode zone', () => {
@@ -106,12 +123,14 @@ describe('buildDeviceLabelsTspl', () => {
     const used = input('DD00004');
     used.item.condition = 'SECOND_HAND';
     used.item.batteryHealth = 100;
+    used.item.warrantyTerms = 'ประกันร้าน 1 ปี';
     used.item.warrantyExpire = '2026-12-26T16:59:59';
     const tspl = commands([used]);
     expect(renderedText).toContain('มือ 2 · แบต 100%');
-    expect(renderedText).toContain('ประกันถึง 26/12/2569');
+    expect(renderedText).toContain('ประกันร้าน 1 ปี');
+    expect(renderedText).toContain('หมดประกัน 26/12/2569');
     expect(renderedText).toContain('ดาวน์ ฿8,990');
-    expect(tspl).toContain('BITMAP 24,127,');
+    expect(tspl).toContain('BITMAP 24,154,');
     expect(tspl).toContain('BARCODE 24,238,');
   });
 });

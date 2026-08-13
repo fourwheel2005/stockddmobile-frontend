@@ -127,11 +127,11 @@ function drawText(builder: TsplBuilder, input: DeviceLabelInput, x: number, geo:
   const condition = CONDITION_TH[item.condition] ?? item.condition;
   const battery = item.condition !== 'NEW' && item.batteryHealth != null ? `แบต ${item.batteryHealth}%` : '';
   const detailLines = battery ? [spec, [condition, battery].join(' · ')] : [[spec, condition].filter(Boolean).join(' · ')];
-  const warranty = formatLabelWarrantyExpire(item.warrantyExpire);
+  const warrantyLines = formatLabelWarrantyLines(item.warrantyTerms, item.warrantyExpire);
   const lines: Array<[string, number, boolean]> = [
     [item.productName ?? item.sku ?? '', geo.big ? 26 : 20, true],
     ...detailLines.map((text): [string, number, boolean] => [text, geo.big ? 18 : 16, false]),
-    ...(warranty ? [[warranty, geo.big ? 18 : 16, false] as [string, number, boolean]] : []),
+    ...warrantyLines.map((text): [string, number, boolean] => [text, geo.big ? 18 : 16, false]),
     [input.priceText, geo.big ? 27 : 21, true],
   ];
   let y = LABEL_MARGIN_DOTS;
@@ -146,7 +146,16 @@ function drawText(builder: TsplBuilder, input: DeviceLabelInput, x: number, geo:
 export function formatLabelWarrantyExpire(value: string | null | undefined): string | null {
   if (!value) return null;
   const date = formatInShopZone(value, { day: '2-digit', month: '2-digit', year: 'numeric' });
-  return date === '-' ? null : `ประกันถึง ${date}`;
+  return date === '-' ? null : `หมดประกัน ${date}`;
+}
+
+export function formatLabelWarrantyLines(
+  terms: string | null | undefined,
+  expire: string | null | undefined,
+): string[] {
+  const termsLine = terms?.trim() || null;
+  const expireLine = formatLabelWarrantyExpire(expire);
+  return [termsLine, expireLine].filter((line): line is string => line != null);
 }
 
 function drawQr(builder: TsplBuilder, input: DeviceLabelInput, x: number, geo: LabelGeometry): void {
