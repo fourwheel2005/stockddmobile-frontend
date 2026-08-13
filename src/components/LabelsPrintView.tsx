@@ -4,6 +4,7 @@ export interface LabelItem {
   code: string;          // IMEI or SKU — what the barcode encodes
   productName: string;   // big text under barcode
   detail?: string;       // small text (color/storage)
+  warranty?: string;     // วันหมดประกันจากข้อมูลราย Serial
   price?: string;        // ราคา (optional)
 }
 
@@ -26,6 +27,7 @@ export function LabelsPrintView({ items, copies = 1 }: Props) {
         <div className="label-cell" key={i}>
           <div className="label-name">{item.productName}</div>
           {item.detail && <div className="label-detail">{item.detail}</div>}
+          {item.warranty && <div className="label-detail">{item.warranty}</div>}
           <BarcodeDisplay
             value={item.code}
             height={36}

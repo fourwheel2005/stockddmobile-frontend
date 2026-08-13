@@ -5,7 +5,7 @@ import { printOrchestrator } from '@/lib/printer/PrintOrchestrator';
 import { deviceProductUrl, deviceShortUrl } from '@/lib/storefront';
 import { buildDeviceLabelsTspl, type DeviceLabelInput } from '@/lib/tspl/deviceLabel';
 import { getLabelConfig } from '@/lib/tspl/labelConfig';
-import { resolveLabelDownPayment } from '@/lib/tspl/labelPrice';
+import { formatDeviceLabelPrice, resolveDeviceLabelPrice } from '@/lib/tspl/labelPrice';
 import type { SerializedItemResponse, VariantResponse } from '@/types/api';
 
 function labelUrl(item: SerializedItemResponse): string {
@@ -14,12 +14,13 @@ function labelUrl(item: SerializedItemResponse): string {
 
 function buildInputs(items: SerializedItemResponse[], variants: VariantResponse[]): DeviceLabelInput[] {
   return items.map((item) => {
-    const downPayment = resolveLabelDownPayment(item, variants);
-    if (downPayment == null) {
+    const price = resolveDeviceLabelPrice(item, variants);
+    if (price == null) {
       const code = item.stockCode ?? item.imei ?? item.serialNumber;
-      throw new Error(`เครื่อง ${code} ยังไม่ได้ตั้งราคาดาวน์ — กรุณาตั้งค่าผ่อนก่อนพิมพ์ป้าย`);
+      const field = item.categoryRootName === 'อุปกรณ์เสริม' ? 'ราคาขาย' : 'ราคาดาวน์';
+      throw new Error(`สินค้า ${code} ยังไม่ได้ตั้ง${field} — กรุณาตั้งราคาก่อนพิมพ์ป้าย`);
     }
-    return { item, url: labelUrl(item), downPayment };
+    return { item, url: labelUrl(item), priceText: formatDeviceLabelPrice(price) };
   });
 }
 

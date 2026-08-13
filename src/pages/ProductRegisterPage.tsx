@@ -115,6 +115,8 @@ interface FormValues {
   lotUnitCost: number | '';
   lotSupplierRef: string;
   lotInvoiceNo: string;
+  accessoryWarrantyTerms: string;
+  accessoryWarrantyExpire: string;
 }
 
 const EMPTY_ITEM: ItemRow = {
@@ -181,6 +183,8 @@ export function ProductRegisterPage() {
       lotUnitCost: '',
       lotSupplierRef: '',
       lotInvoiceNo: '',
+      accessoryWarrantyTerms: '',
+      accessoryWarrantyExpire: '',
     },
   });
 
@@ -222,6 +226,8 @@ export function ProductRegisterPage() {
       lotUnitCost: '',
       lotSupplierRef: '',
       lotInvoiceNo: '',
+      accessoryWarrantyTerms: '',
+      accessoryWarrantyExpire: '',
     });
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -603,9 +609,11 @@ export function ProductRegisterPage() {
           // ราคาทุน/ขาย รายเครื่อง (FIX-022) — เว้น = fallback ราคาระดับรุ่น (สำหรับอุปกรณ์เสริม serial)
           purchasePrice: it.purchasePrice === '' ? (Number(d.costPrice) || undefined) : Number(it.purchasePrice),
           sellingPrice: it.sellingPrice === '' ? (Number(d.sellingPrice) || undefined) : Number(it.sellingPrice),
-          warrantyTerms: blank(it.warrantyTerms),
+          warrantyTerms: productKind === 'accessory'
+            ? blank(d.accessoryWarrantyTerms) : blank(it.warrantyTerms),
           // วันหมดประกัน (FIX-025) — กรอกเมื่อเครื่อง activate แล้ว (ประกัน Apple นับจากวัน activate)
-          warrantyExpire: blank(it.warrantyExpire),
+          warrantyExpire: productKind === 'accessory'
+            ? blank(d.accessoryWarrantyExpire) : blank(it.warrantyExpire),
           // รูปรายเครื่อง (FIX-043) — เว็บหน้าร้านดึงไปแสดง
           imageUrls: it.imageUrls?.length ? it.imageUrls : undefined,
           // ผ่อนดาวน์: มือ1 (NEW) → แผนหลายแบบ (ไป variant spec ด้านล่าง) · มือ2 → รายเครื่องนี้ (serial)
@@ -1030,20 +1038,30 @@ export function ProductRegisterPage() {
                 {/* อุปกรณ์เสริมใช้ "ที่มา" เดียวทั้งล็อต (Quick-Add ไม่มีช่องรายชิ้น).
                     มือถือ → "ที่มา" อยู่รายเครื่องในแถว (คละได้) จึงไม่โชว์ตรงนี้ */}
                 {productKind === 'accessory' && (
-                <FieldRow label="ที่มา" hint="แหล่งที่รับของเข้ามา (ใช้กับทุกชิ้นในล็อตนี้)">
-                  <select className="input" value={defaultAcq} onChange={(e) => setDefaultAcq(e.target.value as AcquisitionType)}>
-                    <optgroup label="ประเภทธุรกรรม">
-                      {ACQ_ORDER.filter((k) => ACQ_INFO[k].group === 'TXN').map((k) => (
-                        <option key={k} value={k}>{ACQ_INFO[k].th}</option>
-                      ))}
-                    </optgroup>
-                    <optgroup label="ซัพพลายเออร์">
-                      {ACQ_ORDER.filter((k) => ACQ_INFO[k].group === 'SUPPLIER').map((k) => (
-                        <option key={k} value={k}>{ACQ_INFO[k].th}</option>
-                      ))}
-                    </optgroup>
-                  </select>
-                </FieldRow>
+                <>
+                  <FieldRow label="ที่มา" hint="แหล่งที่รับของเข้ามา (ใช้กับทุกชิ้นในล็อตนี้)">
+                    <select className="input" value={defaultAcq} onChange={(e) => setDefaultAcq(e.target.value as AcquisitionType)}>
+                      <optgroup label="ประเภทธุรกรรม">
+                        {ACQ_ORDER.filter((k) => ACQ_INFO[k].group === 'TXN').map((k) => (
+                          <option key={k} value={k}>{ACQ_INFO[k].th}</option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="ซัพพลายเออร์">
+                        {ACQ_ORDER.filter((k) => ACQ_INFO[k].group === 'SUPPLIER').map((k) => (
+                          <option key={k} value={k}>{ACQ_INFO[k].th}</option>
+                        ))}
+                      </optgroup>
+                    </select>
+                  </FieldRow>
+                  <FieldRow label="ประกันทั้งล็อต" hint="ใช้ค่าเดียวกันกับอุปกรณ์เสริม Serial ทุกชิ้น; เว้นได้ถ้าไม่มีข้อมูลจริง">
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <input className="input" list="warranty-list" placeholder="เช่น ประกันศูนย์ 1 ปี"
+                             {...register('accessoryWarrantyTerms')} />
+                      <input type="date" className="input" aria-label="วันหมดประกันอุปกรณ์เสริมทั้งล็อต"
+                             {...register('accessoryWarrantyExpire')} />
+                    </div>
+                  </FieldRow>
+                </>
                 )}
 
                 {productKind === 'accessory' ? (
@@ -1067,6 +1085,8 @@ export function ProductRegisterPage() {
                               serialNumber: r.serialNumber,
                               condition: 'NEW' as const,
                               acquisitionType: defaultAcq,
+                              warrantyTerms: getValues('accessoryWarrantyTerms'),
+                              warrantyExpire: getValues('accessoryWarrantyExpire'),
                             }));
                         replace(next);
                       }}
@@ -1288,8 +1308,9 @@ function ItemCard({
   const hasBox = useWatch({ control, name: `items.${idx}.hasBox` }) ?? false;
   const hasCharger = useWatch({ control, name: `items.${idx}.hasCharger` }) ?? false;
   const warrantyTerms = useWatch({ control, name: `items.${idx}.warrantyTerms` }) ?? '';
-  /* เครื่อง activate แล้ว → โชว์ช่อง "ประกันถึงวันที่" (ประกัน Apple นับจากวัน activate) */
-  const needsExpireDate = warrantyTerms === WARRANTY_APPLE_ACTIVATED || /activate/i.test(warrantyTerms);
+  /* มือ 2 ระบุวันจริงได้เสมอ; มือ 1 โชว์เมื่อ activate แล้ว (ก่อน activate ยังไม่มีวันหมดที่แม่นยำ). */
+  const needsExpireDate = condition !== 'NEW'
+    || warrantyTerms === WARRANTY_APPLE_ACTIVATED || /activate/i.test(warrantyTerms);
 
   /* ประกันรายเครื่อง auto-fill ตามสภาพแถวนี้: มือ1 → ศูนย์ Apple, มือ2 → เว้น
      lock เมื่อผู้ใช้พิมพ์/เลือกเอง (ไม่ทับค่าที่แก้มือ) */
@@ -1489,12 +1510,12 @@ function ItemCard({
           {needsExpireDate && (
             <div className="mt-1.5 rounded-md border border-sky-200 bg-sky-50 p-2">
               <label className="mb-0.5 block text-[11px] font-semibold text-sky-800">
-                ประกันถึงวันที่ (Apple activate แล้ว)
+                ประกันถึงวันที่ {condition === 'NEW' && '(Apple activate แล้ว)'}
               </label>
               <input type="date" className="input text-sm"
                      {...register(`items.${idx}.warrantyExpire`)} />
               <p className="mt-0.5 text-[10px] text-sky-700">
-                เครื่องเปิดใช้แล้ว — ประกัน Apple นับจากวัน activate ระบุวันหมดให้ตรงกับเครื่อง
+                ระบุวันหมดจริงจากระบบประกัน ห้ามคำนวณจากวันรับสินค้า
               </p>
             </div>
           )}

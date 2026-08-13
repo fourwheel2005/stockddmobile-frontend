@@ -1,6 +1,7 @@
 import { encodeCp874 } from '@/lib/escpos/cp874';
+import { formatInShopZone } from '@/lib/datetime';
 import type { SerializedItemResponse } from '@/types/api';
-import { formatLabelDownPayment } from './labelPrice';
+import { formatDeviceLabelPrice } from './labelPrice';
 import { getLabelConfig, labelRowWidth, validateLabelConfig, type LabelConfig } from './labelConfig';
 
 const DPMM = 8;
@@ -18,7 +19,7 @@ const CONDITION_TH: Record<string, string> = {
 export interface DeviceLabelInput {
   item: SerializedItemResponse;
   url: string;
-  downPayment: number;
+  priceText: string;
 }
 
 interface BitmapImage { data: Uint8Array; wBytes: number; h: number }
@@ -124,12 +125,14 @@ function drawText(builder: TsplBuilder, input: DeviceLabelInput, x: number, geo:
   const item = input.item;
   const spec = [item.deviceColor, item.deviceStorage].filter(Boolean).join(' · ');
   const condition = CONDITION_TH[item.condition] ?? item.condition;
-  const detail = [spec, condition, item.condition !== 'NEW' && item.batteryHealth != null ? `แบต ${item.batteryHealth}%` : '']
-    .filter(Boolean).join(' · ');
+  const battery = item.condition !== 'NEW' && item.batteryHealth != null ? `แบต ${item.batteryHealth}%` : '';
+  const detailLines = battery ? [spec, [condition, battery].join(' · ')] : [[spec, condition].filter(Boolean).join(' · ')];
+  const warranty = formatLabelWarrantyExpire(item.warrantyExpire);
   const lines: Array<[string, number, boolean]> = [
     [item.productName ?? item.sku ?? '', geo.big ? 26 : 20, true],
-    [detail, geo.big ? 18 : 16, false],
-    [formatLabelDownPayment(input.downPayment), geo.big ? 27 : 21, true],
+    ...detailLines.map((text): [string, number, boolean] => [text, geo.big ? 18 : 16, false]),
+    ...(warranty ? [[warranty, geo.big ? 18 : 16, false] as [string, number, boolean]] : []),
+    [input.priceText, geo.big ? 27 : 21, true],
   ];
   let y = LABEL_MARGIN_DOTS;
   for (const [text, size, bold] of lines) {
@@ -138,6 +141,12 @@ function drawText(builder: TsplBuilder, input: DeviceLabelInput, x: number, geo:
     builder.bitmap(x + LABEL_LEFT_SAFE_DOTS, y, image);
     y += image.h + 2;
   }
+}
+
+export function formatLabelWarrantyExpire(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const date = formatInShopZone(value, { day: '2-digit', month: '2-digit', year: 'numeric' });
+  return date === '-' ? null : `ประกันถึง ${date}`;
 }
 
 function drawQr(builder: TsplBuilder, input: DeviceLabelInput, x: number, geo: LabelGeometry): void {
@@ -193,7 +202,9 @@ export function buildDeviceLabelsTspl(inputs: DeviceLabelInput[], config: LabelC
 
 /** Backward-compatible single-item entry point: one machine prints on one physical sticker only. */
 export function buildDeviceLabelTspl(item: SerializedItemResponse, url: string, downPayment: number): Uint8Array {
-  return buildDeviceLabelsTspl([{ item, url, downPayment }]);
+  return buildDeviceLabelsTspl([{
+    item, url, priceText: formatDeviceLabelPrice({ kind: 'DOWN_PAYMENT', value: downPayment }),
+  }]);
 }
 
 export { getLabelConfig } from './labelConfig';

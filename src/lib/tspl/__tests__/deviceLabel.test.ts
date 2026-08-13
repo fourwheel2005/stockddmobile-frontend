@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { SerializedItemResponse } from '@/types/api';
-import { buildDeviceLabelsTspl, type DeviceLabelInput } from '../deviceLabel';
+import { buildDeviceLabelsTspl, formatLabelWarrantyExpire, type DeviceLabelInput } from '../deviceLabel';
 import { DEFAULT_LABEL_CONFIG } from '../labelConfig';
 
 const URL = 'https://www.ddmobileshop.com/d/DD00004';
@@ -12,7 +12,7 @@ function input(code: string): DeviceLabelInput {
     status: 'IN_STOCK', condition: 'NEW', receivedAt: '2026-08-13T10:00:00',
     acquisitionType: 'PURCHASE', deviceColor: 'Mist Blue', deviceStorage: '256GB',
   } as SerializedItemResponse;
-  return { item, url: URL.replace('DD00004', code), downPayment: 8990 };
+  return { item, url: URL.replace('DD00004', code), priceText: 'ดาวน์ ฿8,990' };
 }
 
 function commands(inputs: DeviceLabelInput[]): string {
@@ -23,19 +23,21 @@ function occurrences(text: string, token: string): number {
   return text.split(token).length - 1;
 }
 
-function stubCanvas(): void {
+function stubCanvas(): string[] {
+  const renderedText: string[] = [];
   vi.stubGlobal('document', {
     createElement: () => ({
       getContext: () => ({
         measureText: (text: string) => ({ width: text.length * 8 }),
         fillRect: () => undefined,
-        fillText: () => undefined,
+        fillText: (text: string) => renderedText.push(text),
         getImageData: (_x: number, _y: number, width: number, height: number) => ({
           data: new Uint8ClampedArray(width * height * 4).fill(255),
         }),
       }),
     }),
   });
+  return renderedText;
 }
 
 afterEach(() => vi.unstubAllGlobals());
@@ -77,5 +79,39 @@ describe('buildDeviceLabelsTspl', () => {
     expect(tspl).toContain('BARCODE 24,238,');
     expect(tspl).toContain('BITMAP 448,8,');
     expect(tspl).toContain('BARCODE 448,238,');
+  });
+
+  it('prints second-hand battery health on a dedicated visible detail line', () => {
+    const renderedText = stubCanvas();
+    const used = input('DD00004');
+    used.item.condition = 'SECOND_HAND';
+    used.item.batteryHealth = 87;
+    commands([used]);
+    expect(renderedText).toContain('Mist Blue · 256GB');
+    expect(renderedText).toContain('มือ 2 · แบต 87%');
+  });
+
+  it('prints the stored warranty expiry using the shop timezone and Buddhist year', () => {
+    const renderedText = stubCanvas();
+    const phone = input('DD00004');
+    phone.item.warrantyExpire = '2026-12-26T16:59:59';
+    commands([phone]);
+    expect(renderedText).toContain('ประกันถึง 26/12/2569');
+    expect(formatLabelWarrantyExpire(null)).toBeNull();
+    expect(formatLabelWarrantyExpire('not-a-date')).toBeNull();
+  });
+
+  it('keeps second-hand battery, warranty, and price above the barcode zone', () => {
+    const renderedText = stubCanvas();
+    const used = input('DD00004');
+    used.item.condition = 'SECOND_HAND';
+    used.item.batteryHealth = 100;
+    used.item.warrantyExpire = '2026-12-26T16:59:59';
+    const tspl = commands([used]);
+    expect(renderedText).toContain('มือ 2 · แบต 100%');
+    expect(renderedText).toContain('ประกันถึง 26/12/2569');
+    expect(renderedText).toContain('ดาวน์ ฿8,990');
+    expect(tspl).toContain('BITMAP 24,127,');
+    expect(tspl).toContain('BARCODE 24,238,');
   });
 });

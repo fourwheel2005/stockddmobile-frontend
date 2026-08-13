@@ -346,6 +346,7 @@ export interface SerializedItemResponse {
   id: string;
   variantId: string;
   productId?: string | null;   // ลิงก์ไปหน้ารุ่นตรงๆ (FIX-124)
+  categoryRootName?: string | null;
   sku: string;
   productName: string | null;
   imei: string | null;
@@ -991,6 +992,7 @@ export interface InStockItem {
   color: string | null;
   storage: string | null;
   sellingPrice: number;
+  warrantyExpire: string | null;
   receivedAt: string;
 }
 

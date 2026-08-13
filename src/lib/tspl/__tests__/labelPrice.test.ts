@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { SerializedItemResponse, VariantResponse } from '@/types/api';
-import { formatLabelDownPayment, resolveLabelDownPayment } from '../labelPrice';
+import {
+  formatDeviceLabelPrice,
+  formatLabelDownPayment,
+  resolveDeviceLabelPrice,
+  resolveLabelDownPayment,
+} from '../labelPrice';
 
 function item(overrides: Partial<SerializedItemResponse> = {}): SerializedItemResponse {
   return {
@@ -41,5 +46,12 @@ describe('resolveLabelDownPayment', () => {
 
   it('formats the amount explicitly as a down payment', () => {
     expect(formatLabelDownPayment(8990)).toContain('ดาวน์ ฿8,990');
+  });
+
+  it('uses the full selling price only for serialized accessories', () => {
+    const accessory = item({ categoryRootName: 'อุปกรณ์เสริม', sellingPrice: 4290, downPayment: null });
+    const price = resolveDeviceLabelPrice(accessory, [variant({ sellingPrice: 4990 })]);
+    expect(price).toEqual({ kind: 'SELLING_PRICE', value: 4290 });
+    expect(price && formatDeviceLabelPrice(price)).toBe('ราคา ฿4,290');
   });
 });

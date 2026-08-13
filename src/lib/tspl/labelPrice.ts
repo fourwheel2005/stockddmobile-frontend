@@ -3,6 +3,11 @@ import type { SerializedItemResponse, VariantResponse } from '@/types/api';
 interface DownValue { down?: unknown }
 interface TermDownValue { down?: unknown }
 
+export interface ResolvedLabelPrice {
+  kind: 'DOWN_PAYMENT' | 'SELLING_PRICE';
+  value: number;
+}
+
 function validDown(value: unknown): number | null {
   if (value == null || value === '') return null;
   const number = typeof value === 'number' ? value : Number(value);
@@ -40,6 +45,24 @@ export function resolveLabelDownPayment(item: SerializedItemResponse, variants: 
   return firstValid(variantDowns);
 }
 
+export function resolveDeviceLabelPrice(
+  item: SerializedItemResponse,
+  variants: VariantResponse[],
+): ResolvedLabelPrice | null {
+  if (item.categoryRootName === 'อุปกรณ์เสริม') {
+    const variant = variants.find((candidate) => candidate.id === item.variantId);
+    const sellingPrice = validDown(item.sellingPrice ?? variant?.sellingPrice);
+    return sellingPrice == null ? null : { kind: 'SELLING_PRICE', value: sellingPrice };
+  }
+  const downPayment = resolveLabelDownPayment(item, variants);
+  return downPayment == null ? null : { kind: 'DOWN_PAYMENT', value: downPayment };
+}
+
 export function formatLabelDownPayment(value: number): string {
   return `ดาวน์ ฿${new Intl.NumberFormat('th-TH', { maximumFractionDigits: 2 }).format(value)}`;
+}
+
+export function formatDeviceLabelPrice(price: ResolvedLabelPrice): string {
+  const amount = new Intl.NumberFormat('th-TH', { maximumFractionDigits: 2 }).format(price.value);
+  return `${price.kind === 'SELLING_PRICE' ? 'ราคา' : 'ดาวน์'} ฿${amount}`;
 }
