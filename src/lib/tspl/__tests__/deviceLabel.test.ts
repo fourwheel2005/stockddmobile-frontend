@@ -3,7 +3,7 @@ import type { SerializedItemResponse } from '@/types/api';
 import { buildDeviceLabelsTspl, type DeviceLabelInput } from '../deviceLabel';
 import { DEFAULT_LABEL_CONFIG } from '../labelConfig';
 
-const URL = 'https://ddmobilewebsite.fourwheel.in.th/d/DD00004';
+const URL = 'https://www.ddmobileshop.com/d/DD00004';
 
 function input(code: string): DeviceLabelInput {
   const item = {
@@ -50,6 +50,6 @@ describe('buildDeviceLabelsTspl', () => {
     expect(tspl).toContain('SIZE 103 mm,40 mm');
     expect(tspl).toContain('SPEED 3');
     expect(tspl).toContain('DENSITY 8');
-    expect(tspl).toContain(',A,0,M2,S7,"https://ddmobilewebsite.fourwheel.in.th/d/DD00004"');
+    expect(tspl).toContain(',A,0,M2,S7,"https://www.ddmobileshop.com/d/DD00004"');
   });
 });
