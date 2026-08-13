@@ -5,6 +5,7 @@ import { useModalChrome, backdropCloseHandler } from '@/hooks/useModalChrome';
 import type { PrinterStatus } from '@/hooks/usePrinter';
 import { printOrchestrator } from '@/lib/printer/PrintOrchestrator';
 import { EscPosBuilder } from '@/lib/escpos/EscPosBuilder';
+import { TscLabelSettings } from '@/components/TscLabelSettings';
 
 /** Detect WebUSB support — Safari + Firefox ไม่รองรับ */
 function isWebUsbSupported(): boolean {
@@ -39,10 +40,6 @@ export function PrinterSettingsModal({
   onSetBridgeUrl, getBridgeUrl, onOpenDrawer, onSetAgentMode, getAgentConfig,
 }: Props) {
   const [token, setToken] = useState(localStorage.getItem('ddmobile.bridge.token') ?? '');
-  // FIX-153: ขนาดม้วนป้ายสติกเกอร์ TSC (ต่อดวง + ดวง/แถว)
-  const [labelSize, setLabelSize] = useState(localStorage.getItem('ddmobile.label.size') ?? '35x25');
-  const [labelAcross, setLabelAcross] = useState(localStorage.getItem('ddmobile.label.across') ?? '2');
-  const [labelCode, setLabelCode] = useState(localStorage.getItem('ddmobile.label.code') ?? 'barcode');
   const [bridgeUrl, setBridgeUrl] = useState(
     getBridgeUrl?.() ?? localStorage.getItem('ddmobile.bridge.url') ?? 'http://localhost:8765',
   );
@@ -112,18 +109,18 @@ export function PrinterSettingsModal({
       className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/60 p-4 pt-[10vh] backdrop-blur-sm animate-modal-fade-in">
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-lg rounded-xl bg-white shadow-2xl animate-modal-zoom-in">
+        className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-xl bg-white shadow-2xl animate-modal-zoom-in">
         <div className="flex items-center justify-between border-b px-5 py-3.5">
           <h2 className="flex items-center gap-2 font-semibold">
             <Printer className="h-5 w-5 text-brand-600" />
-            ตั้งค่าเครื่องพิมพ์ใบเสร็จ
+            ตั้งค่าเครื่องพิมพ์
           </h2>
           <button onClick={onClose} className="rounded p-1.5 hover:bg-slate-100" title="ปิด (Esc)">
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="space-y-4 p-5">
+        <div className="space-y-4 overflow-y-auto p-5">
           {/* Status */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
@@ -259,42 +256,7 @@ export function PrinterSettingsModal({
             </div>
           </div>
 
-          {/* FIX-153: ขนาดม้วนป้ายสติกเกอร์ (TSC TTP-247) */}
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
-            <h3 className="mb-2 text-sm font-semibold">🏷️ ป้ายสติกเกอร์ (TSC)</h3>
-            <p className="mb-2 text-xs text-slate-500">
-              วัดจากม้วนจริง: ขนาด <strong>ต่อดวง</strong> กว้าง×สูง (มม.) และมีกี่ดวงต่อแถว —
-              ตั้งผิดป้ายจะพิมพ์คร่อมดวง
-            </p>
-            <div className="flex flex-wrap items-center gap-2">
-              <input className="input w-28 text-center font-mono" placeholder="35x25"
-                     value={labelSize} onChange={(e) => setLabelSize(e.target.value)} />
-              <select className="input w-32" value={labelAcross}
-                      onChange={(e) => setLabelAcross(e.target.value)}>
-                <option value="1">1 ดวง/แถว</option>
-                <option value="2">2 ดวง/แถว</option>
-                <option value="3">3 ดวง/แถว</option>
-              </select>
-              <select className="input w-44" value={labelCode}
-                      onChange={(e) => setLabelCode(e.target.value)}>
-                <option value="barcode">ดวงเล็ก: บาร์โค้ด (ปืนยิง)</option>
-                <option value="qr">ดวงเล็ก: QR (ลูกค้าสแกน)</option>
-              </select>
-              <button className="btn-primary"
-                      onClick={() => {
-                        if (!/^\d{2,3}\s*[xX×]\s*\d{2,3}$/.test(labelSize.trim())) {
-                          toast.error('รูปแบบขนาดต้องเป็น กว้างxสูง เช่น 35x25');
-                          return;
-                        }
-                        localStorage.setItem('ddmobile.label.size', labelSize.trim());
-                        localStorage.setItem('ddmobile.label.across', labelAcross);
-                        localStorage.setItem('ddmobile.label.code', labelCode);
-                        toast.success('บันทึกขนาดป้ายแล้ว — ลองพิมพ์ป้ายใหม่ได้เลย');
-                      }}>
-                บันทึก
-              </button>
-            </div>
-          </div>
+          <TscLabelSettings />
 
           {/* Browser compatibility warning */}
           {!isWebUsbSupported() && !status.bridge && (

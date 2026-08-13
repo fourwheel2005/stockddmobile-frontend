@@ -2,15 +2,13 @@ import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { X, Wrench, ShieldAlert, Undo2, BatteryMedium, Pencil, Save, Plus, Trash2, ArrowLeftRight, QrCode, PackageOpen } from 'lucide-react';
+import { X, Wrench, ShieldAlert, Undo2, BatteryMedium, Pencil, Save, Plus, Trash2, ArrowLeftRight, QrCode, PackageOpen, Printer } from 'lucide-react';
 import { inventoryApi } from '@/api/inventory';
 import { posApi } from '@/api/pos';
 import { productsApi } from '@/api/products';
 import { extractErrorMessage } from '@/api/client';
 import { useAuthStore } from '@/stores/authStore';
-import { printOrchestrator } from '@/lib/printer/PrintOrchestrator';
-import { buildDeviceLabelTspl } from '@/lib/tspl/deviceLabel';
-import { deviceProductUrl, deviceShortUrl } from '@/lib/storefront';
+import { useDeviceLabelPrinter } from '@/hooks/useDeviceLabelPrinter';
 import { formatDate, formatTHB } from '@/lib/format';
 import { acqLabel, ACQ_ORDER, ACQ_INFO } from '@/lib/acquisition';
 import { RepairIntakeModal } from '@/components/RepairIntakeModal';
@@ -69,37 +67,12 @@ export function SerialsModal({ variantId, productName, sku, onClose, highlightId
   const [editing, setEditing] = useState<SerializedItemResponse | null>(null);
   const [repairFor, setRepairFor] = useState<SerializedItemResponse | null>(null);
   const [moveFor, setMoveFor] = useState<SerializedItemResponse | null>(null);
-  // SKU อื่นของรุ่นเดียวกันที่ย้ายไปได้ (active + ไม่ใช่ตัวปัจจุบัน)
-  const moveTargets = (productVariants ?? []).filter((v) => v.id !== variantId && v.active);
-  // มือของ SKU ปัจจุบัน (FIX-115) — ใช้เตือนเมื่อแก้มือเครื่องแล้วไม่ตรงกับ SKU
-  const variantCondition = (productVariants ?? []).find((v) => v.id === variantId)?.condition ?? null;
+  const [selectedLabelIds, setSelectedLabelIds] = useState<Set<string>>(new Set());
 
   // ปุ่มพิมพ์ป้ายสติกเกอร์แปะเครื่อง — เฉพาะ ADMIN (FIX-104)
   // FIX-149: ป้ายออกเครื่อง TSC TTP-247 (ภาษา TSPL) ผ่าน Local Bridge เท่านั้น —
   // ห้ามใช้ orchestrator fallback (WebUSB/คิว = Epson ESC/POS จะพิมพ์ TSPL เป็นขยะ)
   const isAdmin = useAuthStore((s) => s.hasRole('ADMIN'));
-  const printLabel = async (s: SerializedItemResponse) => {
-    try {
-      printOrchestrator.setBridgeToken(localStorage.getItem('ddmobile.bridge.token'));
-      const bridge = printOrchestrator.getLocalBridge();
-      if (!(await bridge.isReady())) {
-        toast.error('พิมพ์ป้ายต้องต่อผ่าน Local Bridge (เครื่องที่เสียบ TSC TTP-247) — เปิด Bridge แล้วลองใหม่');
-        return;
-      }
-      // QA FIX-151 (M4): bridge เก่า/ไม่เจอ TSC → บล็อก (กัน TSPL ไปออก Epson เป็นกระดาษขยะ)
-      if (!(await bridge.labelReady())) {
-        toast.error('Bridge ยังไม่พร้อมพิมพ์ป้าย — อัปเดต bridge เป็นรุ่นล่าสุด + เสียบ TSC TTP-247 (Zadig/WinUSB) แล้วลองใหม่');
-        return;
-      }
-      // FIX-155: มี stockCode → ลิงก์สั้น (~49 ตัว, QR v3 สแกนติดบนดวงเล็ก) · ไม่มี → ลิงก์ยาวเดิม
-      const qrUrl = s.stockCode ? deviceShortUrl(s.stockCode) : deviceProductUrl(s.id);
-      const bytes = buildDeviceLabelTspl(s, qrUrl);
-      await bridge.print(bytes, { billNo: s.stockCode ?? s.imei ?? s.id, target: 'label' });
-      toast.success('พิมพ์ป้ายแล้ว (TSC)');
-    } catch (e) {
-      toast.error(extractErrorMessage(e));
-    }
-  };
 
   const { data, isLoading } = useQuery({
     queryKey: ['serials', variantId, statusFilter],
@@ -107,6 +80,30 @@ export function SerialsModal({ variantId, productName, sku, onClose, highlightId
       status: statusFilter || undefined, size: 100,
     }),
   });
+
+  // InventoryPage เปิด modal โดยไม่มี productVariants; โหลดรุ่นจาก productId เพื่อหาราคาดาวน์มือ 1 ให้ถูก SKU.
+  const productId = productVariants?.[0]?.productId ?? data?.content.find((item) => item.productId)?.productId;
+  const { data: labelProduct, isLoading: isLabelProductLoading } = useQuery({
+    queryKey: ['product', productId],
+    enabled: !productVariants?.length && Boolean(productId),
+    queryFn: () => productsApi.get(productId!),
+  });
+  const labelVariants = productVariants?.length ? productVariants : labelProduct?.variants ?? [];
+  const moveTargets = labelVariants.filter((variant) => variant.id !== variantId && variant.active);
+  const variantCondition = labelVariants.find((variant) => variant.id === variantId)?.condition ?? null;
+  const { isPrinting, printItems } = useDeviceLabelPrinter(labelVariants);
+
+  const visibleItems = data?.content ?? [];
+  const selectedItems = visibleItems.filter((item) => selectedLabelIds.has(item.id));
+  const allSelected = visibleItems.length > 0 && selectedItems.length === visibleItems.length;
+
+  const toggleAllLabels = () => {
+    setSelectedLabelIds(allSelected ? new Set() : new Set(visibleItems.map((item) => item.id)));
+  };
+
+  const printSelectedLabels = async () => {
+    if (await printItems(selectedItems)) setSelectedLabelIds(new Set());
+  };
 
   const sendService = useMutation({
     mutationFn: ({ id, state, defect }: { id: string; state: ServiceState; defect: string }) =>
@@ -180,9 +177,12 @@ export function SerialsModal({ variantId, productName, sku, onClose, highlightId
           </button>
         </div>
 
-        <div className="shrink-0 border-b px-5 py-2">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b px-5 py-2">
           <select className="input w-56" value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value as SerializedStatus | '')}>
+                  onChange={(e) => {
+                    setStatusFilter(e.target.value as SerializedStatus | '');
+                    setSelectedLabelIds(new Set());
+                  }}>
             <option value="">ทุกสถานะ</option>
             <option value="IN_STOCK">พร้อมขาย</option>
             <option value="PENDING_INTAKE">รอลงสต็อก</option>
@@ -190,11 +190,19 @@ export function SerialsModal({ variantId, productName, sku, onClose, highlightId
             <option value="DEFECTIVE">ชำรุด/บริการ</option>
             <option value="RETURNED">คืน</option>
           </select>
+          {isAdmin && (
+            <button className="btn-primary" disabled={selectedItems.length === 0 || isPrinting || isLabelProductLoading}
+                    onClick={printSelectedLabels}>
+              <Printer className="h-4 w-4" />
+              {isPrinting ? 'กำลังพิมพ์...' : `พิมพ์ป้ายที่เลือก ${selectedItems.length} เครื่อง`}
+            </button>
+          )}
         </div>
 
         <div className="min-h-0 flex-1 overflow-auto">
           <table className="w-full min-w-[1080px] table-fixed text-sm">
             <colgroup>
+              {isAdmin && <col className="w-[44px]" />}
               <col className="w-[190px]" />
               <col className="w-[160px]" />
               <col className="w-[90px]" />
@@ -206,6 +214,12 @@ export function SerialsModal({ variantId, productName, sku, onClose, highlightId
             </colgroup>
             <thead className="sticky top-0 z-10 bg-slate-50 text-left text-xs uppercase text-slate-500 shadow-[0_1px_0_0_rgb(226_232_240)]">
               <tr>
+                {isAdmin && (
+                  <th className="px-3 py-2.5 text-center">
+                    <input type="checkbox" aria-label="เลือกเครื่องทั้งหมดสำหรับพิมพ์ป้าย"
+                           checked={allSelected} onChange={toggleAllLabels} />
+                  </th>
+                )}
                 <th className="whitespace-nowrap px-4 py-2.5">IMEI / SN</th>
                 <th className="whitespace-nowrap px-4 py-2.5">สี / ความจุ</th>
                 <th className="whitespace-nowrap px-4 py-2.5">สภาพ</th>
@@ -218,10 +232,21 @@ export function SerialsModal({ variantId, productName, sku, onClose, highlightId
             </thead>
             <tbody className="divide-y divide-slate-100">
               {isLoading && (
-                <tr><td colSpan={8} className="px-4 py-8 text-center text-slate-400">กำลังโหลด...</td></tr>
+                <tr><td colSpan={isAdmin ? 9 : 8} className="px-4 py-8 text-center text-slate-400">กำลังโหลด...</td></tr>
               )}
               {data?.content.map((s) => (
                 <tr key={s.id} className={s.id === highlightId ? 'bg-amber-50 ring-1 ring-inset ring-amber-300' : 'hover:bg-slate-50'}>
+                  {isAdmin && (
+                    <td className="px-3 py-2.5 text-center align-top">
+                      <input type="checkbox" aria-label={`เลือก ${s.stockCode ?? s.serialNumber} สำหรับพิมพ์ป้าย`}
+                             checked={selectedLabelIds.has(s.id)}
+                             onChange={() => setSelectedLabelIds((current) => {
+                               const next = new Set(current);
+                               if (next.has(s.id)) next.delete(s.id); else next.add(s.id);
+                               return next;
+                             })} />
+                    </td>
+                  )}
                   <td className="align-top px-4 py-2.5">
                     {s.stockCode && (
                       <div className="mb-0.5 inline-block rounded bg-brand-100 px-1.5 font-mono text-[11px] font-semibold text-brand-700">
@@ -264,9 +289,10 @@ export function SerialsModal({ variantId, productName, sku, onClose, highlightId
                         <Pencil className="h-4 w-4" />
                       </button>
                       {isAdmin && (
-                        <button className="rounded p-1.5 text-slate-600 hover:bg-slate-100"
-                                title="พิมพ์ป้าย QR แปะหลังเครื่อง (ลิงก์เว็บ + บาร์โค้ด)"
-                                onClick={() => printLabel(s)}>
+                        <button className="rounded p-1.5 text-slate-600 hover:bg-slate-100 disabled:opacity-40"
+                                title="พิมพ์ป้ายเครื่องนี้ 1 ดวง (ถ้าม้วน 2 ดวง/แถว อีกดวงจะเว้นว่าง)"
+                                disabled={isPrinting || isLabelProductLoading}
+                                onClick={() => printItems([s])}>
                           <QrCode className="h-4 w-4" />
                         </button>
                       )}
@@ -320,7 +346,7 @@ export function SerialsModal({ variantId, productName, sku, onClose, highlightId
                 </tr>
               ))}
               {data && data.content.length === 0 && (
-                <tr><td colSpan={8} className="px-4 py-8 text-center text-slate-400">ไม่มีเครื่องในสถานะนี้</td></tr>
+                <tr><td colSpan={isAdmin ? 9 : 8} className="px-4 py-8 text-center text-slate-400">ไม่มีเครื่องในสถานะนี้</td></tr>
               )}
             </tbody>
           </table>
