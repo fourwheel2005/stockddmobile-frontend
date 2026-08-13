@@ -10,7 +10,7 @@ import { extractErrorMessage } from '@/api/client';
 import { useAuthStore } from '@/stores/authStore';
 import { printOrchestrator } from '@/lib/printer/PrintOrchestrator';
 import { buildDeviceLabelTspl } from '@/lib/tspl/deviceLabel';
-import { deviceProductUrl } from '@/lib/storefront';
+import { deviceProductUrl, deviceShortUrl } from '@/lib/storefront';
 import { formatDate, formatTHB } from '@/lib/format';
 import { acqLabel, ACQ_ORDER, ACQ_INFO } from '@/lib/acquisition';
 import { RepairIntakeModal } from '@/components/RepairIntakeModal';
@@ -91,7 +91,9 @@ export function SerialsModal({ variantId, productName, sku, onClose, highlightId
         toast.error('Bridge ยังไม่พร้อมพิมพ์ป้าย — อัปเดต bridge เป็นรุ่นล่าสุด + เสียบ TSC TTP-247 (Zadig/WinUSB) แล้วลองใหม่');
         return;
       }
-      const bytes = buildDeviceLabelTspl(s, deviceProductUrl(s.id));
+      // FIX-155: มี stockCode → ลิงก์สั้น (~49 ตัว, QR v3 สแกนติดบนดวงเล็ก) · ไม่มี → ลิงก์ยาวเดิม
+      const qrUrl = s.stockCode ? deviceShortUrl(s.stockCode) : deviceProductUrl(s.id);
+      const bytes = buildDeviceLabelTspl(s, qrUrl);
       await bridge.print(bytes, { billNo: s.stockCode ?? s.imei ?? s.id, target: 'label' });
       toast.success('พิมพ์ป้ายแล้ว (TSC)');
     } catch (e) {

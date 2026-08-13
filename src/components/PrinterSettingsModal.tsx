@@ -42,6 +42,7 @@ export function PrinterSettingsModal({
   // FIX-153: ขนาดม้วนป้ายสติกเกอร์ TSC (ต่อดวง + ดวง/แถว)
   const [labelSize, setLabelSize] = useState(localStorage.getItem('ddmobile.label.size') ?? '35x25');
   const [labelAcross, setLabelAcross] = useState(localStorage.getItem('ddmobile.label.across') ?? '2');
+  const [labelCode, setLabelCode] = useState(localStorage.getItem('ddmobile.label.code') ?? 'barcode');
   const [bridgeUrl, setBridgeUrl] = useState(
     getBridgeUrl?.() ?? localStorage.getItem('ddmobile.bridge.url') ?? 'http://localhost:8765',
   );
@@ -274,6 +275,11 @@ export function PrinterSettingsModal({
                 <option value="2">2 ดวง/แถว</option>
                 <option value="3">3 ดวง/แถว</option>
               </select>
+              <select className="input w-44" value={labelCode}
+                      onChange={(e) => setLabelCode(e.target.value)}>
+                <option value="barcode">ดวงเล็ก: บาร์โค้ด (ปืนยิง)</option>
+                <option value="qr">ดวงเล็ก: QR (ลูกค้าสแกน)</option>
+              </select>
               <button className="btn-primary"
                       onClick={() => {
                         if (!/^\d{2,3}\s*[xX×]\s*\d{2,3}$/.test(labelSize.trim())) {
@@ -282,6 +288,7 @@ export function PrinterSettingsModal({
                         }
                         localStorage.setItem('ddmobile.label.size', labelSize.trim());
                         localStorage.setItem('ddmobile.label.across', labelAcross);
+                        localStorage.setItem('ddmobile.label.code', labelCode);
                         toast.success('บันทึกขนาดป้ายแล้ว — ลองพิมพ์ป้ายใหม่ได้เลย');
                       }}>
                 บันทึก

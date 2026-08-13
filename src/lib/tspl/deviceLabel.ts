@@ -19,7 +19,7 @@ import type { SerializedItemResponse } from '@/types/api';
 
 const DPMM = 8; // 203 dpi
 
-export interface LabelConfig { w: number; h: number; across: number; gapX: number; gapY: number }
+export interface LabelConfig { w: number; h: number; across: number; gapX: number; gapY: number; code: 'barcode' | 'qr' }
 
 export function getLabelConfig(): LabelConfig {
   const ls = typeof window !== 'undefined' ? window.localStorage : null;
@@ -29,9 +29,11 @@ export function getLabelConfig(): LabelConfig {
   const gapX = Math.min(10, Math.max(0, Number(ls?.getItem('ddmobile.label.gapx')) || 3));
   // FIX-154: GAP ของ TSPL = ช่องว่าง "แนวป้อนกระดาษ" (ระหว่างแถว) — เดิมใส่ gapX ผิดแกน ทำแถวเลื่อน/ตัดหัวดวง
   const gapY = Math.min(10, Math.max(0, Number(ls?.getItem('ddmobile.label.gapy')) || 2));
+  // FIX-155: โค้ดบนดวงเล็ก (พื้นที่พอตัวเดียว) — barcode (ปืนยิงหน้าร้าน, default) หรือ qr (ลูกค้าสแกนดูเว็บ)
+  const code = ls?.getItem('ddmobile.label.code') === 'qr' ? 'qr' as const : 'barcode' as const;
   return m
-    ? { w: Number(m[1]), h: Number(m[2]), across, gapX, gapY }
-    : { w: 35, h: 25, across, gapX, gapY };
+    ? { w: Number(m[1]), h: Number(m[2]), across, gapX, gapY, code }
+    : { w: 35, h: 25, across, gapX, gapY, code };
 }
 
 const CONDITION_TH: Record<string, string> = {
@@ -122,12 +124,16 @@ export function buildDeviceLabelTspl(s: SerializedItemResponse, url: string): Ui
   const scanCode = (s.stockCode || s.imei || s.serialNumber || '').replace(/[^\x20-\x7e]/g, '');
   const price = s.sellingPrice != null ? formatTHB(s.sellingPrice) : '';
 
-  // ── FIX-154: QR (URL ยาว ~95 ตัว = QR v5-6, 41 โมดูล) ต้อง cell ≥ 4 (โมดูล 0.5mm) ถึงสแกนติดที่ 203dpi
-  //    → ดวงเล็ก (สูง <30mm หรือพื้นที่ข้อความเหลือแคบ) ตัด QR ทิ้ง เน้น Code128 (ปืนยิงอ่านชัวร์) ──
+  // ── FIX-155: ลิงก์สั้น (~49 ตัว) = QR v3 (29 โมดูล) · cell 4 = โมดูล 0.5mm สแกนติดชัวร์ที่ 203dpi ──
   const QR_CELL = 4;
-  const QR_SIDE = 41 * QR_CELL + 2 * M;         // ~41 โมดูล + quiet zone
-  const qrFits = H >= 30 * DPMM && (W - QR_SIDE - M * 3) >= 150;
-  const textW = qrFits ? W - QR_SIDE - M * 3 : W - M * 2;
+  const QR_MODULES = url.length <= 53 ? 29 : 41;   // v3 (ลิงก์สั้น) / v5-6 (ลิงก์ยาว fallback)
+  const QR_SIDE = QR_MODULES * QR_CELL + 32;       // + quiet zone 4 โมดูลต่อข้าง
+  // ดวงใหญ่ (สูง ≥30mm + กว้างพอ) = ข้อความ + QR + barcode ครบ · ดวงเล็ก = เลือกตามโหมด (cfg.code)
+  const bigLabel = H >= 30 * DPMM && (W - QR_SIDE - M * 3) >= 150;
+  const smallQr = !bigLabel && cfg.code === 'qr' && (H - M * 2) >= QR_SIDE;
+  const showQr = bigLabel || smallQr;
+  const showBarcode = bigLabel || !smallQr;
+  const textW = showQr ? Math.max(90, W - QR_SIDE - M * 3) : W - M * 2;
 
   // ── โซนแนวตั้ง: ข้อความ 3 บรรทัด (บน) + Code128 (ล่าง) ──
   const namePx = H >= 240 ? 26 : 24;
@@ -152,18 +158,19 @@ export function buildDeviceLabelTspl(s: SerializedItemResponse, url: string): Ui
     if (name) { b.bitmap(X + M, y, name.wBytes, name.h, name.data); y += name.h + 2; }
     const sub = textBitmap(line2, subPx, false, textW);
     if (sub) { b.bitmap(X + M, y, sub.wBytes, sub.h, sub.data); y += sub.h + 2; }
-    // รหัส + ราคา — บรรทัดเต็มความกว้างดวงเสมอ (ราคาห้ามโดนตัด)
+    // รหัส + ราคา — กว้างสุดเท่าที่ไม่ชน QR (โหมด barcode = เต็มดวง ราคาไม่โดนตัด)
     const codeLine = [s.stockCode, price].filter(Boolean).join('  ');
-    const code = textBitmap(codeLine, codePx, true, W - M * 2);
+    const code = textBitmap(codeLine, codePx, true, showQr && !bigLabel ? textW : W - M * 2);
     if (code) { b.bitmap(X + M, y, code.wBytes, code.h, code.data); }
 
-    // QR ขวาบน — เฉพาะดวงใหญ่พอให้สแกนติดจริง (cell 4)
-    if (qrFits) {
-      b.raw(`QRCODE ${X + W - QR_SIDE - M},${M},L,${QR_CELL},A,0,"${url.replace(/"/g, '')}"`);
+    // QR ขวา — ดวงใหญ่: มุมบน · ดวงเล็กโหมด qr: กึ่งกลางแนวตั้ง (แทน barcode)
+    if (showQr) {
+      const qrY = bigLabel ? M : Math.max(M, Math.round((H - QR_SIDE) / 2));
+      b.raw(`QRCODE ${X + W - QR_SIDE - M},${qrY},L,${QR_CELL},A,0,"${url.replace(/"/g, '')}"`);
     }
 
     // Code128 ล่าง — ช่องทางยิงหลักของหน้าร้าน (อ่านได้แม่นแม้ดวงเล็ก)
-    if (scanCode) {
+    if (showBarcode && scanCode) {
       b.raw(`BARCODE ${X + M},${H - bcZone},"128",${bcH},1,0,2,3,"${scanCode}"`);
     }
   }
