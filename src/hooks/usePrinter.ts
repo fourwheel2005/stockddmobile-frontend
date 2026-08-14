@@ -2,11 +2,17 @@ import { useCallback, useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { printOrchestrator } from '@/lib/printer/PrintOrchestrator';
 import { buildDDMobileReceipt } from '@/lib/escpos/ddmobileReceipt';
+import { buildTaxInvoice } from '@/lib/escpos/taxInvoice';
+import { buildCashPeriodSummary, buildCashSessionSummary } from '@/lib/escpos/cashSummaryReceipt';
+import { taxInvoiceApi } from '@/api/taxInvoice';
 import { printApi } from '@/api/print';
+import axios from 'axios';
+import { extractErrorMessage } from '@/api/client';
 import {
   isAgentMode, getAgentPrinterId, setAgentConfig,
 } from '@/lib/printer/strategies/CloudQueueStrategy';
 import type { PrinterStrategyName } from '@/lib/printer/types';
+import type { CashPeriodSummaryResponse, CashSessionResponse } from '@/types/api';
 
 const TOKEN_KEY = 'ddmobile.bridge.token';
 const URL_KEY = 'ddmobile.bridge.url';
@@ -186,6 +192,60 @@ export function usePrinter() {
     }
   }, []);
 
+  const createTaxInvoicePrintJob = useCallback(async (orderId: string) => {
+    try {
+      return await printApi.createJob(orderId, 'TAX_INVOICE');
+    } catch (e) {
+      if (!axios.isAxiosError(e) || e.response?.status !== 409) throw e;
+      if (!extractErrorMessage(e).includes('TAX_INVOICE_COPY')) throw e;
+      return printApi.createJob(orderId, 'TAX_INVOICE_COPY');
+    }
+  }, []);
+
+  /** พิมพ์ใบกำกับ: backend เป็นผู้ตัดสินต้นฉบับ/สำเนาจาก audit ที่พิมพ์สำเร็จจริง. */
+  const printTaxInvoice = useCallback(async (
+    orderId: string,
+    opts: { openDrawer?: boolean } = {},
+  ) => {
+    setPrinting(true);
+    let job: Awaited<ReturnType<typeof printApi.createJob>> | undefined;
+    try {
+      const data = await taxInvoiceApi.get(orderId);
+      job = await createTaxInvoicePrintJob(orderId);
+      const copy = job.jobType === 'TAX_INVOICE_COPY';
+      const openDrawer = (opts.openDrawer ?? false) && data.paymentMethod === 'CASH';
+      const bytes = buildTaxInvoice(data, { copy, openDrawer });
+      const result = await printOrchestrator.print(bytes, {
+        billNo: data.taxInvoiceNo, jobId: job.id, openDrawer,
+      });
+      const queued = result.strategy === 'PULL_AGENT';
+      if (!queued) {
+        await printApi.logResult(job.id, {
+          jobType: job.jobType, strategy: result.strategy, printerId: result.printerId, success: true,
+        });
+      }
+      if (openDrawer && ['LOCAL_BRIDGE', 'WEB_USB', 'PULL_AGENT'].includes(result.strategy)) {
+        await printApi.logDrawerOpen({ reason: 'CASH_SALE', billNo: data.billNo, printJobId: job.id })
+          .catch(() => undefined);
+      }
+      toast.success(queued
+        ? 'ส่งใบกำกับเข้าคิวปริ้นสาขาแล้ว ☁️'
+        : `พิมพ์ใบกำกับ${copy ? ' (สำเนา)' : ' (ต้นฉบับ)'}แล้ว`);
+      return result;
+    } catch (e) {
+      if (job) {
+        await printApi.logResult(job.id, {
+          jobType: job.jobType, strategy: 'BROWSER', success: false,
+          errorMessage: e instanceof Error ? e.message : String(e),
+        }).catch(() => undefined);
+      }
+      toast.error(`พิมพ์ใบกำกับไม่สำเร็จ: ${e instanceof Error ? e.message : String(e)}`);
+      throw e;
+    } finally {
+      setPrinting(false);
+    }
+  }, [createTaxInvoicePrintJob]);
+
   /** เปิดลิ้นชักโดยตรง (manual) — ต้องผ่าน bridge เท่านั้น */
   const openDrawer = useCallback(async (reason: 'MANUAL' | 'NO_SALE' = 'MANUAL') => {
     try {
@@ -201,11 +261,46 @@ export function usePrinter() {
     }
   }, [status.bridge]);
 
+  const printCashBytes = useCallback(async (
+    bytes: Uint8Array,
+    reference: string,
+    jobType: 'CASH_SESSION_SUMMARY' | 'CASH_MONTHLY_SUMMARY',
+    successMessage: string,
+  ) => {
+    setPrinting(true);
+    try {
+      const result = await printOrchestrator.print(bytes, {
+        billNo: reference, jobType, openDrawer: false, target: 'receipt',
+      });
+      toast.success(result.strategy === 'PULL_AGENT'
+        ? 'ส่งใบสรุปเข้าคิวปริ้นสาขาแล้ว'
+        : successMessage);
+      return result;
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      toast.error(`พิมพ์ใบสรุปไม่สำเร็จ: ${message}`);
+      throw e;
+    } finally {
+      setPrinting(false);
+    }
+  }, []);
+
+  const printCashSessionSummary = useCallback((session: CashSessionResponse) =>
+    printCashBytes(buildCashSessionSummary(session), session.sessionNo,
+      'CASH_SESSION_SUMMARY', 'พิมพ์ใบสรุปปิดเก๊ะแล้ว'), [printCashBytes]);
+
+  const printCashPeriodSummary = useCallback((summary: CashPeriodSummaryResponse) =>
+    printCashBytes(buildCashPeriodSummary(summary), `${summary.fromDate}_${summary.toDate}`,
+      'CASH_MONTHLY_SUMMARY', 'พิมพ์ใบสรุปยอดแล้ว'), [printCashBytes]);
+
   return {
     status,
     printing,
     refresh,
     printReceipt,
+    printTaxInvoice,
+    printCashSessionSummary,
+    printCashPeriodSummary,
     openDrawer,
     requestWebUsb,
     setBridgeToken,

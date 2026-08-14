@@ -16,6 +16,8 @@ import { inventoryApi } from '@/api/inventory';
 import { RepairIntakeModal } from '@/components/RepairIntakeModal';
 import { ReceiptPrintView } from '@/components/ReceiptPrintView';
 import { TaxInvoiceModal } from '@/components/TaxInvoiceModal';
+import { TaxInvoiceCheckoutModal } from '@/components/TaxInvoiceCheckoutModal';
+import { isValidTaxInvoiceBuyer, type IssueTaxInvoiceRequest } from '@/api/taxInvoice';
 import { RepairBillPrintView } from '@/components/RepairBillPrintView';
 import type {
   CartScanResponse, Customer, InStockItem, OrderChannel,
@@ -23,6 +25,8 @@ import type {
 } from '@/types/api';
 import { productsApi } from '@/api/products';
 import { PaymentSplitEditor, validateSplit } from '@/components/pos/PaymentSplitEditor';
+import { SaleDocumentSelector, type SaleDocumentMode } from '@/components/pos/SaleDocumentSelector';
+import { LatestBillActions } from '@/components/pos/LatestBillActions';
 import { CustomItemForm, type CustomItemDraft } from '@/components/pos/CustomItemForm';
 import { type SlipEntry } from '@/components/pos/MultiSlipUpload';
 import { cashRegisterApi } from '@/api/cashRegister';
@@ -136,6 +140,11 @@ export function PosTerminalPage() {
   const [lastBill, setLastBill] = useState<SalesOrderResponse | null>(null);
   // FIX-150: ออกใบกำกับภาษีเต็มรูปแบบจากบิลที่เพิ่งปิด
   const [taxInvoiceFor, setTaxInvoiceFor] = useState<SalesOrderResponse | null>(null);
+  const [documentMode, setDocumentMode] = useState<SaleDocumentMode>('RECEIPT');
+  const [taxDetailsOpen, setTaxDetailsOpen] = useState(false);
+  const [taxInvoiceDraft, setTaxInvoiceDraft] = useState<IssueTaxInvoiceRequest>({
+    buyerType: 'INDIVIDUAL', customerName: '', customerAddress: '',
+  });
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [showCustomerPicker, setShowCustomerPicker] = useState(false);
   const [showImeiPicker, setShowImeiPicker] = useState(false);
@@ -408,6 +417,15 @@ export function PosTerminalPage() {
     setTimeout(() => window.print(), 300);
   };
 
+  const openTaxInvoiceDetails = () => {
+    setTaxInvoiceDraft((current) => ({
+      ...current,
+      customerName: current.customerName || customer?.name || walkInName.trim(),
+      customerAddress: current.customerAddress || customer?.address || shippingAddress.trim(),
+    }));
+    setTaxDetailsOpen(true);
+  };
+
   const checkout = useMutation({
     mutationFn: () => {
       const isInstallment = paymentMethod === 'INSTALLMENT';
@@ -441,6 +459,7 @@ export function PosTerminalPage() {
         paymentSlipFileId: slips.length > 0 ? slips[0].fileId : undefined,
         // V31 — MIXED split
         paymentSplit: paymentMethod === 'MIXED' ? mixedSplit : undefined,
+        taxInvoice: documentMode === 'TAX_INVOICE' ? taxInvoiceDraft : undefined,
         // V31 — Finance partner (INSTALLMENT only)
         // financePartner: ซ่อนชั่วคราว (ร้านผ่อนเอง)
         discountAmount: discount || undefined,
@@ -488,12 +507,17 @@ export function PosTerminalPage() {
       qc.invalidateQueries({ queryKey: ['sales-orders'] });
       setLastBill(order);
 
-      // 🖨 Auto-print ใบเสร็จ + เปิดลิ้นชัก (ถ้าจ่ายสด)
-      // ไม่ blocking — ถ้า print fail ก็ยังถือว่าขายสำเร็จ
-      printer.printReceipt(order.id, { openDrawer: true }).catch((e) => {
-        console.error('Auto-print failed:', e);
-        printBrowserFallback();
-      });
+      // เอกสาร 1 ชุดต่อการขาย: ใบเสร็จปกติ หรือใบเสร็จ/ใบกำกับเต็มรูป (ไม่พิมพ์ซ้ำสองใบ)
+      if (order.taxInvoiceNo) {
+        printer.printTaxInvoice(order.id, { openDrawer: true }).catch((e) => {
+          console.error('Auto-print tax invoice failed:', e);
+        });
+      } else {
+        printer.printReceipt(order.id, { openDrawer: true }).catch((e) => {
+          console.error('Auto-print failed:', e);
+          printBrowserFallback();
+        });
+      }
       clientRequestIdRef.current = null;   // F-03: บิลถัดไปได้ idempotency key ใหม่
       setScannedDevice(null);              // FIX-146: การ์ดเครื่องที่สแกนไม่ค้างหลังปิดบิล (เคยต้องกด X เอง)
       setCart([]);
@@ -510,6 +534,8 @@ export function PosTerminalPage() {
       // setFinancePartner(''); — ซ่อนชั่วคราว
       setMixedSplit({ cash: 0, transfer: 0, card: 0, qr: 0 });
       setVatRate(0);
+      setDocumentMode('RECEIPT');
+      setTaxInvoiceDraft({ buyerType: 'INDIVIDUAL', customerName: '', customerAddress: '' });
       setWalkInName('');
       setWalkInPhone('');
       setOrderChannel('WALK_IN');
@@ -604,6 +630,8 @@ export function PosTerminalPage() {
     onlineNeedsPartner ? 'ออนไลน์: ต้องเลือกพาร์ทเนอร์จัดส่ง' :
     onlineNeedsAddress ? 'ออนไลน์: ต้องกรอกที่อยู่จัดส่ง' :
     installmentNeedsIdentity ? 'ผ่อนชำระ: ต้องระบุชื่อลูกค้า' :
+    (documentMode === 'TAX_INVOICE' && !isValidTaxInvoiceBuyer(taxInvoiceDraft))
+      ? 'ใบกำกับภาษี: กรอกข้อมูลผู้ซื้อให้ครบ' :
     mixedError ? `จ่ายแบบผสม: ${mixedError}` :
     // เทิร์น (FIX-105/106) — รองรับ สด/โอน/ผ่อน(เทิร์นดาวน์) · ยังไม่รองรับจ่ายผสม
     (tradeInOpen && paymentMethod === 'MIXED')
@@ -663,24 +691,6 @@ export function PosTerminalPage() {
             <UserCircle2 className="h-4 w-4" />
             {customer ? customer.name : 'เลือกลูกค้า'}
           </button>
-          {lastBill && (
-            <button
-              className="btn-secondary"
-              disabled={printer.printing}
-              onClick={() => printer.printReceipt(lastBill.id, { duplicate: true, openDrawer: false }).catch(printBrowserFallback)}>
-              <Printer className="h-4 w-4" />
-              {printer.printing ? 'กำลังพิมพ์...' : `พิมพ์ซ้ำ ${lastBill.billNo}`}
-            </button>
-          )}
-          {/* FIX-150: ออกใบกำกับภาษีเต็มรูปแบบให้บิลที่เพิ่งปิด (ลูกค้าขอ ณ จุดขาย) */}
-          {lastBill && (
-            <button
-              className="btn-secondary"
-              onClick={() => setTaxInvoiceFor(lastBill)}>
-              <FileText className="h-4 w-4" />
-              ใบกำกับภาษี
-            </button>
-          )}
           {/* ⭐ Quick Reprint — always visible (สำหรับบิลเก่า / ลูกค้าใบหาย) */}
           <button
             className="btn-secondary"
@@ -852,7 +862,23 @@ export function PosTerminalPage() {
 
       {/* FIX-150: ใบกำกับภาษีเต็มรูปแบบ */}
       {taxInvoiceFor && (
-        <TaxInvoiceModal order={taxInvoiceFor} onClose={() => setTaxInvoiceFor(null)} />
+        <TaxInvoiceModal
+          order={taxInvoiceFor}
+          onClose={() => setTaxInvoiceFor(null)}
+          onPrint={(orderId) => printer.printTaxInvoice(orderId, { openDrawer: false })}
+        />
+      )}
+      {taxDetailsOpen && (
+        <TaxInvoiceCheckoutModal
+          value={taxInvoiceDraft}
+          onChange={setTaxInvoiceDraft}
+          onClose={() => setTaxDetailsOpen(false)}
+          onConfirm={() => {
+            setDocumentMode('TAX_INVOICE');
+            setVatRate(0);
+            setTaxDetailsOpen(false);
+          }}
+        />
       )}
 
       {/* ─── รายละเอียด/ประวัติเครื่องที่เพิ่งสแกน (FIX-103) ──────────── */}
@@ -1348,19 +1374,25 @@ export function PosTerminalPage() {
               <div className="text-xs text-red-600">⚠️ ส่วนลดเกินยอดรวม</div>
             )}
             <div className="flex items-center justify-between text-sm">
-              <span className="text-slate-500">VAT (%)</span>
-              <div className="flex items-center gap-1">
-                {[0, 7].map((r) => (
-                  <button key={r} type="button"
-                          onClick={() => setVatRate(r)}
-                          className={`rounded border px-2 py-1 text-xs ${vatRate === r ? 'border-brand-500 bg-brand-50 font-semibold text-brand-700' : 'border-slate-200 hover:border-slate-300'}`}>
-                    {r}%
-                  </button>
-                ))}
-                <input type="number" step="0.01" min={0} max={7}
-                       className="input w-20 text-right"
-                       value={vatRate} onChange={(e) => setVatRate(Math.min(7, Math.max(0, Number(e.target.value) || 0)))} />
-              </div>
+              <span className="text-slate-500">VAT เพิ่มจากราคาขาย (%)</span>
+              {documentMode === 'TAX_INVOICE' ? (
+                <span className="rounded bg-sky-50 px-2 py-1 text-xs font-semibold text-sky-700">
+                  0% · ใบกำกับใช้ VAT ถอดใน
+                </span>
+              ) : (
+                <div className="flex items-center gap-1">
+                  {[0, 7].map((r) => (
+                    <button key={r} type="button"
+                            onClick={() => setVatRate(r)}
+                            className={`rounded border px-2 py-1 text-xs ${vatRate === r ? 'border-brand-500 bg-brand-50 font-semibold text-brand-700' : 'border-slate-200 hover:border-slate-300'}`}>
+                      {r}%
+                    </button>
+                  ))}
+                  <input type="number" step="0.01" min={0} max={7}
+                         className="input w-20 text-right"
+                         value={vatRate} onChange={(e) => setVatRate(Math.min(7, Math.max(0, Number(e.target.value) || 0)))} />
+                </div>
+              )}
             </div>
             {vatAmount > 0 && (
               <div className="flex items-center justify-between text-sm">
@@ -1455,6 +1487,13 @@ export function PosTerminalPage() {
                 </div>
               </>
             )}
+            <SaleDocumentSelector
+              mode={documentMode}
+              buyerName={taxInvoiceDraft.customerName}
+              disabled={checkout.isPending}
+              onReceipt={() => { setDocumentMode('RECEIPT'); setVatRate(0); }}
+              onTaxInvoice={openTaxInvoiceDetails}
+            />
             <button
               className="btn-primary w-full bg-emerald-600 hover:bg-emerald-700 text-base"
               disabled={checkout.isPending || !!checkoutBlockedReason}
@@ -1464,16 +1503,18 @@ export function PosTerminalPage() {
               {checkout.isPending ? 'กำลังปิดบิล...'
                 : checkoutBlockedReason
                   ? checkoutBlockedReason
-                  : 'ปิดบิล'}
+                  : documentMode === 'TAX_INVOICE'
+                    ? 'รับชำระ · ออกใบกำกับ · พิมพ์'
+                    : 'รับชำระและปิดบิล'}
             </button>
             {lastBill && (
-              <button
-                className="btn-secondary w-full"
-                disabled={printer.printing}
-                onClick={() => printer.printReceipt(lastBill.id, { duplicate: true, openDrawer: false }).catch(printBrowserFallback)}>
-                <Printer className="h-4 w-4" />
-                {printer.printing ? 'กำลังพิมพ์...' : `พิมพ์ซ้ำ ${lastBill.billNo}`}
-              </button>
+              <LatestBillActions
+                order={lastBill}
+                printing={printer.printing}
+                onPrintReceipt={() => printer.printReceipt(lastBill.id, { duplicate: true, openDrawer: false }).catch(printBrowserFallback)}
+                onPrintTaxInvoice={() => printer.printTaxInvoice(lastBill.id, { openDrawer: false }).catch(() => undefined)}
+                onIssueTaxInvoice={() => setTaxInvoiceFor(lastBill)}
+              />
             )}
           </div>
         </div>

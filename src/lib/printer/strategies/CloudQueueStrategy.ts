@@ -68,7 +68,10 @@ export class CloudQueueStrategy implements PrinterStrategy {
       await printApi.queueJob(meta.jobId, { payloadBase64, printerId, openDrawer: !!meta.openDrawer, copies: 1 });
     } else {
       // งานอิสระ (ใบโอน/test) → สร้างงานใหม่ในคิว
-      await printApi.standalone({ payloadBase64, printerId, refNo: meta.billNo, openDrawer: !!meta.openDrawer });
+      await printApi.standalone({
+        payloadBase64, printerId, refNo: meta.billNo,
+        jobType: meta.jobType ?? 'TRANSFER', openDrawer: !!meta.openDrawer,
+      });
     }
   }
 }

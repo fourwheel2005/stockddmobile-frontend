@@ -13,6 +13,8 @@ import { CloseSessionModal } from '@/components/CloseSessionModal';
 import { CashMovementModal } from '@/components/CashMovementModal';
 import { PaymentBreakdownCard } from '@/components/cash/PaymentBreakdownCard';
 import { OrphanSessionBanner } from '@/components/cash/OrphanSessionBanner';
+import { CashSummaryPanel } from '@/components/cash/CashSummaryPanel';
+import { CashHistoryPanel } from '@/components/cash/CashHistoryPanel';
 import type { CashMovementType, PaidFrom } from '@/types/api';
 
 const TYPE_TH: Record<CashMovementType, string> = {
@@ -26,6 +28,7 @@ const TYPE_TH: Record<CashMovementType, string> = {
   REFUND_TRANSFER:         'คืนผ่านโอน',
   PAYOUT_SHIPPING:         'ค่าจัดส่ง',
   PAYOUT_EXPENSE:          'จ่ายค่าใช้จ่าย',
+  TRADEIN_PAYOUT:          'จ่ายส่วนต่างเทิร์น',
   CASH_IN:                 'เติมเงินสด',
   SAFE_DROP:               'เก็บเข้าตู้นิรภัย',
   PETTY_CASH_FROM_OWNER:   'ตา/ยายใส่เงิน',
@@ -41,6 +44,7 @@ const PAID_FROM_TH: Record<PaidFrom, string> = {
 };
 
 export function CashRegisterPage() {
+  const [activeTab, setActiveTab] = useState<'current' | 'summary' | 'history'>('current');
   const [showOpen, setShowOpen] = useState(false);
   const [showClose, setShowClose] = useState(false);
   const [showMovement, setShowMovement] = useState(false);
@@ -74,7 +78,7 @@ export function CashRegisterPage() {
             <Wallet className="h-6 w-6 text-brand-600" />
             จัดการเก๊ะ
           </h1>
-          <p className="page-subtitle">เปิด · ปิด · บันทึกเงินเข้า-ออก · รายงานตา/ยาย</p>
+          <p className="page-subtitle">เปิด–ปิดกะ · สรุปยอด · ตรวจประวัติเงินตรง/ขาด/เกิน</p>
         </div>
         <button
           onClick={() => sessionQuery.refetch()}
@@ -83,6 +87,14 @@ export function CashRegisterPage() {
           <RefreshCw className="h-4 w-4" />
         </button>
       </div>
+
+      <div className="flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1">
+        <TabButton active={activeTab === 'current'} onClick={() => setActiveTab('current')}>กะปัจจุบัน</TabButton>
+        <TabButton active={activeTab === 'summary'} onClick={() => setActiveTab('summary')}>สรุปยอด</TabButton>
+        <TabButton active={activeTab === 'history'} onClick={() => setActiveTab('history')}>ประวัติเก๊ะ</TabButton>
+      </div>
+
+      <div className={activeTab === 'current' ? 'contents' : 'hidden'}>
 
       {/* P4 — Orphan session banner (ADMIN/MANAGER) */}
       <OrphanSessionBanner currentSessionId={session?.id} />
@@ -139,7 +151,8 @@ export function CashRegisterPage() {
           </div>
 
           {/* V31 — สรุปสด/โอน/บัตร/QR ตอบ requirement "เย็นนี้สรุปยอด" */}
-          <PaymentBreakdownCard breakdown={session.breakdown ?? null} />
+          <PaymentBreakdownCard breakdown={session.breakdown ?? null}
+            refundTotal={session.refundTotal} netSalesTotal={session.netSalesTotal} />
 
           {/* Movements log */}
           <div className="card">
@@ -258,7 +271,24 @@ export function CashRegisterPage() {
       {showOpen && <OpenSessionModal onClose={() => setShowOpen(false)} />}
       {showClose && session && <CloseSessionModal session={session} onClose={() => setShowClose(false)} />}
       {showMovement && session && <CashMovementModal sessionId={session.id} onClose={() => setShowMovement(false)} />}
+      </div>
+
+      {activeTab === 'summary' && <CashSummaryPanel branchId={activeBranchId ?? undefined} />}
+      {activeTab === 'history' && <CashHistoryPanel branchId={activeBranchId ?? undefined} />}
     </div>
+  );
+}
+
+function TabButton({ active, onClick, children }: {
+  active: boolean; onClick: () => void; children: React.ReactNode;
+}) {
+  return (
+    <button onClick={onClick}
+      className={`min-w-max flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition ${
+        active ? 'bg-brand-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
+      }`}>
+      {children}
+    </button>
   );
 }
 

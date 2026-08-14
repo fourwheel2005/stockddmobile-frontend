@@ -707,7 +707,7 @@ export type CashMovementType =
   | 'SALE_CASH' | 'SALE_TRANSFER' | 'SALE_CARD' | 'SALE_QR'
   | 'FINANCE_PAYOUT_RECEIVED'
   | 'REFUND_CASH' | 'REFUND_TRANSFER'
-  | 'PAYOUT_SHIPPING' | 'PAYOUT_EXPENSE'
+  | 'PAYOUT_SHIPPING' | 'PAYOUT_EXPENSE' | 'TRADEIN_PAYOUT'
   | 'CASH_IN' | 'SAFE_DROP' | 'PETTY_CASH_FROM_OWNER' | 'OPENING_FLOAT' | 'ADJUSTMENT';
 
 export type SessionStatus = 'OPEN' | 'CLOSED';
@@ -756,7 +756,48 @@ export interface CashSessionResponse {
   note: string | null;
   /** V31 — null สำหรับ session เก่าก่อน V31 */
   breakdown: PaymentBreakdown | null;
+  refundCashTotal: number;
+  refundTransferTotal: number;
+  refundTotal: number;
+  refundCount: number;
+  netSalesTotal: number;
+  cashInTotal: number;
+  payoutTotal: number;
+  safeDropTotal: number;
+  adjustmentTotal: number;
+  financePayoutTotal: number;
+  ownerPaidTotal: number;
   movements: CashMovementLine[] | null;
+}
+
+export interface CashPeriodSummaryResponse {
+  fromDate: string;
+  toDate: string;
+  generatedAt: string;
+  registerId: string | null;
+  registerName: string;
+  sessionCount: number;
+  balancedSessionCount: number;
+  shortageSessionCount: number;
+  overageSessionCount: number;
+  breakdown: PaymentBreakdown;
+  refundCashTotal: number;
+  refundTransferTotal: number;
+  refundTotal: number;
+  refundCount: number;
+  netSalesTotal: number;
+  cashInTotal: number;
+  payoutTotal: number;
+  safeDropTotal: number;
+  adjustmentTotal: number;
+  financePayoutTotal: number;
+  ownerPaidTotal: number;
+  openingFloatTotal: number;
+  expectedCloseTotal: number;
+  actualCloseTotal: number;
+  varianceTotal: number;
+  shortageTotal: number;
+  overageTotal: number;
 }
 
 export interface OpenSessionRequest {
@@ -815,6 +856,8 @@ export interface CheckoutRequest {
   slipFileIds?: string[];            // V31 — multi-slip support
   /** V31 — required when paymentMethod=MIXED; sum must equal grandTotal (±0.01) */
   paymentSplit?: PaymentSplit;
+  /** null/undefined = ใบเสร็จปกติ; มีค่า = ออกใบกำกับเต็มรูปพร้อม checkout */
+  taxInvoice?: import('@/api/taxInvoice').IssueTaxInvoiceRequest;
   // Installment fields (used only when paymentMethod=INSTALLMENT)
   installmentMonths?: number;
   installmentMonthlyAmount?: number;
@@ -924,6 +967,8 @@ export interface SalesOrderResponse {
   createdBy: string;
   createdAt: string;
   closedAt: string | null;
+  taxInvoiceNo: string | null;
+  taxInvoiceIssuedAt: string | null;
   items: SalesOrderItemResponse[];
 }
 

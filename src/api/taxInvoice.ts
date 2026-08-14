@@ -1,5 +1,7 @@
 import { api } from './client';
 
+export type TaxBuyerType = 'INDIVIDUAL' | 'VAT_REGISTERED';
+
 /** ใบกำกับภาษีเต็มรูปแบบ (FIX-150) — mirror ของ TaxInvoiceDataResponse ฝั่ง backend */
 export interface TaxInvoiceData {
   company: {
@@ -13,7 +15,9 @@ export interface TaxInvoiceData {
   issuedAt: string;
   billNo: string;
   customerName: string;
-  customerTaxId: string;
+  customerTaxId: string | null;
+  customerType: TaxBuyerType | null;
+  customerBranchCode: string | null;
   customerAddress: string;
   items: Array<{
     seq: number;
@@ -37,9 +41,21 @@ export interface TaxInvoiceData {
 }
 
 export interface IssueTaxInvoiceRequest {
+  buyerType: TaxBuyerType;
   customerName: string;
-  customerTaxId: string;   // 13 หลัก
+  customerTaxId?: string;  // ผู้ซื้อจด VAT บังคับ 13 หลัก; บุคคลทั่วไปเว้นได้
+  customerBranchCode?: string; // 00000 = สำนักงานใหญ่; อื่นๆ = สาขา 5 หลัก
   customerAddress: string;
+}
+
+export function isValidTaxInvoiceBuyer(req: IssueTaxInvoiceRequest): boolean {
+  if (!req.customerName.trim() || !req.customerAddress.trim()) return false;
+  const taxId = req.customerTaxId?.trim() ?? '';
+  if (taxId !== '' && !/^\d{13}$/.test(taxId)) return false;
+  if (req.buyerType === 'VAT_REGISTERED') {
+    return /^\d{13}$/.test(taxId) && /^\d{5}$/.test(req.customerBranchCode ?? '');
+  }
+  return true;
 }
 
 export const taxInvoiceApi = {

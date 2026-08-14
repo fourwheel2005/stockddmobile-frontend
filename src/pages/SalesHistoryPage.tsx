@@ -250,6 +250,11 @@ export function SalesHistoryPage() {
                     {row.sale.branchName && (
                       <span className="ml-1.5 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">🏪 {row.sale.branchName}</span>
                     )}
+                    {row.sale.taxInvoiceNo && (
+                      <span className="ml-1.5 rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700">
+                        TIV {row.sale.taxInvoiceNo}
+                      </span>
+                    )}
                     {/* FinanceBadge ซ่อนชั่วคราว — ร้านผ่อนเอง ไม่ผ่านไฟแนนซ์ */}
                   </td>
                   <td className="px-5 py-3">{row.sale.customerName ?? <span className="text-slate-400">Walk-in</span>}</td>
@@ -270,7 +275,9 @@ export function SalesHistoryPage() {
                       {row.sale.status === 'PAID' && (
                         <button
                           className="rounded p-1.5 text-brand-700 hover:bg-brand-50"
-                          title="ออกใบกำกับภาษีเต็มรูปแบบ"
+                          title={row.sale.taxInvoiceNo
+                            ? `พิมพ์ใบกำกับ ${row.sale.taxInvoiceNo}`
+                            : 'ออกใบกำกับภาษีเต็มรูปแบบ'}
                           onClick={() => setTaxInvoiceFor(row.sale)}>
                           <FileText className="h-4 w-4" />
                         </button>
@@ -380,7 +387,11 @@ export function SalesHistoryPage() {
       )}
 
       {taxInvoiceFor && (
-        <TaxInvoiceModal order={taxInvoiceFor} onClose={() => setTaxInvoiceFor(null)} />
+        <TaxInvoiceModal
+          order={taxInvoiceFor}
+          onClose={() => setTaxInvoiceFor(null)}
+          onPrint={(orderId) => printer.printTaxInvoice(orderId, { openDrawer: false })}
+        />
       )}
 
       {returnOrder && (

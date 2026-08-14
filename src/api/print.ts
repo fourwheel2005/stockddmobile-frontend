@@ -5,7 +5,7 @@ import type { ReceiptData } from '@/lib/escpos/ddmobileReceipt';
 export interface PrintJobResponse {
   id: string;
   billNo: string;
-  jobType: 'RECEIPT' | 'DUPLICATE' | 'REPAIR_TICKET' | 'TEST';
+  jobType: PrintJobType;
   status: 'PENDING' | 'PRINTING' | 'PRINTED' | 'FAILED' | 'CANCELLED';
   strategy: PrinterStrategyName | null;
   printerId: string | null;
@@ -18,13 +18,17 @@ export interface PrintJobResponse {
 }
 
 export interface PrintLogRequest {
-  jobType: 'RECEIPT' | 'DUPLICATE' | 'REPAIR_TICKET' | 'TEST';
+  jobType: PrintJobType;
   strategy: PrinterStrategyName;
   printerId?: string;
   success: boolean;
   errorMessage?: string;
   note?: string;
 }
+
+export type PrintJobType =
+  | 'RECEIPT' | 'DUPLICATE' | 'TAX_INVOICE' | 'TAX_INVOICE_COPY'
+  | 'REPAIR_TICKET' | 'TRANSFER' | 'CASH_SESSION_SUMMARY' | 'CASH_MONTHLY_SUMMARY' | 'TEST';
 
 export type DrawerReason = 'CASH_SALE' | 'MANUAL' | 'REFUND' | 'NO_SALE' | 'TEST';
 
@@ -39,7 +43,7 @@ export const printApi = {
   getReceiptData: (orderId: string) =>
     api.get<ReceiptData>(`/print/orders/${orderId}/receipt-data`).then((r) => r.data),
 
-  createJob: (orderId: string, type: 'RECEIPT' | 'DUPLICATE' | 'TEST' = 'RECEIPT') =>
+  createJob: (orderId: string, type: PrintJobType = 'RECEIPT') =>
     api.post<PrintJobResponse>(`/print/orders/${orderId}/print-jobs`, null, {
       params: { type },
     }).then((r) => r.data),
@@ -55,7 +59,7 @@ export const printApi = {
     api.post<PrintJobResponse>(`/print/jobs/${jobId}/queue`, req).then((r) => r.data),
 
   /** ฝากงานพิมพ์อิสระ (ไม่ผูกบิล) เข้าคิว agent — เช่น ใบโอนสาขา */
-  standalone: (req: { payloadBase64: string; printerId: string; refNo: string; jobType?: string; openDrawer?: boolean; copies?: number }) =>
+  standalone: (req: { payloadBase64: string; printerId: string; refNo: string; jobType?: PrintJobType; openDrawer?: boolean; copies?: number }) =>
     api.post<PrintJobResponse>('/print/standalone', req).then((r) => r.data),
 
   /** เช็คว่า agent ของปริ้นเตอร์สาขานั้นออนไลน์ไหม (badge สถานะ) */

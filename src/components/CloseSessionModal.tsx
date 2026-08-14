@@ -8,6 +8,7 @@ import { formatTHB } from '@/lib/format';
 import { useModalChrome, backdropCloseHandler } from '@/hooks/useModalChrome';
 import { PaymentBreakdownCard } from '@/components/cash/PaymentBreakdownCard';
 import type { CashSessionResponse } from '@/types/api';
+import { usePrinter } from '@/hooks/usePrinter';
 
 interface Props {
   session: CashSessionResponse;
@@ -18,7 +19,8 @@ interface Props {
 /** Modal ปิดเก๊ะ — กรอกเงินจริง · ระบบคำนวณ variance · alert ถ้า >±50 บาท */
 export function CloseSessionModal({ session, onClose, onClosed }: Props) {
   const qc = useQueryClient();
-  const [actual, setActual] = useState<number>(0);
+  const printer = usePrinter();
+  const [actual, setActual] = useState<number | null>(null);
   const [note, setNote] = useState('');
 
   useModalChrome(onClose);
@@ -29,14 +31,14 @@ export function CloseSessionModal({ session, onClose, onClosed }: Props) {
   const nonCashTotal = Number(session.breakdown?.transferTotal ?? 0)
     + Number(session.breakdown?.cardTotal ?? 0)
     + Number(session.breakdown?.qrTotal ?? 0);
-  const counted = actual > 0;
-  const variance = actual - expected;
+  const counted = actual != null;
+  const variance = (actual ?? 0) - expected;
   const VARIANCE_THRESHOLD = 50;
   const willAlert = Math.abs(variance) > VARIANCE_THRESHOLD;
 
   const close = useMutation({
-    mutationFn: () => cashRegisterApi.close(session.id, { actualClose: actual, note: note || undefined }),
-    onSuccess: (s) => {
+    mutationFn: () => cashRegisterApi.close(session.id, { actualClose: actual ?? 0, note: note || undefined }),
+    onSuccess: async (s) => {
       const v = Number(s.variance ?? 0);
       if (Math.abs(v) > VARIANCE_THRESHOLD) {
         toast.error(`ปิดเก๊ะแล้ว · ส่วนต่าง ${formatTHB(v)} (แจ้ง LINE)`, { duration: 5000 });
@@ -44,6 +46,13 @@ export function CloseSessionModal({ session, onClose, onClosed }: Props) {
         toast.success(`ปิดเก๊ะแล้ว · ${s.sessionNo}`);
       }
       qc.invalidateQueries({ queryKey: ['cash-session'] });
+      qc.invalidateQueries({ queryKey: ['cash-register-history'] });
+      qc.invalidateQueries({ queryKey: ['cash-register-summary'] });
+      try {
+        await printer.printCashSessionSummary(s);
+      } catch {
+        toast(`เก๊ะปิดสำเร็จแล้ว — พิมพ์ซ้ำได้ในแท็บ “ประวัติเก๊ะ”`, { duration: 6000 });
+      }
       onClosed?.();
       onClose();
     },
@@ -69,7 +78,8 @@ export function CloseSessionModal({ session, onClose, onClosed }: Props) {
 
         <div className="flex-1 overflow-y-auto space-y-4 p-5">
           {/* V31 — Breakdown สด/โอน/บัตร/QR ตอบ requirement "เย็นนี้สรุปยอด" */}
-          <PaymentBreakdownCard breakdown={session.breakdown ?? null} />
+          <PaymentBreakdownCard breakdown={session.breakdown ?? null}
+            refundTotal={session.refundTotal} netSalesTotal={session.netSalesTotal} />
 
           {/* ตัวเลขเดียวที่ต้องเทียบตอนปิดร้าน — เงินสดในลิ้นชักเท่านั้น */}
           <div className="rounded-lg border-2 border-brand-200 bg-brand-50 p-4 text-center">
@@ -97,9 +107,9 @@ export function CloseSessionModal({ session, onClose, onClosed }: Props) {
             <input
               type="number" min={0} step={1}
               className="input text-right text-2xl font-bold"
-              value={actual || ''}
+              value={actual ?? ''}
               placeholder="0"
-              onChange={(e) => setActual(Math.max(0, Number(e.target.value) || 0))}
+              onChange={(e) => setActual(e.target.value === '' ? null : Math.max(0, Number(e.target.value) || 0))}
               autoFocus
             />
             <button
@@ -154,10 +164,10 @@ export function CloseSessionModal({ session, onClose, onClosed }: Props) {
           <button className="btn-secondary" onClick={onClose}>ยกเลิก</button>
           <button
             className="btn-primary bg-rose-600 hover:bg-rose-700"
-            disabled={close.isPending || actual <= 0 || (willAlert && !note.trim())}
+            disabled={close.isPending || printer.printing || actual == null || (willAlert && !note.trim())}
             onClick={() => close.mutate()}>
             <DoorClosed className="h-4 w-4" />
-            {close.isPending ? 'กำลังปิด...' : 'ปิดเก๊ะ'}
+            {close.isPending || printer.printing ? 'กำลังปิดและพิมพ์...' : 'ปิดเก๊ะและพิมพ์สรุป'}
           </button>
         </div>
       </div>

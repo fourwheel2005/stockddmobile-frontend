@@ -22,7 +22,7 @@ const fmtDate = (iso: string) => {
  */
 export function buildTaxInvoice(
   data: TaxInvoiceData,
-  opts: { copy?: boolean } = {},   // copy = สำเนา (พิมพ์ซ้ำ)
+  opts: { copy?: boolean; openDrawer?: boolean } = {},
 ): Uint8Array {
   const b = new EscPosBuilder().init().codepage(26);
 
@@ -48,7 +48,12 @@ export function buildTaxInvoice(
   b.justify('อ้างอิงบิลขาย:', data.billNo, W);
   b.separator('-', W);
   b.textln(`นามลูกค้า : ${data.customerName}`);
-  b.textln(`TAX ID : ${data.customerTaxId}`);
+  if (data.customerTaxId) b.textln(`TAX ID : ${data.customerTaxId}`);
+  if (data.customerType === 'VAT_REGISTERED' && data.customerBranchCode) {
+    b.textln(data.customerBranchCode === '00000'
+      ? 'สถานประกอบการ : สำนักงานใหญ่'
+      : `สถานประกอบการ : สาขาที่ ${data.customerBranchCode}`);
+  }
   b.textln(`ที่อยู่ : ${data.customerAddress}`);
 
   b.separator('=', W);
@@ -94,5 +99,6 @@ export function buildTaxInvoice(
   b.newline().align('C').textln(`** โทร ${data.company.phone} **`);
 
   b.feedAndCut(4);
+  if (opts.openDrawer && data.paymentMethod === 'CASH') b.drawerKick(0);
   return b.build();
 }

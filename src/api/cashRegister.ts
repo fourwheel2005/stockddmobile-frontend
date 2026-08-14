@@ -3,8 +3,10 @@ import type {
   CashMovementRequest,
   CashSessionResponse,
   CloseSessionRequest,
+  CashPeriodSummaryResponse,
   OpenSessionRequest,
   OwnerLedgerResponse,
+  PageResponse,
 } from '@/types/api';
 
 export const cashRegisterApi = {
@@ -28,6 +30,14 @@ export const cashRegisterApi = {
 
   close: (id: string, req: CloseSessionRequest) =>
     api.post<CashSessionResponse>(`/cash-register/${id}/close`, req).then((r) => r.data),
+
+  history: (params: { from: string; to: string; branchId?: string; page?: number; size?: number }) =>
+    api.get<PageResponse<CashSessionResponse>>('/cash-register/sessions', { params })
+      .then((r) => r.data),
+
+  summary: (params: { from: string; to: string; branchId?: string }) =>
+    api.get<CashPeriodSummaryResponse>('/cash-register/summary', { params })
+      .then((r) => r.data),
 
   ownerLedger: (from?: string, to?: string) =>
     api.get<OwnerLedgerResponse>('/cash-register/owner-ledger', {

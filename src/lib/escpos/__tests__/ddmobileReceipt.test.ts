@@ -118,6 +118,13 @@ describe('buildDDMobileReceipt', () => {
     expect(str).toContain('20.00');
   });
 
+  it('keeps the ordinary cash receipt at VAT 0 without a VAT surcharge line', () => {
+    const bytes = buildDDMobileReceipt(makeReceipt({ vatAmount: 0, grandTotal: 39900 }));
+    const text = String.fromCharCode(...bytes);
+    expect(text).not.toContain('VAT:');
+    expect(text).toContain('39,900.00');
+  });
+
   it('renders installment payment block', () => {
     const bytes = buildDDMobileReceipt(makeReceipt({
       paymentMethod: 'INSTALLMENT',

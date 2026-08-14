@@ -4,6 +4,8 @@ import type { PaymentBreakdown } from '@/types/api';
 
 interface Props {
   breakdown: PaymentBreakdown | null;
+  refundTotal?: number;
+  netSalesTotal?: number;
   className?: string;
 }
 
@@ -11,7 +13,7 @@ interface Props {
  * แสดงสรุปยอดต่อ method ที่หน้าเก๊ะ (ตอบ requirement
  * "เย็นนี้สรุปสดเท่าไหร่ โอนเท่าไหร่")
  */
-export function PaymentBreakdownCard({ breakdown, className = '' }: Props) {
+export function PaymentBreakdownCard({ breakdown, refundTotal = 0, netSalesTotal, className = '' }: Props) {
   if (!breakdown) {
     return (
       <div className={`rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-center text-sm text-slate-400 ${className}`}>
@@ -77,9 +79,20 @@ export function PaymentBreakdownCard({ breakdown, className = '' }: Props) {
         ))}
       </div>
       <div className="flex items-center justify-between border-t-2 border-slate-200 bg-slate-50 px-4 py-2.5">
-        <span className="text-sm font-semibold text-slate-700">รวมทั้งสิ้น</span>
+        <span className="text-sm font-semibold text-slate-700">ยอดรับรวม</span>
         <span className="text-lg font-bold tabular-nums text-slate-900">{formatTHB(breakdown.grandTotal)}</span>
       </div>
+      {refundTotal > 0 && (
+        <>
+          <div className="flex items-center justify-between border-t border-slate-200 bg-rose-50 px-4 py-2 text-sm text-rose-700">
+            <span>หักคืนเงิน</span><span className="font-semibold">-{formatTHB(refundTotal)}</span>
+          </div>
+          <div className="flex items-center justify-between border-t border-slate-200 bg-emerald-50 px-4 py-2.5">
+            <span className="text-sm font-semibold text-emerald-800">ยอดรับสุทธิ</span>
+            <span className="text-lg font-bold text-emerald-800">{formatTHB(netSalesTotal ?? breakdown.grandTotal - refundTotal)}</span>
+          </div>
+        </>
+      )}
     </div>
   );
 }
