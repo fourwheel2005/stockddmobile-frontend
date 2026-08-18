@@ -19,7 +19,7 @@ export function LatestBillActions({ order, printing, onPrintReceipt, onPrintTaxI
       ) : (
         <div className="grid grid-cols-2 gap-2">
           <button className="btn-secondary" disabled={printing} onClick={onPrintReceipt}>
-            <Printer className="h-4 w-4" /> พิมพ์ใบเสร็จซ้ำ
+            <Printer className="h-4 w-4" /> พิมพ์ใบเสร็จ
           </button>
           <button className="btn-secondary text-brand-700" onClick={onIssueTaxInvoice}>
             <FileText className="h-4 w-4" /> ออกใบกำกับภาษี

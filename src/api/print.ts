@@ -17,6 +17,10 @@ export interface PrintJobResponse {
   duplicateOf: string | null;
 }
 
+export interface ReceiptPrintJobResponse extends Omit<PrintJobResponse, 'jobType'> {
+  jobType: 'RECEIPT' | 'DUPLICATE';
+}
+
 export interface PrintLogRequest {
   jobType: PrintJobType;
   strategy: PrinterStrategyName;
@@ -47,6 +51,11 @@ export const printApi = {
     api.post<PrintJobResponse>(`/print/orders/${orderId}/print-jobs`, null, {
       params: { type },
     }).then((r) => r.data),
+
+  /** Backend เลือก RECEIPT/DUPLICATE จากต้นฉบับที่ PRINTED จริง */
+  createReceiptJob: (orderId: string) =>
+    api.post<ReceiptPrintJobResponse>(`/print/orders/${orderId}/receipt-jobs`)
+      .then((r) => r.data),
 
   logResult: (jobId: string, req: PrintLogRequest) =>
     api.post<PrintJobResponse>(`/print/jobs/${jobId}/log`, req).then((r) => r.data),

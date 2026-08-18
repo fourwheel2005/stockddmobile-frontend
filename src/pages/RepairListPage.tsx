@@ -96,18 +96,18 @@ export function RepairListPage() {
   const printRepair = async (t: RepairTicket, mode: RepairSlipMode) => {
     try {
       printOrchestrator.setBridgeToken(localStorage.getItem('ddmobile.bridge.token'));
-      printOrchestrator.getBrowserPrint().setPrintCallback(async () => {
-        setPrintView({ ticket: t, mode });
-        await new Promise((r) => setTimeout(r, 250));
-        window.print();
-      });
-      const { strategy } = await printOrchestrator.print(buildRepairSlip(t, mode), { billNo: t.ticketNo });
+      const { strategy } = await printOrchestrator.print(
+        buildRepairSlip(t, mode),
+        { billNo: t.ticketNo },
+        { browserPrint: async () => {
+          setPrintView({ ticket: t, mode });
+          await new Promise((resolve) => setTimeout(resolve, 250));
+          window.print();
+        } },
+      );
       toast.success(strategy === 'PULL_AGENT' ? 'ส่งเข้าคิวปริ้นแล้ว ☁️' : `พิมพ์แล้ว (${strategy})`);
     } catch (e) {
       toast.error(extractErrorMessage(e));
-    } finally {
-      // FIX-148: เคลียร์ callback เสมอ — ค้างบน singleton แล้วงานพิมพ์อื่น (ป้าย/ใบเสร็จ) จะ render ใบซ่อมเก่าผิดงาน
-      printOrchestrator.getBrowserPrint().clearPrintCallback();
     }
   };
 

@@ -10,19 +10,18 @@ import type { SalesOrderResponse } from '@/types/api';
 
 interface Props {
   onClose: () => void;
-  /** Hook ที่ส่ง printReceipt(orderId, opts) */
-  onPrint: (orderId: string) => Promise<unknown>;
+  onPrint: (order: SalesOrderResponse) => Promise<unknown>;
   printing: boolean;
 }
 
 /**
- * Quick Reprint — ใช้ในหน้า POS เพื่อพิมพ์บิลเก่าซ้ำ
+ * Quick Receipt Print — ใช้ในหน้า POS เพื่อค้นหาแล้วพิมพ์บิลเก่า
  *
  * <h3>วิธีใช้:</h3>
  *  1. ยิงสแกน QR code บนใบเสร็จเก่า — billNo จะถูก paste
  *  2. หรือ พิมพ์ billNo (เช่น INV-20260603-3F768549) มือ
  *  3. กด ค้นหา → ระบบดึงบิล → preview
- *  4. กด พิมพ์ซ้ำ → ออก ESC/POS DUPLICATE
+ *  4. กดพิมพ์ → backend ตัดสินต้นฉบับ/สำเนาจาก audit จริง
  */
 export function QuickReprintModal({ onClose, onPrint, printing }: Props) {
   useModalChrome(onClose);
@@ -65,7 +64,7 @@ export function QuickReprintModal({ onClose, onPrint, printing }: Props) {
   const doPrint = async () => {
     if (!order) return;
     try {
-      await onPrint(order.id);
+      await onPrint(order);
       onClose();
     } catch {
       // toast already shown by hook
@@ -84,7 +83,7 @@ export function QuickReprintModal({ onClose, onPrint, printing }: Props) {
         <div className="flex items-center justify-between border-b px-5 py-3.5">
           <h2 className="flex items-center gap-2 font-semibold">
             <Printer className="h-5 w-5 text-brand-600" />
-            พิมพ์บิลซ้ำ
+            ค้นหาและพิมพ์บิล
           </h2>
           <button onClick={onClose} className="rounded p-1.5 hover:bg-slate-100" title="ปิด (Esc)">
             <X className="h-4 w-4" />
@@ -154,7 +153,7 @@ export function QuickReprintModal({ onClose, onPrint, printing }: Props) {
                 </div>
               </div>
               <div className="mt-3 rounded bg-amber-50 border border-amber-200 px-2 py-1.5 text-[11px] text-amber-800">
-                ⚠️ ใบเสร็จที่พิมพ์ใหม่จะมีคำว่า <strong>"พิมพ์ซ้ำ — DUPLICATE"</strong> ที่หัวบิล + ไม่เปิดลิ้นชัก
+                ระบบจะลองพิมพ์ <strong>ต้นฉบับ</strong> หากครั้งก่อนยังไม่สำเร็จ และระบุ <strong>สำเนา</strong> เฉพาะบิลที่มีต้นฉบับแล้ว · ไม่เปิดลิ้นชัก
               </div>
             </div>
           )}
@@ -169,7 +168,7 @@ export function QuickReprintModal({ onClose, onPrint, printing }: Props) {
             disabled={!order || printing}
             className="btn-primary bg-emerald-600 hover:bg-emerald-700">
             <Printer className="h-4 w-4" />
-            {printing ? 'กำลังพิมพ์...' : 'พิมพ์ซ้ำ'}
+            {printing ? 'กำลังพิมพ์...' : 'พิมพ์ใบเสร็จ'}
           </button>
         </div>
       </div>

@@ -10,18 +10,7 @@ import type { PrinterStrategy, PrinterStrategyName, PrintJobMeta } from '../type
 export class BrowserPrintStrategy implements PrinterStrategy {
   readonly name: PrinterStrategyName = 'BROWSER';
 
-  /** Callback ที่ caller setup ให้ — render HTML + window.print() */
-  private printCallback: (() => Promise<void>) | null = null;
-
-  setPrintCallback(cb: () => Promise<void>) {
-    this.printCallback = cb;
-  }
-
-  /** FIX-148: เคลียร์หลังใช้เสมอ — callback ค้างบน singleton จะทำให้งานพิมพ์อื่น (ป้าย/ใบเสร็จ)
-   *  ที่ตกมาถึง BROWSER ไป render เนื้อหาเก่าผิดงาน */
-  clearPrintCallback() {
-    this.printCallback = null;
-  }
+  constructor(private readonly printCallback?: () => Promise<void>) {}
 
   label(): string {
     return '🖨 Browser Print (Fallback)';

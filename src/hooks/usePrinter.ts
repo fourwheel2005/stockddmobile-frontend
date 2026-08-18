@@ -12,6 +12,7 @@ import {
   isAgentMode, getAgentPrinterId, setAgentConfig,
 } from '@/lib/printer/strategies/CloudQueueStrategy';
 import type { PrinterStrategyName } from '@/lib/printer/types';
+import { resolveReceiptPrintPlan } from '@/lib/printer/receiptPrintPlan';
 import type { CashPeriodSummaryResponse, CashSessionResponse } from '@/types/api';
 
 const TOKEN_KEY = 'ddmobile.bridge.token';
@@ -23,6 +24,12 @@ export interface PrinterStatus {
   webUsb: boolean;
   browser: boolean;
   primary: PrinterStrategyName | null;
+}
+
+export interface ReceiptPrintOptions {
+  openDrawer?: boolean;
+  /** Render HTML ของบิลเดียวกับ orderId สำหรับ fallback ผ่าน print dialog */
+  browserPrint?: (context: { duplicate: boolean }) => Promise<void>;
 }
 
 /**
@@ -114,41 +121,47 @@ export function usePrinter() {
    */
   const printReceipt = useCallback(async (
     orderId: string,
-    opts: { duplicate?: boolean; openDrawer?: boolean } = {},
+    opts: ReceiptPrintOptions = {},
   ) => {
     setPrinting(true);
-    let jobId: string | undefined;
+    let job: Awaited<ReturnType<typeof printApi.createReceiptJob>> | undefined;
     try {
-      // 1. Create job (idempotency check at backend)
-      const jobType = opts.duplicate ? 'DUPLICATE' : 'RECEIPT';
-      const job = await printApi.createJob(orderId, jobType);
-      jobId = job.id;
+      // 1. Backend เป็น source of truth: FAILED/ยังไม่เคยสำเร็จ = RECEIPT, PRINTED แล้ว = DUPLICATE
+      job = await printApi.createReceiptJob(orderId);
 
       // 2. Get receipt data
       const data = await printApi.getReceiptData(orderId);
 
       // 3. Build ESC/POS bytes
-      const isCash = data.paymentMethod === 'CASH';
-      const openDrawer = (opts.openDrawer ?? true) && isCash;
+      const { duplicate, openDrawer } = resolveReceiptPrintPlan({
+        jobType: job.jobType,
+        isCash: data.paymentMethod === 'CASH',
+        openDrawerRequested: opts.openDrawer,
+      });
       const bytes = buildDDMobileReceipt(data, {
-        duplicate: opts.duplicate,
+        duplicate,
         openDrawer,
       });
+      const browserPrint = opts.browserPrint;
 
       // 4. Print via orchestrator (PULL_AGENT = ฝากเข้าคิว, agent พิมพ์จริงทีหลัง)
       const result = await printOrchestrator.print(bytes, {
         billNo: data.billNo,
-        duplicate: opts.duplicate,
+        duplicate,
         openDrawer,
-        jobId,
+        jobId: job.id,
+      }, {
+        browserPrint: browserPrint
+          ? () => browserPrint({ duplicate })
+          : undefined,
       });
 
       const queued = result.strategy === 'PULL_AGENT';
 
       // 5. Log success — เฉพาะโหมดพิมพ์ทันที (PULL_AGENT ให้ agent เป็นคน ack สถานะ PRINTED)
       if (!queued) {
-        await printApi.logResult(jobId, {
-          jobType,
+        await printApi.logResult(job.id, {
+          jobType: job.jobType,
           strategy: result.strategy,
           printerId: result.printerId,
           success: true,
@@ -162,21 +175,24 @@ export function usePrinter() {
           await printApi.logDrawerOpen({
             reason: 'CASH_SALE',
             billNo: data.billNo,
-            printJobId: jobId,
+            printJobId: job.id,
           });
         } catch {
           /* drawer log fail ≠ print fail — silent */
         }
       }
 
-      toast.success(queued ? 'ส่งเข้าคิวปริ้นสาขาแล้ว ☁️' : `พิมพ์ใบเสร็จแล้ว (${result.strategy})`);
-      return result;
+      const documentLabel = duplicate ? 'สำเนาใบเสร็จ' : 'ใบเสร็จต้นฉบับ';
+      toast.success(queued
+        ? `ส่ง${documentLabel}เข้าคิวปริ้นสาขาแล้ว ☁️`
+        : `พิมพ์${documentLabel}แล้ว (${result.strategy})`);
+      return { ...result, jobType: job.jobType };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      if (jobId) {
+      if (job) {
         try {
-          await printApi.logResult(jobId, {
-            jobType: opts.duplicate ? 'DUPLICATE' : 'RECEIPT',
+          await printApi.logResult(job.id, {
+            jobType: job.jobType,
             strategy: 'BROWSER',
             success: false,
             errorMessage: msg,

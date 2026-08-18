@@ -38,6 +38,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { QuickReprintModal } from '@/components/QuickReprintModal';
 import { OwnerShippingModal } from '@/components/OwnerShippingModal';
 import { usePrinter } from '@/hooks/usePrinter';
+import { printAndConfirmReceipt } from '@/lib/printer/browserPrintConfirmation';
 import { Link } from 'react-router-dom';
 
 const SHIPPING_PARTNER_OPTIONS: { value: ShippingPartner; label: string; icon: string }[] = [
@@ -138,6 +139,10 @@ export function PosTerminalPage() {
   const [vatRate, setVatRate] = useState<number>(0); // % (0 = ไม่คิด VAT)
   const [note, setNote] = useState('');
   const [lastBill, setLastBill] = useState<SalesOrderResponse | null>(null);
+  const [receiptToPrint, setReceiptToPrint] = useState<{
+    order: SalesOrderResponse;
+    duplicate: boolean;
+  } | null>(null);
   // FIX-150: ออกใบกำกับภาษีเต็มรูปแบบจากบิลที่เพิ่งปิด
   const [taxInvoiceFor, setTaxInvoiceFor] = useState<SalesOrderResponse | null>(null);
   const [documentMode, setDocumentMode] = useState<SaleDocumentMode>('RECEIPT');
@@ -409,12 +414,15 @@ export function PosTerminalPage() {
     setSlips([]);
   }
 
-  /** QA FIX-151 (M1): เครื่องไม่มี Bridge/WebUSB → พิมพ์ผ่านหน้าต่างเบราว์เซอร์แทน (ReceiptPrintView
-   *  ใน DOM render จาก lastBill = บิลเดียวกับที่สั่งพิมพ์เสมอ) — เดิม FIX-148 ทำให้ร้าน browser-print
-   *  พิมพ์ใบเสร็จจาก POS ไม่ได้เลย */
-  const printBrowserFallback = () => {
-    toast('ไม่พบเครื่องพิมพ์ — เปิดหน้าต่างพิมพ์ของเบราว์เซอร์แทน', { icon: '🖨️' });
-    setTimeout(() => window.print(), 300);
+  /** Render บิลเป้าหมายก่อนเปิด dialog; callback นี้อยู่ใน PrintJob เดียวกับ thermal strategies */
+  const printReceiptInBrowser = async ({
+    order,
+    duplicate,
+  }: { order: SalesOrderResponse; duplicate: boolean }) => {
+    setRepairToPrint(null);
+    setReceiptToPrint({ order, duplicate });
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    printAndConfirmReceipt();
   };
 
   const openTaxInvoiceDetails = () => {
@@ -505,6 +513,7 @@ export function PosTerminalPage() {
       qc.invalidateQueries({ queryKey: ['inventory'] });
       qc.invalidateQueries({ queryKey: ['transactions'] });
       qc.invalidateQueries({ queryKey: ['sales-orders'] });
+      setReceiptToPrint(null);
       setLastBill(order);
 
       // เอกสาร 1 ชุดต่อการขาย: ใบเสร็จปกติ หรือใบเสร็จ/ใบกำกับเต็มรูป (ไม่พิมพ์ซ้ำสองใบ)
@@ -513,9 +522,11 @@ export function PosTerminalPage() {
           console.error('Auto-print tax invoice failed:', e);
         });
       } else {
-        printer.printReceipt(order.id, { openDrawer: true }).catch((e) => {
+        printer.printReceipt(order.id, {
+          openDrawer: true,
+          browserPrint: ({ duplicate }) => printReceiptInBrowser({ order, duplicate }),
+        }).catch((e) => {
           console.error('Auto-print failed:', e);
-          printBrowserFallback();
         });
       }
       clientRequestIdRef.current = null;   // F-03: บิลถัดไปได้ idempotency key ใหม่
@@ -582,10 +593,13 @@ export function PosTerminalPage() {
       toast.success(`ออกบิลค่างวด ${order.billNo} · ${formatTHB(order.grandTotal)}`);
       qc.invalidateQueries({ queryKey: ['sales-orders'] });
       qc.invalidateQueries({ queryKey: ['cash-session'] });
+      setReceiptToPrint(null);
       setLastBill(order);
-      printer.printReceipt(order.id, { openDrawer: true }).catch((e) => {
+      printer.printReceipt(order.id, {
+        openDrawer: true,
+        browserPrint: ({ duplicate }) => printReceiptInBrowser({ order, duplicate }),
+      }).catch((e) => {
         console.error('Auto-print (ค่างวด) failed:', e);
-        printBrowserFallback();
       });
       setCollectAmount(0);
       setCollectName('');
@@ -1511,7 +1525,10 @@ export function PosTerminalPage() {
               <LatestBillActions
                 order={lastBill}
                 printing={printer.printing}
-                onPrintReceipt={() => printer.printReceipt(lastBill.id, { duplicate: true, openDrawer: false }).catch(printBrowserFallback)}
+                onPrintReceipt={() => printer.printReceipt(lastBill.id, {
+                  openDrawer: false,
+                  browserPrint: ({ duplicate }) => printReceiptInBrowser({ order: lastBill, duplicate }),
+                }).catch(() => undefined)}
                 onPrintTaxInvoice={() => printer.printTaxInvoice(lastBill.id, { openDrawer: false }).catch(() => undefined)}
                 onIssueTaxInvoice={() => setTaxInvoiceFor(lastBill)}
               />
@@ -1541,7 +1558,11 @@ export function PosTerminalPage() {
       {showRepair && (
         <RepairIntakeModal
           onClose={() => setShowRepair(false)}
-          onCreated={(ticket) => { setLastBill(null); setRepairToPrint(ticket); }}
+          onCreated={(ticket) => {
+            setLastBill(null);
+            setReceiptToPrint(null);
+            setRepairToPrint(ticket);
+          }}
         />
       )}
       {showOpenSession && (
@@ -1551,7 +1572,10 @@ export function PosTerminalPage() {
         <QuickReprintModal
           onClose={() => setShowQuickReprint(false)}
           printing={printer.printing}
-          onPrint={(orderId) => printer.printReceipt(orderId, { duplicate: true, openDrawer: false })}
+          onPrint={(order) => printer.printReceipt(order.id, {
+            openDrawer: false,
+            browserPrint: ({ duplicate }) => printReceiptInBrowser({ order, duplicate }),
+          })}
         />
       )}
       {showPrinterSettings && (
@@ -1573,7 +1597,9 @@ export function PosTerminalPage() {
           แสดงครั้งละหนึ่งใบเท่านั้น (ใบเสร็จขาย หรือ ใบรับซ่อม) เพื่อกันพิมพ์ซ้อน */}
       {repairToPrint
         ? <RepairBillPrintView ticket={repairToPrint} />
-        : lastBill && <ReceiptPrintView order={lastBill} />}
+        : receiptToPrint
+          ? <ReceiptPrintView order={receiptToPrint.order} duplicate={receiptToPrint.duplicate} />
+          : lastBill && <ReceiptPrintView order={lastBill} />}
     </div>
   );
 }

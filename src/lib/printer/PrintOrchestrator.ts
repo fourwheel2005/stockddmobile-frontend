@@ -4,6 +4,11 @@ import { WebUsbStrategy } from './strategies/WebUsbStrategy';
 import { BrowserPrintStrategy } from './strategies/BrowserPrintStrategy';
 import type { PrinterStrategy, PrinterStrategyName, PrintJobMeta } from './types';
 
+export interface PrintExecutionOptions {
+  /** HTML ที่ตรงกับงานนี้เท่านั้น — สร้าง strategy ต่อ invocation เพื่อไม่ให้ callback เก่าค้าง */
+  browserPrint?: () => Promise<void>;
+}
+
 /**
  * Multi-tier fallback orchestrator.
  *
@@ -24,16 +29,14 @@ export class PrintOrchestrator {
     private localBridge = new LocalBridgeStrategy(),
     private cloudQueue = new CloudQueueStrategy(),
     private webUsb = new WebUsbStrategy(),
-    private browserPrint = new BrowserPrintStrategy(),
   ) {
-    // Priority: bridge (direct) → pull-agent (cloud) → webusb → browser
-    this.strategies = [localBridge, cloudQueue, webUsb, browserPrint];
+    // Priority: bridge (direct) → pull-agent (cloud) → webusb
+    this.strategies = [localBridge, cloudQueue, webUsb];
   }
 
   getLocalBridge(): LocalBridgeStrategy { return this.localBridge; }
   getCloudQueue(): CloudQueueStrategy { return this.cloudQueue; }
   getWebUsb(): WebUsbStrategy { return this.webUsb; }
-  getBrowserPrint(): BrowserPrintStrategy { return this.browserPrint; }
 
   setBridgeToken(token: string | null) {
     this.localBridge.setToken(token);
@@ -46,10 +49,15 @@ export class PrintOrchestrator {
   async print(
     bytes: Uint8Array,
     meta: PrintJobMeta,
+    options: PrintExecutionOptions = {},
   ): Promise<{ strategy: PrinterStrategyName; printerId?: string }> {
     const errors: string[] = [];
+    const strategies = [
+      ...this.strategies,
+      new BrowserPrintStrategy(options.browserPrint),
+    ];
 
-    for (const s of this.strategies) {
+    for (const s of strategies) {
       try {
         const ready = await s.isReady();
         if (!ready) {
@@ -78,8 +86,9 @@ export class PrintOrchestrator {
    * Discover — เช็คว่า strategy ไหนใช้ได้ (สำหรับ status badge)
    */
   async discover(): Promise<Array<{ name: PrinterStrategyName; ready: boolean; label: string }>> {
+    const strategies = [...this.strategies, new BrowserPrintStrategy()];
     const results = await Promise.all(
-      this.strategies.map(async (s) => ({
+      strategies.map(async (s) => ({
         name: s.name,
         ready: await s.isReady(),
         label: s.label(),

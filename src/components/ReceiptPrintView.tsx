@@ -22,18 +22,23 @@ const PARTNER_TH: Record<ShippingPartner, string> = {
   OTHER: 'อื่นๆ',
 };
 
-interface Props { order: SalesOrderResponse; shopName?: string; }
+interface Props {
+  order: SalesOrderResponse;
+  shopName?: string;
+  duplicate?: boolean;
+}
 
 /**
  * Print-friendly receipt. Triggers via window.print().
  * Hidden in normal view (display:none) — only visible in print media via CSS.
  */
-export function ReceiptPrintView({ order, shopName = 'Stockdd Mobile' }: Props) {
+export function ReceiptPrintView({ order, shopName = 'Stockdd Mobile', duplicate = false }: Props) {
   return (
     <div className="receipt-print">
       <div className="text-center">
         <h1 className="text-xl font-bold">{shopName}</h1>
         <p className="text-xs text-slate-600">ใบเสร็จรับเงิน / Receipt</p>
+        {duplicate && <p className="text-sm font-bold">สำเนา / DUPLICATE</p>}
       </div>
 
       <hr className="my-3 border-dashed border-slate-400" />

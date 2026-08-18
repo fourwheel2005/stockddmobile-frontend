@@ -15,6 +15,7 @@ import { ReturnDeviceModal } from '@/components/ReturnDeviceModal';
 import { TaxInvoiceModal } from '@/components/TaxInvoiceModal';
 import { SecurityCodeModal } from '@/components/SecurityCodeModal';
 import { usePrinter } from '@/hooks/usePrinter';
+import { printAndConfirmReceipt } from '@/lib/printer/browserPrintConfirmation';
 import { formatTHB, formatDateTime } from '@/lib/format';
 import { shopDayKey } from '@/lib/datetime';
 import type { FinancePayoutStatus, RepairStatus, RepairTicket, SalesOrderResponse, SalesOrderStatus } from '@/types/api';
@@ -87,7 +88,10 @@ export function SalesHistoryPage() {
   const [day, setDay] = useState<string | null>(null);   // วันที่เลือกจากปฏิทิน (YYYY-MM-DD)
   const [search, setSearch] = useState('');              // input ดิบ
   const [q, setQ] = useState('');                        // debounced → ส่ง query
-  const [printOrder, setPrintOrder] = useState<SalesOrderResponse | null>(null);
+  const [printOrder, setPrintOrder] = useState<{
+    order: SalesOrderResponse;
+    duplicate: boolean;
+  } | null>(null);
   const [refundOrder, setRefundOrder] = useState<SalesOrderResponse | null>(null);
   const [returnOrder, setReturnOrder] = useState<SalesOrderResponse | null>(null);
   // FIX-150: ออกใบกำกับภาษีเต็มรูปแบบ (บิล PAID)
@@ -166,23 +170,19 @@ export function SalesHistoryPage() {
 
   const printer = usePrinter();
 
-  /**
-   * Reprint with ESC/POS via Bridge (DUPLICATE audit) — fallback ไป browser print
-   * ถ้า Bridge/WebUSB/Browser ทั้ง 3 ล้มเหลว → จะใช้ window.print() ของ HTML
-   */
-  const handlePrint = async (id: string) => {
+  /** Backend เลือกต้นฉบับ/สำเนาจาก audit; HTML fallback ใช้บิลแถวเดียวกับที่กดเสมอ */
+  const handlePrint = async (order: SalesOrderResponse) => {
     try {
-      // ลอง print ผ่าน Bridge ก่อน (จะ create DUPLICATE job + audit log)
-      await printer.printReceipt(id, { duplicate: true, openDrawer: false });
+      await printer.printReceipt(order.id, {
+        openDrawer: false,
+        browserPrint: async ({ duplicate }) => {
+          setPrintOrder({ order, duplicate });
+          await new Promise((resolve) => setTimeout(resolve, 150));
+          printAndConfirmReceipt();
+        },
+      });
     } catch {
-      // Fallback: HTML print
-      try {
-        const order = await posApi.getOrder(id);
-        setPrintOrder(order);
-        setTimeout(() => window.print(), 100);
-      } catch (e) {
-        toast.error(extractErrorMessage(e));
-      }
+      // usePrinter แสดง error และบันทึก FAILED ใน job เดียวกันแล้ว
     }
   };
 
@@ -269,7 +269,7 @@ export function SalesHistoryPage() {
                       <button
                         className="rounded p-1.5 text-slate-600 hover:bg-slate-100"
                         title="พิมพ์ใบเสร็จ"
-                        onClick={() => handlePrint(row.sale.id)}>
+                        onClick={() => handlePrint(row.sale)}>
                         <Printer className="h-4 w-4" />
                       </button>
                       {row.sale.status === 'PAID' && (
@@ -356,7 +356,9 @@ export function SalesHistoryPage() {
         )}
       </div>
 
-      {printOrder && <ReceiptPrintView order={printOrder} />}
+      {printOrder && (
+        <ReceiptPrintView order={printOrder.order} duplicate={printOrder.duplicate} />
+      )}
 
       {refundOrder && (
         <RefundMethodModal
