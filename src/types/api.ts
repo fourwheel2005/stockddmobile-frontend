@@ -76,6 +76,16 @@ export interface VariantResponse {
   updatedAt: string;
 }
 
+/** DTO ขั้นต่ำสำหรับ STAFF เลือก SKU เครื่องเทิร์นใน POS — ไม่มีราคา/ต้นทุน/barcode. */
+export interface TradeInVariantResponse {
+  id: string;
+  sku: string;
+  productName: string;
+  color: string | null;
+  storage: string | null;
+  condition: 'SECOND_HAND' | 'LIKE_NEW' | 'REFURBISHED' | 'DEFECTIVE' | null;
+}
+
 export interface ProductDetail {
   id: string;
   name: string;

@@ -7,6 +7,7 @@ import type {
   SalesDayCount,
   SalesOrderResponse,
   SalesOrderStatus,
+  TradeInVariantResponse,
 } from '@/types/api';
 
 export const posApi = {
@@ -16,6 +17,12 @@ export const posApi = {
 
   checkout: (req: CheckoutRequest) =>
     api.post<SalesOrderResponse>('/pos/checkout', req).then((r) => r.data),
+
+  /** SKU มือ 2 สำหรับรับเทิร์น — endpoint POS-safe ใช้ได้ทั้ง STAFF/MANAGER/ADMIN. */
+  searchTradeInVariants: (q: string, page = 0, size = 20) =>
+    api.get<PageResponse<TradeInVariantResponse>>('/pos/trade-in-variants/search', {
+      params: { q, page, size },
+    }).then((r) => r.data),
 
   /** รับชำระค่างวด (เงินสด) — ออกบิลโดยไม่ตัดสต็อก, ไม่ผูกตารางงวดผ่อน (FIX-085) */
   collectInstallment: (req: {

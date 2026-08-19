@@ -21,9 +21,9 @@ import { isValidTaxInvoiceBuyer, type IssueTaxInvoiceRequest } from '@/api/taxIn
 import { RepairBillPrintView } from '@/components/RepairBillPrintView';
 import type {
   CartScanResponse, Customer, InStockItem, OrderChannel,
-  PaymentMethod, PaymentSplit, RepairTicket, SalesOrderResponse, ShippingPartner, VariantResponse,
+  PaymentMethod, PaymentSplit, RepairTicket, SalesOrderResponse, ShippingPartner, TradeInVariantResponse,
 } from '@/types/api';
-import { productsApi } from '@/api/products';
+import { getTradeInBlockedReason, isTradeInActive } from '@/lib/pos/tradeIn';
 import { PaymentSplitEditor, validateSplit } from '@/components/pos/PaymentSplitEditor';
 import { SaleDocumentSelector, type SaleDocumentMode } from '@/components/pos/SaleDocumentSelector';
 import { LatestBillActions } from '@/components/pos/LatestBillActions';
@@ -111,15 +111,20 @@ export function PosTerminalPage() {
   // F-03 (FIX-132): idempotency key ต่อ "ตะกร้าปัจจุบัน" — สร้าง lazy ตอน checkout ครั้งแรก,
   // คงเดิมตอน retry (ปิดบิลซ้ำ backend คืนบิลเดิม), เคลียร์เป็น null หลังปิดสำเร็จ → บิลถัดไปได้ key ใหม่.
   const clientRequestIdRef = useRef<string | null>(null);
+  const tradeInSearchRequestRef = useRef(0);
   const [scanQuery, setScanQuery] = useState('');
   // เครื่องที่เพิ่งสแกน → โชว์การ์ดรายละเอียด (battery + ประวัติซ่อม/อะไหล่ + ใบรับซ่อม) FIX-103
   const [scannedDevice, setScannedDevice] = useState<ScannedDeviceRef | null>(null);
 
   // ─── เทิร์นเครื่องเก่า (FIX-105) ───
+  const [tradeInEnabled, setTradeInEnabled] = useState(false);
   const [tradeInOpen, setTradeInOpen] = useState(false);
-  const [tradeInVariant, setTradeInVariant] = useState<VariantResponse | null>(null);
+  const [tradeInVariant, setTradeInVariant] = useState<TradeInVariantResponse | null>(null);
   const [tradeInSkuQuery, setTradeInSkuQuery] = useState('');
-  const [tradeInResults, setTradeInResults] = useState<VariantResponse[]>([]);
+  const [tradeInResults, setTradeInResults] = useState<TradeInVariantResponse[]>([]);
+  const [tradeInSearchState, setTradeInSearchState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [tradeInSearchError, setTradeInSearchError] = useState('');
+  const [tradeInSearchRetry, setTradeInSearchRetry] = useState(0);
   const [tradeInImei, setTradeInImei] = useState('');
   const [tradeInSerial, setTradeInSerial] = useState('');
   const [tradeInBattery, setTradeInBattery] = useState('');
@@ -132,6 +137,33 @@ export function PosTerminalPage() {
   const [tiNeedsBattery, setTiNeedsBattery] = useState(false);
   const [tiNeedsScreen, setTiNeedsScreen] = useState(false);
   const [tiNote, setTiNote] = useState('');
+
+  const resetTradeIn = () => {
+    tradeInSearchRequestRef.current += 1;
+    setTradeInEnabled(false);
+    setTradeInOpen(false);
+    setTradeInVariant(null);
+    setTradeInSkuQuery('');
+    setTradeInResults([]);
+    setTradeInSearchState('idle');
+    setTradeInSearchError('');
+    setTradeInImei('');
+    setTradeInSerial('');
+    setTradeInBattery('');
+    setTradeInValueStr('');
+    setTradeInPayoutMethod('CASH');
+    setTiHasBox(false); setTiHasCharger(false); setTiHasWarranty(false);
+    setTiNeedsBattery(false); setTiNeedsScreen(false); setTiNote('');
+  };
+
+  const toggleTradeInDetails = () => {
+    if (!tradeInEnabled) {
+      setTradeInEnabled(true);
+      setTradeInOpen(true);
+      return;
+    }
+    setTradeInOpen((open) => !open);
+  };
   const [cart, setCart] = useState<CartLine[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH');
   const [paymentRef, setPaymentRef] = useState('');
@@ -360,7 +392,7 @@ export function PosTerminalPage() {
   const vatAmount = Math.round(taxBase * (Number(vatRate) || 0)) / 100;
   const grandTotal = Math.max(0, taxBase + vatAmount + (Number(shippingFee) || 0));
   // เทิร์น (FIX-105): ยอดขายเต็ม − มูลค่าเทิร์น = net (≥0 รับจากลูกค้า · <0 จ่ายคืน)
-  const tradeInActive = tradeInOpen && tradeInVariant != null && Number(tradeInValueStr) > 0;
+  const tradeInActive = isTradeInActive(tradeInEnabled, tradeInVariant?.id, tradeInValueStr);
   const tradeInValueNum = tradeInActive ? r2(Number(tradeInValueStr)) : 0;
   const netCollect = grandTotal - tradeInValueNum;
   // เทิร์นดาวน์ (FIX-106): ผ่อน + เทิร์น → หักเทิร์นจากเงินดาวน์ที่ลูกค้าจ่ายจริงวันนี้
@@ -369,14 +401,34 @@ export function PosTerminalPage() {
   // ค้น SKU เครื่องเทิร์น (debounce) — เลือกแล้วหยุดค้น
   useEffect(() => {
     const q = tradeInSkuQuery.trim();
-    if (!q || tradeInVariant) { setTradeInResults([]); return; }
+    const requestId = ++tradeInSearchRequestRef.current;
+    if (!tradeInEnabled || !q || tradeInVariant) {
+      setTradeInResults([]);
+      setTradeInSearchState('idle');
+      setTradeInSearchError('');
+      return;
+    }
+    setTradeInSearchState('loading');
+    setTradeInSearchError('');
     const t = setTimeout(() => {
-      productsApi.searchVariants(q, 0, 8)
-        .then((p) => setTradeInResults(p.content))
-        .catch(() => setTradeInResults([]));
+      posApi.searchTradeInVariants(q, 0, 8)
+        .then((page) => {
+          if (tradeInSearchRequestRef.current !== requestId) return;
+          setTradeInResults(page.content);
+          setTradeInSearchState('success');
+        })
+        .catch((error) => {
+          if (tradeInSearchRequestRef.current !== requestId) return;
+          setTradeInResults([]);
+          setTradeInSearchError(extractErrorMessage(error));
+          setTradeInSearchState('error');
+        });
     }, 300);
-    return () => clearTimeout(t);
-  }, [tradeInSkuQuery, tradeInVariant]);
+    return () => {
+      clearTimeout(t);
+      if (tradeInSearchRequestRef.current === requestId) tradeInSearchRequestRef.current += 1;
+    };
+  }, [tradeInEnabled, tradeInSkuQuery, tradeInVariant, tradeInSearchRetry]);
   // บิลผ่อน: บรรทัดที่ "จ่ายสดวันนี้" (อุปกรณ์เสริม) = ไม่รวมยอดผ่อน · ติ๊กต่อบรรทัดได้ (FIX-090/094)
   const addOnToday = r2(cart.filter((l) => l.payToday).reduce((s, l) => s + l.sellPrice * l.quantity, 0));
   const payToday = downAmount + addOnToday;
@@ -555,18 +607,7 @@ export function PosTerminalPage() {
       setShippingAddress('');
       setShippingFeeGrandpa(0);
       setShippingFeeGrandma(0);
-      // เทิร์น — reset (FIX-105)
-      setTradeInOpen(false);
-      setTradeInVariant(null);
-      setTradeInSkuQuery('');
-      setTradeInResults([]);
-      setTradeInImei('');
-      setTradeInSerial('');
-      setTradeInBattery('');
-      setTradeInValueStr('');
-      setTradeInPayoutMethod('CASH');
-      setTiHasBox(false); setTiHasCharger(false); setTiHasWarranty(false);
-      setTiNeedsBattery(false); setTiNeedsScreen(false); setTiNote('');
+      resetTradeIn();
       clearSlips();
       qc.invalidateQueries({ queryKey: ['cash-session'] });
       inputRef.current?.focus();
@@ -635,6 +676,16 @@ export function PosTerminalPage() {
   const shipCardMustOpen = isOnline || shippingFee > 0 || shippingFeeGrandpa > 0 || shippingFeeGrandma > 0
     || (!!shippingPartner && shippingPartner !== 'PICKUP') || shippingAddress.trim().length > 0;
   const shipCardExpanded = shipCardOpen || shipCardMustOpen;
+  const tradeInBlockedReason = getTradeInBlockedReason({
+    enabled: tradeInEnabled,
+    variantId: tradeInVariant?.id,
+    value: tradeInValueStr,
+    imei: tradeInImei,
+    serialNumber: tradeInSerial,
+    batteryHealth: tradeInBattery,
+    paymentMethod,
+    downPayment: downAmount,
+  });
   const checkoutBlockedReason =
     !hasOpenSession ? 'กรุณาเปิดเก๊ะก่อน' :
     cart.length === 0 ? 'ยังไม่มีสินค้าในตะกร้า' :
@@ -647,13 +698,7 @@ export function PosTerminalPage() {
     (documentMode === 'TAX_INVOICE' && !isValidTaxInvoiceBuyer(taxInvoiceDraft))
       ? 'ใบกำกับภาษี: กรอกข้อมูลผู้ซื้อให้ครบ' :
     mixedError ? `จ่ายแบบผสม: ${mixedError}` :
-    // เทิร์น (FIX-105/106) — รองรับ สด/โอน/ผ่อน(เทิร์นดาวน์) · ยังไม่รองรับจ่ายผสม
-    (tradeInOpen && paymentMethod === 'MIXED')
-      ? 'เทิร์น: ยังไม่รองรับจ่ายแบบผสม (ใช้เงินสด/โอน/ผ่อน)' :
-    (tradeInOpen && !tradeInVariant) ? 'เทิร์น: เลือก SKU ของเครื่องที่รับเทิร์น' :
-    (tradeInOpen && !(Number(tradeInValueStr) > 0)) ? 'เทิร์น: กรอกมูลค่าตีเทิร์น' :
-    (tradeInActive && !tradeInImei.trim() && !tradeInSerial.trim()) ? 'เทิร์น: กรอก IMEI หรือ Serial ของเครื่องเก่า' :
-    (tradeInActive && isInstallmentSel && tradeInValueNum > downAmount) ? 'เทิร์นดาวน์: มูลค่าเทิร์นเกินเงินดาวน์ — ใช้เทิร์นสด หรือเพิ่มดาวน์' :
+    tradeInBlockedReason ? tradeInBlockedReason :
     null;
 
   return (
@@ -1259,22 +1304,35 @@ export function PosTerminalPage() {
       </div>
 
       {/* ─── เทิร์นเครื่องเก่า (FIX-105) ─── */}
-      <div className="card border-2 border-violet-300">
-        <button type="button" onClick={() => setTradeInOpen((o) => !o)}
-                className="card-header flex w-full items-center gap-2 bg-violet-50 text-left">
-          <ArrowLeftRight className="h-5 w-5 shrink-0 text-violet-700" />
-          <span className="shrink-0">เทิร์นเครื่องเก่า</span>
-          {tradeInActive && (
-            <span className="truncate text-xs font-normal text-slate-500">
-              {tradeInVariant?.sku} · ตีเทิร์น {formatTHB(tradeInValueNum)}
+      <div className={`card border-2 ${tradeInEnabled ? 'border-violet-400' : 'border-slate-200'}`}>
+        <div className="card-header flex items-center gap-2 bg-violet-50">
+          <button type="button" onClick={toggleTradeInDetails}
+                  aria-expanded={tradeInEnabled && tradeInOpen}
+                  aria-controls="trade-in-details"
+                  className="flex min-w-0 flex-1 items-center gap-2 text-left">
+            <ArrowLeftRight className="h-5 w-5 shrink-0 text-violet-700" />
+            <span className="shrink-0">เทิร์นเครื่องเก่า</span>
+            {tradeInActive && (
+              <span className="truncate text-xs font-normal text-slate-500">
+                {tradeInVariant?.sku} · ตีเทิร์น {formatTHB(tradeInValueNum)}
+              </span>
+            )}
+            {!tradeInEnabled && <span className="text-xs font-normal text-slate-500">กดเพื่อเปิดใช้</span>}
+            <span className="ml-auto shrink-0 text-slate-400">
+              {tradeInEnabled && tradeInOpen
+                ? <ChevronUp className="h-4 w-4" />
+                : <ChevronDown className="h-4 w-4" />}
             </span>
+          </button>
+          {tradeInEnabled && (
+            <button type="button" onClick={resetTradeIn}
+                    className="shrink-0 rounded px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50">
+              ยกเลิกเทิร์น
+            </button>
           )}
-          <span className="ml-auto shrink-0 text-slate-400">
-            {tradeInOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-          </span>
-        </button>
-        {tradeInOpen && (
-          <div className="card-body space-y-3">
+        </div>
+        {tradeInEnabled && tradeInOpen && (
+          <div id="trade-in-details" className="card-body space-y-3">
             {/* เลือก SKU ของเครื่องเทิร์น */}
             {tradeInVariant ? (
               <div className="flex items-center justify-between gap-2 rounded-md border border-violet-200 bg-violet-50 px-3 py-2 text-sm">
@@ -1284,13 +1342,30 @@ export function PosTerminalPage() {
                   {[tradeInVariant.color, tradeInVariant.storage].filter(Boolean).join(' ')}
                 </span>
                 <button type="button" className="shrink-0 text-xs text-red-600 hover:underline"
-                        onClick={() => { setTradeInVariant(null); setTradeInSkuQuery(''); }}>✕ เปลี่ยน SKU</button>
+                        onClick={() => {
+                          setTradeInVariant(null); setTradeInSkuQuery('');
+                          setTradeInSearchState('idle'); setTradeInSearchError('');
+                        }}>✕ เปลี่ยน SKU</button>
               </div>
             ) : (
               <div>
                 <label className="mb-1 block text-xs font-medium text-slate-600">รุ่น / SKU ของเครื่องที่รับเทิร์น (เครื่องเก่าจะลงสต็อกที่รุ่นนี้)</label>
                 <input className="input" placeholder="ค้นหา SKU / รุ่น เช่น iPhone 13"
-                       value={tradeInSkuQuery} onChange={(e) => setTradeInSkuQuery(e.target.value)} />
+                       value={tradeInSkuQuery} onChange={(e) => {
+                         setTradeInSkuQuery(e.target.value); setTradeInResults([]);
+                       }} />
+                <div aria-live="polite">
+                  {tradeInSearchState === 'loading' && (
+                    <p className="mt-1 text-xs text-violet-700">กำลังค้นหารุ่น...</p>
+                  )}
+                  {tradeInSearchState === 'error' && (
+                    <div className="mt-1 flex items-center gap-2 text-xs text-red-700">
+                      <span>ค้นหารุ่นไม่สำเร็จ: {tradeInSearchError}</span>
+                      <button type="button" className="font-semibold underline"
+                              onClick={() => setTradeInSearchRetry((retry) => retry + 1)}>ลองใหม่</button>
+                    </div>
+                  )}
+                </div>
                 {tradeInResults.length > 0 && (
                   <>
                     {/* FIX-145: บอกชัดว่าต้อง "กดเลือก" — พิมพ์เฉยๆ ไม่นับ (เคยทำปิดบิลไม่ได้โดยไม่รู้สาเหตุ) */}
@@ -1300,7 +1375,9 @@ export function PosTerminalPage() {
                     <div className="mt-1 max-h-44 overflow-y-auto rounded-md border border-amber-300">
                       {tradeInResults.map((v) => (
                         <button type="button" key={v.id}
-                                onClick={() => { setTradeInVariant(v); setTradeInResults([]); }}
+                                onClick={() => {
+                                  setTradeInVariant(v); setTradeInResults([]); setTradeInSearchState('idle');
+                                }}
                                 className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-violet-50">
                           <span><span className="font-mono">{v.sku}</span> · {v.productName} <span className="text-slate-500">{[v.color, v.storage].filter(Boolean).join(' ')}</span></span>
                           <span className="shrink-0 rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold text-violet-700">เลือก</span>
@@ -1309,26 +1386,31 @@ export function PosTerminalPage() {
                     </div>
                   </>
                 )}
-                {tradeInSkuQuery.trim() !== '' && tradeInResults.length === 0 && (
+                {tradeInSearchState === 'success' && tradeInSkuQuery.trim() !== ''
+                  && tradeInResults.length === 0 && (
                   <p className="mt-1 text-xs text-slate-500">
                     ไม่พบรุ่น "{tradeInSkuQuery.trim()}" ในระบบ — สร้าง SKU ก่อนแล้วกลับมาค้นใหม่
                   </p>
                 )}
-                <a href="/products/new" target="_blank" rel="noreferrer"
-                   className="mt-1 inline-block text-xs font-medium text-violet-700 hover:underline">
-                  + ไม่เจอรุ่น? สร้าง SKU ใหม่ (เปิดแท็บใหม่ แล้วกลับมาค้นอีกครั้ง)
-                </a>
+                {canSeeBackOffice ? (
+                  <a href="/products/new" target="_blank" rel="noreferrer"
+                     className="mt-1 inline-block text-xs font-medium text-violet-700 hover:underline">
+                    + ไม่เจอรุ่น? สร้าง SKU ใหม่ (เปิดแท็บใหม่ แล้วกลับมาค้นอีกครั้ง)
+                  </a>
+                ) : (
+                  <p className="mt-1 text-xs text-slate-500">ไม่เจอรุ่น ให้แจ้งผู้จัดการสร้าง SKU มือ 2 ก่อน</p>
+                )}
               </div>
             )}
             {/* ข้อมูลเครื่องเก่า + มูลค่า */}
             <div className="grid grid-cols-2 gap-2">
-              <input className="input font-mono" placeholder="IMEI เครื่องเก่า"
+              <input className="input font-mono" maxLength={20} placeholder="IMEI เครื่องเก่า"
                      value={tradeInImei} onChange={(e) => setTradeInImei(e.target.value)} />
-              <input className="input font-mono" placeholder="Serial (ถ้ามี)"
+              <input className="input font-mono" maxLength={30} placeholder="Serial (ถ้ามี)"
                      value={tradeInSerial} onChange={(e) => setTradeInSerial(e.target.value)} />
-              <input type="number" min={0} max={100} className="input" placeholder="แบต %"
+              <input type="number" min={0} max={100} step={1} className="input" placeholder="แบต %"
                      value={tradeInBattery} onChange={(e) => setTradeInBattery(e.target.value)} />
-              <input type="number" min={0} step="0.01" className="input text-right font-semibold" placeholder="มูลค่าตีเทิร์น (บาท)"
+              <input type="number" min={0} max={9999999.99} step="0.01" className="input text-right font-semibold" placeholder="มูลค่าตีเทิร์น (บาท)"
                      value={tradeInValueStr} onChange={(e) => setTradeInValueStr(e.target.value)} />
             </div>
             {/* สภาพเครื่องเทิร์น (FIX-106) */}
@@ -1339,7 +1421,7 @@ export function PosTerminalPage() {
               <label className="flex items-center gap-1.5"><input type="checkbox" checked={tiNeedsBattery} onChange={(e) => setTiNeedsBattery(e.target.checked)} /> ต้องเปลี่ยนแบต</label>
               <label className="flex items-center gap-1.5"><input type="checkbox" checked={tiNeedsScreen} onChange={(e) => setTiNeedsScreen(e.target.checked)} /> ต้องเปลี่ยนจอ</label>
             </div>
-            <input className="input" placeholder="อุปกรณ์อื่นที่ต้องเปลี่ยน / โน้ต (ถ้ามี)"
+            <input className="input" maxLength={500} placeholder="อุปกรณ์อื่นที่ต้องเปลี่ยน / โน้ต (ถ้ามี)"
                    value={tiNote} onChange={(e) => setTiNote(e.target.value)} />
             {/* เทิร์นดาวน์ (ผ่อน) */}
             {tradeInActive && isInstallmentSel && (
