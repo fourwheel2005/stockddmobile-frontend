@@ -76,14 +76,11 @@ export interface VariantResponse {
   updatedAt: string;
 }
 
-/** DTO ขั้นต่ำสำหรับ STAFF เลือก SKU เครื่องเทิร์นใน POS — ไม่มีราคา/ต้นทุน/barcode. */
-export interface TradeInVariantResponse {
+/** รุ่นสินค้าใน catalog สำหรับระบุเครื่องที่ลูกค้านำมา — ไม่มี Stock/SKU/ราคา. */
+export interface TradeInProductResponse {
   id: string;
-  sku: string;
-  productName: string;
-  color: string | null;
-  storage: string | null;
-  condition: 'SECOND_HAND' | 'LIKE_NEW' | 'REFURBISHED' | 'DEFECTIVE' | null;
+  name: string;
+  brand: string;
 }
 
 export interface ProductDetail {
@@ -898,7 +895,9 @@ export interface CheckoutRequest {
 
 /** เทิร์นที่จุดขาย — เครื่องเก่าลงสต็อก (ทุน = value) + คิดส่วนต่างเข้า/ออกเก๊ะ (FIX-105) */
 export interface TradeInRequest {
-  variantId: string;               // SKU ที่เครื่องเทิร์นจะลงสต็อก
+  productId: string;               // รุ่นของเครื่องลูกค้า ไม่ใช่ Stock/SKU
+  color: string;
+  storage: string;
   value: number;                   // มูลค่าตีเทิร์น (= ต้นทุนเครื่องเก่า)
   imei?: string;
   serialNumber?: string;

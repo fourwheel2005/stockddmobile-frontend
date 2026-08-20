@@ -3,7 +3,9 @@ import { getTradeInBlockedReason, isTradeInActive, TRADE_IN_INTAKE_POLICY } from
 
 const valid = {
   enabled: true,
-  variantId: 'variant-1',
+  productId: 'product-1',
+  color: 'Mist Blue',
+  storage: '256GB',
   value: '11900',
   imei: '359001234567890',
   serialNumber: '',
@@ -15,17 +17,20 @@ const valid = {
 describe('POS trade-in state', () => {
   it('states the new-only and pending-intake business policy', () => {
     expect(TRADE_IN_INTAKE_POLICY.newIdentifierOnly).toContain('ไม่เคยอยู่ในระบบ');
+    expect(TRADE_IN_INTAKE_POLICY.modelSource).toContain('ไม่ได้เลือกหรือตัดเครื่องใน Stock');
     expect(TRADE_IN_INTAKE_POLICY.destination).toContain('รอลงสต็อก');
     expect(TRADE_IN_INTAKE_POLICY.destination).toContain('ยังขายไม่ได้');
   });
 
   it('uses explicit enable state and does not depend on accordion visibility', () => {
-    expect(isTradeInActive(true, 'variant-1', '11900')).toBe(true);
-    expect(isTradeInActive(false, 'variant-1', '11900')).toBe(false);
+    expect(isTradeInActive(true, 'product-1', '11900')).toBe(true);
+    expect(isTradeInActive(false, 'product-1', '11900')).toBe(false);
   });
 
-  it('requires a selected variant, positive value and an identifier', () => {
-    expect(getTradeInBlockedReason({ ...valid, variantId: null })).toContain('เลือก SKU');
+  it('requires the customer model/specification, positive value and an identifier', () => {
+    expect(getTradeInBlockedReason({ ...valid, productId: null })).toContain('เลือกรุ่น');
+    expect(getTradeInBlockedReason({ ...valid, color: '' })).toContain('สี');
+    expect(getTradeInBlockedReason({ ...valid, storage: '' })).toContain('ความจุ');
     expect(getTradeInBlockedReason({ ...valid, value: '0' })).toContain('มูลค่า');
     expect(getTradeInBlockedReason({ ...valid, value: '0.001' })).toContain('0.01');
     expect(getTradeInBlockedReason({ ...valid, value: '11900.123' })).toContain('2 ตำแหน่ง');

@@ -23,7 +23,7 @@ import { RepairBillPrintView } from '@/components/RepairBillPrintView';
 import type {
   CartScanResponse, Customer, InStockItem, OrderChannel,
   PaymentMethod, PaymentSplit, RepairTicket, SalesOrderResponse, ShippingAddressInput,
-  ShippingPartner, TradeInVariantResponse,
+  ShippingPartner, TradeInProductResponse,
 } from '@/types/api';
 import { getTradeInBlockedReason, isTradeInActive, TRADE_IN_INTAKE_POLICY } from '@/lib/pos/tradeIn';
 import { PaymentSplitEditor, validateSplit } from '@/components/pos/PaymentSplitEditor';
@@ -124,15 +124,17 @@ export function PosTerminalPage() {
   // ─── เทิร์นเครื่องเก่า (FIX-105) ───
   const [tradeInEnabled, setTradeInEnabled] = useState(false);
   const [tradeInOpen, setTradeInOpen] = useState(false);
-  const [tradeInVariant, setTradeInVariant] = useState<TradeInVariantResponse | null>(null);
-  const [tradeInSkuQuery, setTradeInSkuQuery] = useState('');
-  const [tradeInResults, setTradeInResults] = useState<TradeInVariantResponse[]>([]);
+  const [tradeInProduct, setTradeInProduct] = useState<TradeInProductResponse | null>(null);
+  const [tradeInModelQuery, setTradeInModelQuery] = useState('');
+  const [tradeInResults, setTradeInResults] = useState<TradeInProductResponse[]>([]);
   const [tradeInSearchState, setTradeInSearchState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [tradeInSearchError, setTradeInSearchError] = useState('');
   const [tradeInSearchRetry, setTradeInSearchRetry] = useState(0);
   const [tradeInImei, setTradeInImei] = useState('');
   const [tradeInSerial, setTradeInSerial] = useState('');
   const [tradeInBattery, setTradeInBattery] = useState('');
+  const [tradeInColor, setTradeInColor] = useState('');
+  const [tradeInStorage, setTradeInStorage] = useState('');
   const [tradeInValueStr, setTradeInValueStr] = useState('');
   const [tradeInPayoutMethod, setTradeInPayoutMethod] = useState<PaymentMethod>('CASH');
   // สภาพเครื่องเทิร์น (FIX-106)
@@ -147,14 +149,16 @@ export function PosTerminalPage() {
     tradeInSearchRequestRef.current += 1;
     setTradeInEnabled(false);
     setTradeInOpen(false);
-    setTradeInVariant(null);
-    setTradeInSkuQuery('');
+    setTradeInProduct(null);
+    setTradeInModelQuery('');
     setTradeInResults([]);
     setTradeInSearchState('idle');
     setTradeInSearchError('');
     setTradeInImei('');
     setTradeInSerial('');
     setTradeInBattery('');
+    setTradeInColor('');
+    setTradeInStorage('');
     setTradeInValueStr('');
     setTradeInPayoutMethod('CASH');
     setTiHasBox(false); setTiHasCharger(false); setTiHasWarranty(false);
@@ -402,17 +406,17 @@ export function PosTerminalPage() {
   const vatAmount = Math.round(taxBase * (Number(vatRate) || 0)) / 100;
   const grandTotal = Math.max(0, taxBase + vatAmount + (Number(shippingFee) || 0));
   // เทิร์น (FIX-105): ยอดขายเต็ม − มูลค่าเทิร์น = net (≥0 รับจากลูกค้า · <0 จ่ายคืน)
-  const tradeInActive = isTradeInActive(tradeInEnabled, tradeInVariant?.id, tradeInValueStr);
+  const tradeInActive = isTradeInActive(tradeInEnabled, tradeInProduct?.id, tradeInValueStr);
   const tradeInValueNum = tradeInActive ? r2(Number(tradeInValueStr)) : 0;
   const netCollect = grandTotal - tradeInValueNum;
   // เทิร์นดาวน์ (FIX-106): ผ่อน + เทิร์น → หักเทิร์นจากเงินดาวน์ที่ลูกค้าจ่ายจริงวันนี้
   const isInstallmentSel = paymentMethod === 'INSTALLMENT';
 
-  // ค้น SKU เครื่องเทิร์น (debounce) — เลือกแล้วหยุดค้น
+  // ค้นชื่อรุ่นใน catalog (ไม่อ่าน Stock/SKU) — เลือกแล้วหยุดค้น
   useEffect(() => {
-    const q = tradeInSkuQuery.trim();
+    const q = tradeInModelQuery.trim();
     const requestId = ++tradeInSearchRequestRef.current;
-    if (!tradeInEnabled || !q || tradeInVariant) {
+    if (!tradeInEnabled || !q || tradeInProduct) {
       setTradeInResults([]);
       setTradeInSearchState('idle');
       setTradeInSearchError('');
@@ -421,7 +425,7 @@ export function PosTerminalPage() {
     setTradeInSearchState('loading');
     setTradeInSearchError('');
     const t = setTimeout(() => {
-      posApi.searchTradeInVariants(q, 0, 8)
+      posApi.searchTradeInProducts(q, 0, 8)
         .then((page) => {
           if (tradeInSearchRequestRef.current !== requestId) return;
           setTradeInResults(page.content);
@@ -438,7 +442,7 @@ export function PosTerminalPage() {
       clearTimeout(t);
       if (tradeInSearchRequestRef.current === requestId) tradeInSearchRequestRef.current += 1;
     };
-  }, [tradeInEnabled, tradeInSkuQuery, tradeInVariant, tradeInSearchRetry]);
+  }, [tradeInEnabled, tradeInModelQuery, tradeInProduct, tradeInSearchRetry]);
   // บิลผ่อน: บรรทัดที่ "จ่ายสดวันนี้" (อุปกรณ์เสริม) = ไม่รวมยอดผ่อน · ติ๊กต่อบรรทัดได้ (FIX-090/094)
   const addOnToday = r2(cart.filter((l) => l.payToday).reduce((s, l) => s + l.sellPrice * l.quantity, 0));
   const payToday = downAmount + addOnToday;
@@ -551,7 +555,9 @@ export function PosTerminalPage() {
         shippingFeeGrandma: shippingFeeGrandma > 0 ? shippingFeeGrandma : undefined,
         // เทิร์นเครื่องเก่า (FIX-105) — net<0 ส่ง diffPayoutMethod (วิธีจ่ายคืน)
         tradeIn: tradeInActive ? {
-          variantId: tradeInVariant!.id,
+          productId: tradeInProduct!.id,
+          color: tradeInColor.trim(),
+          storage: tradeInStorage.trim(),
           value: tradeInValueNum,
           imei: tradeInImei.trim() || undefined,
           serialNumber: tradeInSerial.trim() || undefined,
@@ -716,7 +722,9 @@ export function PosTerminalPage() {
   const shipCardExpanded = shipCardOpen || shipCardMustOpen;
   const tradeInBlockedReason = getTradeInBlockedReason({
     enabled: tradeInEnabled,
-    variantId: tradeInVariant?.id,
+    productId: tradeInProduct?.id,
+    color: tradeInColor,
+    storage: tradeInStorage,
     value: tradeInValueStr,
     imei: tradeInImei,
     serialNumber: tradeInSerial,
@@ -1383,7 +1391,7 @@ export function PosTerminalPage() {
             <span className="shrink-0">เทิร์นเครื่องเก่า</span>
             {tradeInActive && (
               <span className="truncate text-xs font-normal text-slate-500">
-                {tradeInVariant?.sku} · ตีเทิร์น {formatTHB(tradeInValueNum)}
+                {tradeInProduct?.name} · ตีเทิร์น {formatTHB(tradeInValueNum)}
               </span>
             )}
             {!tradeInEnabled && <span className="text-xs font-normal text-slate-500">กดเพื่อเปิดใช้</span>}
@@ -1404,30 +1412,30 @@ export function PosTerminalPage() {
           <div id="trade-in-details" className="card-body space-y-3">
             <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
               <div className="font-semibold">⚠️ {TRADE_IN_INTAKE_POLICY.newIdentifierOnly}</div>
+              <div className="mt-0.5">{TRADE_IN_INTAKE_POLICY.modelSource}</div>
               <div className="mt-0.5">{TRADE_IN_INTAKE_POLICY.destination}</div>
             </div>
-            {/* เลือก SKU ของเครื่องเทิร์น */}
-            {tradeInVariant ? (
+            {/* เลือกชื่อรุ่นของเครื่องลูกค้า — catalog only, ไม่ใช่ Stock/SKU */}
+            {tradeInProduct ? (
               <div className="flex items-center justify-between gap-2 rounded-md border border-violet-200 bg-violet-50 px-3 py-2 text-sm">
                 <span className="min-w-0 truncate">
-                  <span className="font-mono font-semibold">{tradeInVariant.sku}</span>
-                  {' · '}{tradeInVariant.productName}{' '}
-                  {[tradeInVariant.color, tradeInVariant.storage].filter(Boolean).join(' ')}
+                  <span className="font-semibold">{tradeInProduct.name}</span>
+                  {tradeInProduct.brand ? <span className="text-slate-500"> · {tradeInProduct.brand}</span> : null}
                 </span>
                 <button type="button" className="shrink-0 text-xs text-red-600 hover:underline"
                         onClick={() => {
-                          setTradeInVariant(null); setTradeInSkuQuery('');
+                          setTradeInProduct(null); setTradeInModelQuery('');
                           setTradeInSearchState('idle'); setTradeInSearchError('');
-                        }}>✕ เปลี่ยน SKU</button>
+                        }}>✕ เปลี่ยนรุ่น</button>
               </div>
             ) : (
               <div>
                 <label className="mb-1 block text-xs font-medium text-slate-600">
-                  รุ่น / SKU มือ 2 สำหรับจัดหมวดเครื่องที่รับเทิร์น
+                  รุ่นที่ลูกค้านำมา <span className="font-normal text-violet-700">(ไม่ใช่เครื่องจาก Stock)</span>
                 </label>
-                <input className="input" placeholder="ค้นหา SKU / รุ่น เช่น iPhone 13"
-                       value={tradeInSkuQuery} onChange={(e) => {
-                         setTradeInSkuQuery(e.target.value); setTradeInResults([]);
+                <input className="input" placeholder="ค้นหาชื่อรุ่น เช่น iPhone 13"
+                       value={tradeInModelQuery} onChange={(e) => {
+                         setTradeInModelQuery(e.target.value); setTradeInResults([]);
                        }} />
                 <div aria-live="polite">
                   {tradeInSearchState === 'loading' && (
@@ -1443,42 +1451,45 @@ export function PosTerminalPage() {
                 </div>
                 {tradeInResults.length > 0 && (
                   <>
-                    {/* FIX-145: บอกชัดว่าต้อง "กดเลือก" — พิมพ์เฉยๆ ไม่นับ (เคยทำปิดบิลไม่ได้โดยไม่รู้สาเหตุ) */}
                     <p className="mt-1 text-xs font-medium text-amber-700">
-                      ⚠️ กดเลือกรุ่นจากรายการด้านล่าง (พิมพ์อย่างเดียวยังไม่ได้เลือก)
+                      เลือกชื่อรุ่นของเครื่องลูกค้าจากรายการด้านล่าง
                     </p>
                     <div className="mt-1 max-h-44 overflow-y-auto rounded-md border border-amber-300">
                       {tradeInResults.map((v) => (
                         <button type="button" key={v.id}
                                 onClick={() => {
-                                  setTradeInVariant(v); setTradeInResults([]); setTradeInSearchState('idle');
+                                  setTradeInProduct(v); setTradeInResults([]); setTradeInSearchState('idle');
                                 }}
                                 className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-violet-50">
-                          <span><span className="font-mono">{v.sku}</span> · {v.productName} <span className="text-slate-500">{[v.color, v.storage].filter(Boolean).join(' ')}</span></span>
-                          <span className="shrink-0 rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold text-violet-700">เลือก</span>
+                          <span><strong>{v.name}</strong> <span className="text-slate-500">· {v.brand}</span></span>
+                          <span className="shrink-0 rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold text-violet-700">เลือกรุ่นนี้</span>
                         </button>
                       ))}
                     </div>
                   </>
                 )}
-                {tradeInSearchState === 'success' && tradeInSkuQuery.trim() !== ''
+                {tradeInSearchState === 'success' && tradeInModelQuery.trim() !== ''
                   && tradeInResults.length === 0 && (
                   <p className="mt-1 text-xs text-slate-500">
-                    ไม่พบรุ่น "{tradeInSkuQuery.trim()}" ในระบบ — สร้าง SKU ก่อนแล้วกลับมาค้นใหม่
+                    ไม่พบรุ่น "{tradeInModelQuery.trim()}" ในแคตตาล็อก — เพิ่มเฉพาะชื่อรุ่นก่อน ไม่ต้องรับ Stock
                   </p>
                 )}
                 {canSeeBackOffice ? (
                   <a href="/products/new" target="_blank" rel="noreferrer"
                      className="mt-1 inline-block text-xs font-medium text-violet-700 hover:underline">
-                    + ไม่เจอรุ่น? สร้าง SKU ใหม่ (เปิดแท็บใหม่ แล้วกลับมาค้นอีกครั้ง)
+                    + ไม่เจอรุ่น? เพิ่มรุ่นสินค้า (ไม่ต้องเพิ่ม Stock)
                   </a>
                 ) : (
-                  <p className="mt-1 text-xs text-slate-500">ไม่เจอรุ่น ให้แจ้งผู้จัดการสร้าง SKU มือ 2 ก่อน</p>
+                  <p className="mt-1 text-xs text-slate-500">ไม่เจอรุ่น ให้แจ้งผู้จัดการเพิ่มชื่อรุ่นสินค้า โดยไม่ต้องรับ Stock</p>
                 )}
               </div>
             )}
             {/* ข้อมูลเครื่องเก่า + มูลค่า */}
             <div className="grid grid-cols-2 gap-2">
+              <input className="input" maxLength={50} placeholder="สี เช่น Mist Blue"
+                     value={tradeInColor} onChange={(e) => setTradeInColor(e.target.value)} />
+              <input className="input" maxLength={20} placeholder="ความจุ เช่น 256GB"
+                     value={tradeInStorage} onChange={(e) => setTradeInStorage(e.target.value)} />
               <input className="input font-mono" maxLength={20} placeholder="IMEI ใหม่ (ต้องไม่เคยมีในระบบ)"
                      value={tradeInImei} onChange={(e) => setTradeInImei(e.target.value)} />
               <input className="input font-mono" maxLength={30} placeholder="Serial (ถ้ามี)"
@@ -1521,7 +1532,8 @@ export function PosTerminalPage() {
               </div>
             )}
             <p className="text-[11px] text-slate-500">
-              สร้างเครื่องใหม่ใน “รอลงสต็อก” (มือ 2 · ทุน = มูลค่าตีเทิร์น) · ยังไม่เพิ่มจำนวนพร้อมขาย ·
+              Backend จะหา/สร้าง SKU มือ 2 ตามรุ่น+สี+ความจุให้อัตโนมัติ แล้วสร้างเครื่องลูกค้าตัวใหม่ใน “รอลงสต็อก” ·
+              ไม่หยิบและไม่ลดเครื่องใดจาก Stock · ทุน = มูลค่าตีเทิร์น · ยังไม่เพิ่มจำนวนพร้อมขาย ·
               ยอดขายบันทึกเต็มราคา · รองรับ เงินสด / โอน / ผ่อน (เทิร์นดาวน์)
             </p>
           </div>
@@ -1647,7 +1659,7 @@ export function PosTerminalPage() {
                       <span className="text-slate-500">ยอดขาย</span><span>{formatTHB(grandTotal)}</span>
                     </div>
                     <div className="flex justify-between text-violet-700">
-                      <span>หักเทิร์น ({tradeInVariant?.sku})</span><span>- {formatTHB(tradeInValueNum)}</span>
+                      <span>หักเทิร์น ({tradeInProduct?.name})</span><span>- {formatTHB(tradeInValueNum)}</span>
                     </div>
                   </div>
                 )}

@@ -10,7 +10,7 @@ import type {
   SalesOrderStatus,
   SavedShippingAddress,
   ShippingAddressInput,
-  TradeInVariantResponse,
+  TradeInProductResponse,
 } from '@/types/api';
 
 export const posApi = {
@@ -35,9 +35,9 @@ export const posApi = {
   rememberShippingAddress: (recipient: ShippingAddressInput) =>
     api.post<SavedShippingAddress>('/pos/shipping-addresses', recipient).then((r) => r.data),
 
-  /** SKU มือ 2 สำหรับรับเทิร์น — endpoint POS-safe ใช้ได้ทั้ง STAFF/MANAGER/ADMIN. */
-  searchTradeInVariants: (q: string, page = 0, size = 20) =>
-    api.get<PageResponse<TradeInVariantResponse>>('/pos/trade-in-variants/search', {
+  /** รุ่นเครื่องที่ลูกค้านำมา — catalog only, ไม่อ่าน Stock/SKU. */
+  searchTradeInProducts: (q: string, page = 0, size = 20) =>
+    api.get<PageResponse<TradeInProductResponse>>('/pos/trade-in-products/search', {
       params: { q, page, size },
     }).then((r) => r.data),
 
