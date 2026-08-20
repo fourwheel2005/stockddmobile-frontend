@@ -63,18 +63,23 @@ describe('buildShippingLabelTspl', () => {
     const rendered = stubCanvas();
     commands();
     expect(rendered).toContain('ดีดีโมบาย');
-    expect(rendered).toContain('555/133 หมู่1');
-    expect(rendered).toContain('โทร. 0839358181');
+    expect(rendered).toContain('734/51 ต.แม่กลอง อ.เมือง');
+    expect(rendered).toContain('จ.สมุทรสงคราม 75000');
+    expect(rendered).toContain('โทร. 088-818-8385');
     expect(rendered).toContain('คุณ สมชาย ใจดี');
     expect(rendered).toContain('โทร. 0812345678');
   });
 
-  it('prints the compact LINE artwork and four handling pictograms', () => {
+  it('prints the larger LINE artwork beside sender and social channels in the footer', () => {
+    const rendered = stubCanvas();
     const tspl = commands();
-    expect(tspl).toContain('BITMAP 500,820,1,2,0,');
+    expect(tspl).toContain('BITMAP 470,36,1,2,0,');
     expect(tspl).not.toContain('QRCODE');
     expect(tspl).not.toContain('SCAN WEBSITE');
-    expect(tspl.match(/BOX (48|218),(798|958)/g)).toHaveLength(4);
+    expect(tspl.match(/BOX (48|218),(850|1010)/g)).toHaveLength(4);
+    expect(rendered).toContain('TikTok : ddmobileplus');
+    expect(rendered).toContain('Facebook :');
+    expect(rendered.join(' ')).toContain('ดีดีโมบาย ไอโฟนผ่อนง่าย (สำรอง)');
   });
 
   it('does not allow recipient content to inject TSPL commands', () => {

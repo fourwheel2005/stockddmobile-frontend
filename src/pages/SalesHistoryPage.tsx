@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { Receipt, Printer, Undo2, Landmark, CheckCircle2, Clock, XCircle, PackageOpen, PackageCheck, Search, Wrench, FileText, CalendarClock } from 'lucide-react';
+import { Receipt, Printer, Undo2, Landmark, CheckCircle2, Clock, XCircle, PackageOpen, PackageCheck, Search, Wrench, FileText, FileMinus2, CalendarClock } from 'lucide-react';
 import { posApi } from '@/api/pos';
+import { creditNoteApi } from '@/api/creditNote';
 import { repairApi } from '@/api/repair';
 import { SalesCalendar } from '@/components/SalesCalendar';
 import { extractErrorMessage } from '@/api/client';
@@ -96,6 +97,7 @@ export function SalesHistoryPage() {
     duplicate: boolean;
   } | null>(null);
   const [refundOrder, setRefundOrder] = useState<SalesOrderResponse | null>(null);
+  const [creditNoteOrder, setCreditNoteOrder] = useState<SalesOrderResponse | null>(null);
   const [returnOrder, setReturnOrder] = useState<SalesOrderResponse | null>(null);
   // FIX-150: ออกใบกำกับภาษีเต็มรูปแบบ (บิล PAID)
   const [taxInvoiceFor, setTaxInvoiceFor] = useState<SalesOrderResponse | null>(null);
@@ -105,6 +107,8 @@ export function SalesHistoryPage() {
     useState<{ order: SalesOrderResponse; saleDate: string; reason: string } | null>(null);
   // ขั้นยืนยันด้วยรหัสความปลอดภัย — เก็บสิ่งที่จะทำไว้ระหว่างรอรหัส (FIX-103)
   const [pendingRefund, setPendingRefund] =
+    useState<{ order: SalesOrderResponse; reason: string } | null>(null);
+  const [pendingCreditNote, setPendingCreditNote] =
     useState<{ order: SalesOrderResponse; reason: string } | null>(null);
   const [pendingReturn, setPendingReturn] =
     useState<{ order: SalesOrderResponse; refundAmount: number; reason: string } | null>(null);
@@ -147,6 +151,8 @@ export function SalesHistoryPage() {
       .map((r): HistoryRow => ({ kind: 'REPAIR', date: r.receivedAt, repair: r })),
   ].sort((a, b) => b.date.localeCompare(a.date));
 
+  const printer = usePrinter();
+
   const refund = useMutation({
     mutationFn: ({ id, reason, securityCode }: { id: string; reason: string; securityCode: string }) =>
       posApi.refund(id, securityCode, reason),
@@ -155,6 +161,21 @@ export function SalesHistoryPage() {
       qc.invalidateQueries({ queryKey: ['sales-orders'] });
       qc.invalidateQueries({ queryKey: ['inventory'] });
       qc.invalidateQueries({ queryKey: ['transactions'] });
+    },
+    onError: (e) => toast.error(extractErrorMessage(e)),
+  });
+
+  const creditNoteRefund = useMutation({
+    mutationFn: ({ id, reason, securityCode }:
+      { id: string; reason: string; securityCode: string }) =>
+      creditNoteApi.issueAndRefund(id, reason, securityCode),
+    onSuccess: (creditNote, variables) => {
+      toast.success(`ออกใบลดหนี้ ${creditNote.creditNoteNo} และคืนเงินสำเร็จ`);
+      qc.invalidateQueries({ queryKey: ['sales-orders'] });
+      qc.invalidateQueries({ queryKey: ['inventory'] });
+      qc.invalidateQueries({ queryKey: ['transactions'] });
+      qc.invalidateQueries({ queryKey: ['cash-register'] });
+      printer.printCreditNote(variables.id).catch(() => undefined);
     },
     onError: (e) => toast.error(extractErrorMessage(e)),
   });
@@ -176,8 +197,6 @@ export function SalesHistoryPage() {
     },
     onError: (e) => toast.error(extractErrorMessage(e)),
   });
-
-  const printer = usePrinter();
 
   const updateSaleDate = useMutation({
     mutationFn: ({ id, saleDate, reason, securityCode }:
@@ -276,6 +295,11 @@ export function SalesHistoryPage() {
                         TIV {row.sale.taxInvoiceNo}
                       </span>
                     )}
+                    {row.sale.creditNoteNo && (
+                      <span className="ml-1.5 rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold text-violet-700">
+                        CN {row.sale.creditNoteNo}
+                      </span>
+                    )}
                     {/* FinanceBadge ซ่อนชั่วคราว — ร้านผ่อนเอง ไม่ผ่านไฟแนนซ์ */}
                   </td>
                   <td className="px-5 py-3">{row.sale.customerName ?? <span className="text-slate-400">Walk-in</span>}</td>
@@ -322,7 +346,8 @@ export function SalesHistoryPage() {
                           <FileText className="h-4 w-4" />
                         </button>
                       )}
-                      {canRefund && row.sale.status === 'PAID' && row.sale.paymentMethod === 'INSTALLMENT' && (
+                      {canRefund && row.sale.status === 'PAID' && !row.sale.taxInvoiceNo
+                        && row.sale.paymentMethod === 'INSTALLMENT' && (
                         <button
                           className="rounded p-1.5 text-amber-700 hover:bg-amber-50"
                           title="รับเครื่องคืน (ผ่อนไม่ไหว)"
@@ -330,12 +355,28 @@ export function SalesHistoryPage() {
                           <PackageOpen className="h-4 w-4" />
                         </button>
                       )}
-                      {canRefund && row.sale.status === 'PAID' && (
+                      {canRefund && row.sale.status === 'PAID' && !row.sale.taxInvoiceNo && (
                         <button
                           className="rounded p-1.5 text-amber-700 hover:bg-amber-50"
                           title="คืนเงิน"
                           onClick={() => handleRefund(row.sale)}>
                           <Undo2 className="h-4 w-4" />
+                        </button>
+                      )}
+                      {canRefund && row.sale.status === 'PAID' && row.sale.taxInvoiceNo && (
+                        <button
+                          className="rounded p-1.5 text-violet-700 hover:bg-violet-50"
+                          title="ออกใบลดหนี้และคืนเงินทั้งบิล"
+                          onClick={() => setCreditNoteOrder(row.sale)}>
+                          <FileMinus2 className="h-4 w-4" />
+                        </button>
+                      )}
+                      {row.sale.status === 'REFUNDED' && row.sale.creditNoteNo && (
+                        <button
+                          className="rounded p-1.5 text-violet-700 hover:bg-violet-50"
+                          title={`พิมพ์ใบลดหนี้ ${row.sale.creditNoteNo}`}
+                          onClick={() => printer.printCreditNote(row.sale.id).catch(() => undefined)}>
+                          <FileMinus2 className="h-4 w-4" />
                         </button>
                       )}
                     </div>
@@ -425,6 +466,33 @@ export function SalesHistoryPage() {
               { onSuccess: () => setPendingRefund(null) },
             );
           }}
+        />
+      )}
+
+      {creditNoteOrder && (
+        <RefundMethodModal
+          order={creditNoteOrder}
+          loading={creditNoteRefund.isPending}
+          creditNote
+          onClose={() => setCreditNoteOrder(null)}
+          onConfirm={(reason) => {
+            setPendingCreditNote({ order: creditNoteOrder, reason });
+            setCreditNoteOrder(null);
+          }}
+        />
+      )}
+
+      {pendingCreditNote && (
+        <SecurityCodeModal
+          action={`ออกใบลดหนี้และคืนเงินบิล ${pendingCreditNote.order.billNo}`}
+          warning="ระบบจะออกใบลดหนี้เต็มจำนวน คืนสินค้าเข้าสต๊อก และบันทึกเงินคืน การดำเนินการนี้ย้อนกลับไม่ได้"
+          pending={creditNoteRefund.isPending}
+          onClose={() => setPendingCreditNote(null)}
+          onConfirm={(securityCode) => creditNoteRefund.mutate({
+            id: pendingCreditNote.order.id,
+            reason: pendingCreditNote.reason,
+            securityCode,
+          }, { onSuccess: () => setPendingCreditNote(null) })}
         />
       )}
 

@@ -985,6 +985,8 @@ export interface SalesOrderResponse {
   saleDate?: string;                    // วันขายสำหรับประวัติ/รายงาน; fallback closedAt/createdAt ระหว่าง rolling deploy
   taxInvoiceNo: string | null;
   taxInvoiceIssuedAt: string | null;
+  creditNoteNo: string | null;
+  creditNoteIssuedAt: string | null;
   items: SalesOrderItemResponse[];
 }
 

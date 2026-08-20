@@ -9,6 +9,7 @@ interface Props {
   onClose: () => void;
   onConfirm: (reason: string) => void;
   loading?: boolean;
+  creditNote?: boolean;
 }
 
 /**
@@ -18,11 +19,11 @@ interface Props {
  *  - บิลที่จ่ายโอน 100% → คืนผ่านโอน (default)
  *  - บิลผสม → แสดงสัดส่วนเดิม + ให้เลือก override
  *
- *  หมายเหตุ: backend ใช้ cashAmount/transferAmount จาก order
+ *  หมายเหตุ: backend ใช้ cashAmount และรวม transfer/card/QR เป็น external refund audit
  *  ไม่ต้องส่งฟิลด์เพิ่ม — modal นี้ทำหน้าที่ "ยืนยันความเข้าใจ"
  *  ก่อนกด refund (UX confirm)
  */
-export function RefundMethodModal({ order, onClose, onConfirm, loading }: Props) {
+export function RefundMethodModal({ order, onClose, onConfirm, loading, creditNote = false }: Props) {
   const [reason, setReason] = useState('');
   useModalChrome(onClose);
 
@@ -42,7 +43,7 @@ export function RefundMethodModal({ order, onClose, onConfirm, loading }: Props)
         <div className="flex shrink-0 items-center justify-between border-b px-5 py-3.5">
           <h2 className="flex items-center gap-2 font-semibold">
             <Undo2 className="h-5 w-5 text-amber-600" />
-            คืนเงิน — {order.billNo}
+            {creditNote ? 'ออกใบลดหนี้และคืนเงิน' : 'คืนเงิน'} — {order.billNo}
           </h2>
           <button onClick={onClose} className="rounded p-1.5 hover:bg-slate-100">
             <X className="h-4 w-4" />
@@ -98,6 +99,12 @@ export function RefundMethodModal({ order, onClose, onConfirm, loading }: Props)
             📦 สินค้า {order.items.length} รายการจะถูกคืนกลับเข้าสต็อกอัตโนมัติ
           </div>
 
+          {creditNote && (
+            <div className="rounded-md border border-sky-200 bg-sky-50 p-2.5 text-xs text-sky-800">
+              🧾 ระบบจะเก็บใบกำกับเดิมไว้ ออกเลขใบลดหนี้ใหม่ และลดมูลค่าทั้งบิลเป็น 0.00 บาท
+            </div>
+          )}
+
           <div>
             <label className="mb-1 block text-sm font-medium">เหตุผลคืนเงิน <span className="text-red-500">*</span></label>
             <textarea
@@ -119,7 +126,7 @@ export function RefundMethodModal({ order, onClose, onConfirm, loading }: Props)
             disabled={loading || reason.trim().length === 0}
             onClick={() => onConfirm(reason.trim())}>
             <Undo2 className="h-4 w-4" />
-            {loading ? 'กำลังคืน...' : 'ยืนยันคืนเงิน'}
+            {loading ? 'กำลังดำเนินการ...' : creditNote ? 'ออกใบลดหนี้และคืนเงิน' : 'ยืนยันคืนเงิน'}
           </button>
         </div>
       </div>

@@ -28,9 +28,14 @@ function makeReceipt(overrides: Partial<ReceiptData> = {}): ReceiptData {
     changeAmount: 0,
     paymentMethod: 'CASH',
     footerMessage: 'ขอบคุณที่ใช้บริการ',
-    qrCodeData: 'INV-20260603-A1B2C3D4',
     ...overrides,
   };
+}
+
+function containsSequence(bytes: Uint8Array, sequence: number[]): boolean {
+  const values = Array.from(bytes);
+  return values.some((_, index) =>
+    sequence.every((value, offset) => values[index + offset] === value));
 }
 
 describe('buildDDMobileReceipt', () => {
@@ -60,9 +65,19 @@ describe('buildDDMobileReceipt', () => {
     const bytes = buildDDMobileReceipt(makeReceipt(), {
       lineQrImage: { width: 8, height: 2, data: new Uint8Array([0xaa, 0x55]) },
     });
-    const values = Array.from(bytes);
     const header = [0x1d, 0x76, 0x30, 0, 1, 0, 2, 0, 0xaa, 0x55];
-    expect(values.some((_, index) => header.every((value, offset) => values[index + offset] === value))).toBe(true);
+    expect(containsSequence(bytes, header)).toBe(true);
+  });
+
+  it('prints only the LINE raster and does not generate the former receipt QR code', () => {
+    const bytes = buildDDMobileReceipt(makeReceipt(), {
+      lineQrImage: { width: 8, height: 2, data: new Uint8Array([0xaa, 0x55]) },
+    });
+
+    // GS ( k Function 165 starts an ESC/POS QR code. The ordinary receipt must
+    // contain no generated QR; its only QR is the supplied LINE raster image.
+    expect(containsSequence(bytes, [0x1d, 0x28, 0x6b, 4, 0, 49, 65, 50, 0])).toBe(false);
+    expect(containsSequence(bytes, [0x1d, 0x76, 0x30, 0, 1, 0, 2, 0, 0xaa, 0x55])).toBe(true);
   });
 
   it('appends drawer kick when openDrawer + CASH', () => {

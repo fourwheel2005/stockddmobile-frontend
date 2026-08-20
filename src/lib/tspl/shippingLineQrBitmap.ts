@@ -1,7 +1,7 @@
 import { SHIPPING_LINE_QR_DATA_URL } from '@/assets/shippingLineQr';
 import type { BitmapImage } from './TsplBuilder';
 
-const PRINT_WIDTH = 260;
+const PRINT_WIDTH = 300;
 const WHITE_THRESHOLD = 245;
 const BLACK_THRESHOLD = 180;
 

@@ -4,8 +4,10 @@ import { printOrchestrator } from '@/lib/printer/PrintOrchestrator';
 import { buildDDMobileReceipt } from '@/lib/escpos/ddmobileReceipt';
 import { getLineQrRaster } from '@/lib/escpos/lineQrRaster';
 import { buildTaxInvoice } from '@/lib/escpos/taxInvoice';
+import { buildCreditNote } from '@/lib/escpos/creditNote';
 import { buildCashPeriodSummary, buildCashSessionSummary } from '@/lib/escpos/cashSummaryReceipt';
 import { taxInvoiceApi } from '@/api/taxInvoice';
+import { creditNoteApi } from '@/api/creditNote';
 import { printApi } from '@/api/print';
 import axios from 'axios';
 import { extractErrorMessage } from '@/api/client';
@@ -272,6 +274,59 @@ export function usePrinter() {
     }
   }, [createTaxInvoicePrintJob]);
 
+  const createCreditNotePrintJob = useCallback(async (orderId: string) => {
+    try {
+      return await printApi.createJob(orderId, 'CREDIT_NOTE');
+    } catch (e) {
+      if (!axios.isAxiosError(e) || e.response?.status !== 409) throw e;
+      if (!extractErrorMessage(e).includes('CREDIT_NOTE_COPY')) throw e;
+      return printApi.createJob(orderId, 'CREDIT_NOTE_COPY');
+    }
+  }, []);
+
+  /** พิมพ์ใบลดหนี้ โดย backend ตัดสินต้นฉบับ/สำเนาจาก print audit. */
+  const printCreditNote = useCallback(async (orderId: string) => {
+    setPrinting(true);
+    let job: Awaited<ReturnType<typeof printApi.createJob>> | undefined;
+    try {
+      const data = await creditNoteApi.get(orderId);
+      job = await createCreditNotePrintJob(orderId);
+      const copy = job.jobType === 'CREDIT_NOTE_COPY';
+      const result = await printOrchestrator.print(buildCreditNote(data, copy), {
+        billNo: data.creditNoteNo,
+        jobId: job.id,
+        openDrawer: false,
+        duplicate: copy,
+        target: 'receipt',
+      });
+      if (result.strategy !== 'PULL_AGENT') {
+        await printApi.logResult(job.id, {
+          jobType: job.jobType,
+          strategy: result.strategy,
+          printerId: result.printerId,
+          success: true,
+        });
+      }
+      toast.success(result.strategy === 'PULL_AGENT'
+        ? 'ส่งใบลดหนี้เข้าคิวปริ้นสาขาแล้ว ☁️'
+        : `พิมพ์ใบลดหนี้${copy ? ' (สำเนา)' : ' (ต้นฉบับ)'}แล้ว`);
+      return result;
+    } catch (e) {
+      if (job) {
+        await printApi.logResult(job.id, {
+          jobType: job.jobType,
+          strategy: 'BROWSER',
+          success: false,
+          errorMessage: e instanceof Error ? e.message : String(e),
+        }).catch(() => undefined);
+      }
+      toast.error(`พิมพ์ใบลดหนี้ไม่สำเร็จ: ${e instanceof Error ? e.message : String(e)}`);
+      throw e;
+    } finally {
+      setPrinting(false);
+    }
+  }, [createCreditNotePrintJob]);
+
   /** เปิดลิ้นชักโดยตรง (manual) — ต้องผ่าน bridge เท่านั้น */
   const openDrawer = useCallback(async (reason: 'MANUAL' | 'NO_SALE' = 'MANUAL') => {
     try {
@@ -325,6 +380,7 @@ export function usePrinter() {
     refresh,
     printReceipt,
     printTaxInvoice,
+    printCreditNote,
     printCashSessionSummary,
     printCashPeriodSummary,
     openDrawer,

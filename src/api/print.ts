@@ -32,6 +32,7 @@ export interface PrintLogRequest {
 
 export type PrintJobType =
   | 'RECEIPT' | 'DUPLICATE' | 'TAX_INVOICE' | 'TAX_INVOICE_COPY'
+  | 'CREDIT_NOTE' | 'CREDIT_NOTE_COPY'
   | 'REPAIR_TICKET' | 'TRANSFER' | 'CASH_SESSION_SUMMARY' | 'CASH_MONTHLY_SUMMARY' | 'TEST';
 
 export type DrawerReason = 'CASH_SALE' | 'MANUAL' | 'REFUND' | 'NO_SALE' | 'TEST';

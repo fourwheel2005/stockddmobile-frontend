@@ -56,7 +56,6 @@ export interface ReceiptData {
   shippingFeeGrandpa?: number | null;
   shippingFeeGrandma?: number | null;
   footerMessage?: string;
-  qrCodeData?: string;
 }
 
 /** IMEI จริง = มีค่า + ไม่ใช่เลข 0 ล้วน (iPad WiFi กรอก 000... = ไม่มี IMEI → ใช้ SN) — FIX-075 */
@@ -268,15 +267,6 @@ export function buildDDMobileReceipt(
         }
       });
     }
-  }
-
-  // ─── QR Code ────────────────────────────────────
-  if (data.qrCodeData) {
-    b.newline();
-    b.align('C');
-    b.qrcode(data.qrCodeData, { size: 6, errorCorrection: 'M' });
-    b.newline();
-    b.align('L');
   }
 
   // ─── Footer ─────────────────────────────────────
