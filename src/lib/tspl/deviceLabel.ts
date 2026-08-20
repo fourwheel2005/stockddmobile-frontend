@@ -1,8 +1,9 @@
-import { encodeCp874 } from '@/lib/escpos/cp874';
 import { formatInShopZone } from '@/lib/datetime';
 import type { SerializedItemResponse } from '@/types/api';
 import { formatDeviceLabelPrice } from './labelPrice';
 import { getLabelConfig, labelRowWidth, validateLabelConfig, type LabelConfig } from './labelConfig';
+import { TsplBuilder } from './TsplBuilder';
+import { textBitmap } from './textBitmap';
 
 const DPMM = 8;
 const LABEL_MARGIN_DOTS = 8;
@@ -22,7 +23,6 @@ export interface DeviceLabelInput {
   priceText: string;
 }
 
-interface BitmapImage { data: Uint8Array; wBytes: number; h: number }
 interface LabelGeometry {
   width: number;
   height: number;
@@ -32,73 +32,6 @@ interface LabelGeometry {
   big: boolean;
   smallQr: boolean;
   textWidth: number;
-}
-
-class TsplBuilder {
-  private readonly parts: Uint8Array[] = [];
-
-  raw(command: string): void {
-    this.parts.push(encodeCp874(`${command}\r\n`));
-  }
-
-  bitmap(x: number, y: number, image: BitmapImage): void {
-    this.parts.push(encodeCp874(`BITMAP ${x},${y},${image.wBytes},${image.h},0,`));
-    this.parts.push(image.data);
-    this.parts.push(encodeCp874('\r\n'));
-  }
-
-  build(): Uint8Array {
-    const total = this.parts.reduce((sum, part) => sum + part.length, 0);
-    const output = new Uint8Array(total);
-    let offset = 0;
-    for (const part of this.parts) {
-      output.set(part, offset);
-      offset += part.length;
-    }
-    return output;
-  }
-}
-
-function textBitmap(text: string, px: number, bold: boolean, maxWidth: number): BitmapImage | null {
-  if (!text.trim() || maxWidth <= 0 || typeof document === 'undefined') return null;
-  const canvas = document.createElement('canvas');
-  const context = canvas.getContext('2d');
-  if (!context) return null;
-  const font = `${bold ? '700' : '400'} ${px}px Tahoma, 'Leelawadee UI', sans-serif`;
-  context.font = font;
-  const fitted = fitText(context, text, maxWidth);
-  const width = Math.min(maxWidth, Math.ceil(context.measureText(fitted).width) + 2);
-  const height = Math.ceil(px * 1.35);
-  canvas.width = width;
-  canvas.height = height;
-  context.fillStyle = '#fff';
-  context.fillRect(0, 0, width, height);
-  context.fillStyle = '#000';
-  context.font = font;
-  context.textBaseline = 'top';
-  context.fillText(fitted, 0, Math.round(px * 0.1));
-  return canvasToBitmap(context, width, height);
-}
-
-function fitText(context: CanvasRenderingContext2D, text: string, maxWidth: number): string {
-  if (context.measureText(text).width <= maxWidth) return text;
-  let fitted = text;
-  while (fitted.length > 1 && context.measureText(`${fitted}…`).width > maxWidth) fitted = fitted.slice(0, -1);
-  return `${fitted}…`;
-}
-
-function canvasToBitmap(context: CanvasRenderingContext2D, width: number, height: number): BitmapImage {
-  const rgba = context.getImageData(0, 0, width, height).data;
-  const wBytes = Math.ceil(width / 8);
-  const data = new Uint8Array(wBytes * height).fill(0xff);
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const pixel = (y * width + x) * 4;
-      const luminance = 0.299 * rgba[pixel] + 0.587 * rgba[pixel + 1] + 0.114 * rgba[pixel + 2];
-      if (luminance < 140) data[y * wBytes + (x >> 3)] &= ~(0x80 >> (x & 7));
-    }
-  }
-  return { data, wBytes, h: height };
 }
 
 function qrModules(url: string): number {
@@ -136,7 +69,7 @@ function drawText(builder: TsplBuilder, input: DeviceLabelInput, x: number, geo:
   ];
   let y = LABEL_MARGIN_DOTS;
   for (const [text, size, bold] of lines) {
-    const image = textBitmap(text, size, bold, geo.textWidth);
+    const image = textBitmap(text, { fontSize: size, bold, maxWidth: geo.textWidth });
     if (!image) continue;
     builder.bitmap(x + LABEL_LEFT_SAFE_DOTS, y, image);
     y += image.h + 2;

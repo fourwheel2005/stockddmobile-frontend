@@ -27,6 +27,7 @@ import { getTradeInBlockedReason, isTradeInActive } from '@/lib/pos/tradeIn';
 import { PaymentSplitEditor, validateSplit } from '@/components/pos/PaymentSplitEditor';
 import { SaleDocumentSelector, type SaleDocumentMode } from '@/components/pos/SaleDocumentSelector';
 import { LatestBillActions } from '@/components/pos/LatestBillActions';
+import { ShippingLabelModal } from '@/components/ShippingLabelModal';
 import { CustomItemForm, type CustomItemDraft } from '@/components/pos/CustomItemForm';
 import { type SlipEntry } from '@/components/pos/MultiSlipUpload';
 import { cashRegisterApi } from '@/api/cashRegister';
@@ -177,6 +178,7 @@ export function PosTerminalPage() {
   } | null>(null);
   // FIX-150: ออกใบกำกับภาษีเต็มรูปแบบจากบิลที่เพิ่งปิด
   const [taxInvoiceFor, setTaxInvoiceFor] = useState<SalesOrderResponse | null>(null);
+  const [shippingLabelFor, setShippingLabelFor] = useState<SalesOrderResponse | null>(null);
   const [documentMode, setDocumentMode] = useState<SaleDocumentMode>('RECEIPT');
   const [taxDetailsOpen, setTaxDetailsOpen] = useState(false);
   const [taxInvoiceDraft, setTaxInvoiceDraft] = useState<IssueTaxInvoiceRequest>({
@@ -927,6 +929,9 @@ export function PosTerminalPage() {
           onPrint={(orderId) => printer.printTaxInvoice(orderId, { openDrawer: false })}
         />
       )}
+      {shippingLabelFor && (
+        <ShippingLabelModal order={shippingLabelFor} onClose={() => setShippingLabelFor(null)} />
+      )}
       {taxDetailsOpen && (
         <TaxInvoiceCheckoutModal
           value={taxInvoiceDraft}
@@ -1613,6 +1618,7 @@ export function PosTerminalPage() {
                 }).catch(() => undefined)}
                 onPrintTaxInvoice={() => printer.printTaxInvoice(lastBill.id, { openDrawer: false }).catch(() => undefined)}
                 onIssueTaxInvoice={() => setTaxInvoiceFor(lastBill)}
+                onPrintShippingLabel={() => setShippingLabelFor(lastBill)}
               />
             )}
           </div>

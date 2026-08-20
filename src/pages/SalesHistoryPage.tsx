@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { Receipt, Printer, Undo2, Landmark, CheckCircle2, Clock, XCircle, PackageOpen, Search, Wrench, FileText } from 'lucide-react';
+import { Receipt, Printer, Undo2, Landmark, CheckCircle2, Clock, XCircle, PackageOpen, PackageCheck, Search, Wrench, FileText } from 'lucide-react';
 import { posApi } from '@/api/pos';
 import { repairApi } from '@/api/repair';
 import { SalesCalendar } from '@/components/SalesCalendar';
@@ -13,6 +13,7 @@ import { ReceiptPrintView } from '@/components/ReceiptPrintView';
 import { RefundMethodModal } from '@/components/RefundMethodModal';
 import { ReturnDeviceModal } from '@/components/ReturnDeviceModal';
 import { TaxInvoiceModal } from '@/components/TaxInvoiceModal';
+import { ShippingLabelModal } from '@/components/ShippingLabelModal';
 import { SecurityCodeModal } from '@/components/SecurityCodeModal';
 import { usePrinter } from '@/hooks/usePrinter';
 import { printAndConfirmReceipt } from '@/lib/printer/browserPrintConfirmation';
@@ -96,6 +97,7 @@ export function SalesHistoryPage() {
   const [returnOrder, setReturnOrder] = useState<SalesOrderResponse | null>(null);
   // FIX-150: ออกใบกำกับภาษีเต็มรูปแบบ (บิล PAID)
   const [taxInvoiceFor, setTaxInvoiceFor] = useState<SalesOrderResponse | null>(null);
+  const [shippingLabelFor, setShippingLabelFor] = useState<SalesOrderResponse | null>(null);
   // ขั้นยืนยันด้วยรหัสความปลอดภัย — เก็บสิ่งที่จะทำไว้ระหว่างรอรหัส (FIX-103)
   const [pendingRefund, setPendingRefund] =
     useState<{ order: SalesOrderResponse; reason: string } | null>(null);
@@ -274,6 +276,14 @@ export function SalesHistoryPage() {
                       </button>
                       {row.sale.status === 'PAID' && (
                         <button
+                          className="rounded p-1.5 text-orange-700 hover:bg-orange-50"
+                          title="พิมพ์ป้ายจัดส่ง 10×15 ซม."
+                          onClick={() => setShippingLabelFor(row.sale)}>
+                          <PackageCheck className="h-4 w-4" />
+                        </button>
+                      )}
+                      {row.sale.status === 'PAID' && (
+                        <button
                           className="rounded p-1.5 text-brand-700 hover:bg-brand-50"
                           title={row.sale.taxInvoiceNo
                             ? `พิมพ์ใบกำกับ ${row.sale.taxInvoiceNo}`
@@ -394,6 +404,10 @@ export function SalesHistoryPage() {
           onClose={() => setTaxInvoiceFor(null)}
           onPrint={(orderId) => printer.printTaxInvoice(orderId, { openDrawer: false })}
         />
+      )}
+
+      {shippingLabelFor && (
+        <ShippingLabelModal order={shippingLabelFor} onClose={() => setShippingLabelFor(null)} />
       )}
 
       {returnOrder && (

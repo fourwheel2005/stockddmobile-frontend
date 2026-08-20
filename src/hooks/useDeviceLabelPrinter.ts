@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { extractErrorMessage } from '@/api/client';
-import { printOrchestrator } from '@/lib/printer/PrintOrchestrator';
+import { requireLabelBridge } from '@/lib/printer/labelBridge';
 import { deviceProductUrl, deviceShortUrl } from '@/lib/storefront';
 import { buildDeviceLabelsTspl, type DeviceLabelInput } from '@/lib/tspl/deviceLabel';
 import { getLabelConfig } from '@/lib/tspl/labelConfig';
@@ -24,14 +24,6 @@ function buildInputs(items: SerializedItemResponse[], variants: VariantResponse[
   });
 }
 
-async function readyLabelBridge() {
-  printOrchestrator.setBridgeToken(localStorage.getItem('ddmobile.bridge.token'));
-  const bridge = printOrchestrator.getLocalBridge();
-  if (!(await bridge.isReady())) throw new Error('พิมพ์ป้ายต้องเปิด Local Bridge บนเครื่องที่เสียบ TSC TTP-247');
-  if (!(await bridge.labelReady())) throw new Error('Bridge ยังไม่พบ TSC TTP-247 — ตรวจ USB และอัปเดต Bridge');
-  return bridge;
-}
-
 export function useDeviceLabelPrinter(variants: VariantResponse[]) {
   const [isPrinting, setIsPrinting] = useState(false);
   const printingLock = useRef(false);
@@ -42,7 +34,7 @@ export function useDeviceLabelPrinter(variants: VariantResponse[]) {
     setIsPrinting(true);
     try {
       const inputs = buildInputs(items, variants);
-      const bridge = await readyLabelBridge();
+      const bridge = await requireLabelBridge();
       const bytes = buildDeviceLabelsTspl(inputs);
       const reference = items[0].stockCode ?? items[0].imei ?? items[0].id;
       await bridge.print(bytes, { billNo: `${reference}+${items.length}`, target: 'label' });
