@@ -1,12 +1,15 @@
 import { api } from './client';
 import type {
   CartScanResponse,
+  CashierProfile,
   CheckoutRequest,
   InStockItem,
   PageResponse,
   SalesDayCount,
   SalesOrderResponse,
   SalesOrderStatus,
+  SavedShippingAddress,
+  ShippingAddressInput,
   TradeInVariantResponse,
 } from '@/types/api';
 
@@ -17,6 +20,20 @@ export const posApi = {
 
   checkout: (req: CheckoutRequest) =>
     api.post<SalesOrderResponse>('/pos/checkout', req).then((r) => r.data),
+
+  listCashiers: () =>
+    api.get<CashierProfile[]>('/pos/cashiers').then((r) => r.data),
+
+  createCashier: (name: string) =>
+    api.post<CashierProfile>('/pos/cashiers', { name }).then((r) => r.data),
+
+  searchShippingAddresses: (q = '', page = 0, size = 20) =>
+    api.get<PageResponse<SavedShippingAddress>>('/pos/shipping-addresses', {
+      params: { q, page, size },
+    }).then((r) => r.data),
+
+  rememberShippingAddress: (recipient: ShippingAddressInput) =>
+    api.post<SavedShippingAddress>('/pos/shipping-addresses', recipient).then((r) => r.data),
 
   /** SKU มือ 2 สำหรับรับเทิร์น — endpoint POS-safe ใช้ได้ทั้ง STAFF/MANAGER/ADMIN. */
   searchTradeInVariants: (q: string, page = 0, size = 20) =>
@@ -32,6 +49,7 @@ export const posApi = {
     customerPhone?: string;
     note?: string;
     branchId?: string;
+    cashierProfileId?: string;
   }) =>
     api.post<SalesOrderResponse>('/pos/installment-collection', req).then((r) => r.data),
 
@@ -44,6 +62,10 @@ export const posApi = {
 
   getOrder: (id: string) =>
     api.get<SalesOrderResponse>(`/pos/orders/${id}`).then((r) => r.data),
+
+  updateSaleDate: (id: string, saleDate: string, reason: string, securityCode: string) =>
+    api.patch<SalesOrderResponse>(`/pos/orders/${id}/sale-date`,
+      { saleDate, reason }, { headers: { 'X-Security-Code': securityCode } }).then((r) => r.data),
 
   /** ยกเลิก/คืนเงินบิลที่ขายไปแล้ว — ต้องมีรหัสความปลอดภัยของร้านทุก role (FIX-103) */
   refund: (id: string, securityCode: string, reason?: string) =>

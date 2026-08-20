@@ -34,4 +34,11 @@ describe('ReceiptPrintView document marking', () => {
 
     expect(html).toContain('สำเนา / DUPLICATE');
   });
+
+  it('adds the supplied LINE QR image at the bottom of an ordinary receipt', () => {
+    const html = renderToStaticMarkup(<ReceiptPrintView order={order} />);
+
+    expect(html).toContain('alt="สแกน LINE DD Mobile"');
+    expect(html).toContain('src="data:image/jpeg;base64,');
+  });
 });

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   parseServerDateTime, formatShopDateTimeCompact, shopDayKey, formatInShopZone,
+  shopDateTimeInput, shopDateTimeInputToUtc,
 } from '../datetime';
 
 describe('parseServerDateTime', () => {
@@ -69,5 +70,20 @@ describe('formatInShopZone', () => {
   it('pins the timezone regardless of the device clock', () => {
     const th = formatInShopZone('2026-07-22T03:35:12', { hour: '2-digit', minute: '2-digit', hour12: false });
     expect(th).toContain('10');
+  });
+});
+
+describe('editable sale date boundary', () => {
+  it('renders a UTC API value as a Bangkok datetime-local value', () => {
+    expect(shopDateTimeInput('2026-08-20T08:30:00Z')).toBe('2026-08-20T15:30');
+  });
+
+  it('converts a Bangkok datetime-local value back to an unambiguous UTC ISO value', () => {
+    expect(shopDateTimeInputToUtc('2026-08-20T15:30')).toBe('2026-08-20T08:30:00.000Z');
+  });
+
+  it('rejects an invalid datetime-local value', () => {
+    expect(shopDateTimeInputToUtc('')).toBeNull();
+    expect(shopDateTimeInputToUtc('not-a-date')).toBeNull();
   });
 });

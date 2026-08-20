@@ -1,5 +1,10 @@
 import type { PaymentMethod } from '@/types/api';
 
+export const TRADE_IN_INTAKE_POLICY = {
+  newIdentifierOnly: 'รับเฉพาะเครื่องที่ IMEI/Serial ไม่เคยอยู่ในระบบ',
+  destination: 'หลังปิดบิล เครื่องจะไปหมวดรอลงสต็อกและยังขายไม่ได้จนกว่าจะตรวจรับ',
+} as const;
+
 interface TradeInGuardInput {
   enabled: boolean;
   variantId?: string | null;

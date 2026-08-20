@@ -16,12 +16,12 @@ export function TaxInvoiceCheckoutModal({ value, onChange, onConfirm, onClose }:
          onClick={backdropCloseHandler(onClose)}>
       <div role="dialog" aria-modal="true" className="w-full max-w-md rounded-lg bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b px-5 py-3">
-          <h2 className="flex items-center gap-2 font-semibold"><FileText className="h-5 w-5 text-brand-600" />ข้อมูลใบกำกับภาษี</h2>
+          <h2 className="flex items-center gap-2 font-semibold"><FileText className="h-5 w-5 text-brand-600" />ข้อมูลใบกำกับภาษีเต็มรูป</h2>
           <button onClick={onClose} className="rounded p-1 hover:bg-slate-100" aria-label="ปิด"><X className="h-4 w-4" /></button>
         </div>
         <div className="space-y-3 p-5">
           <div className="rounded-md border border-sky-200 bg-sky-50 p-2.5 text-xs text-sky-800">
-            VAT เป็นแบบถอดใน 7/107 — ระบบไม่บวก 7% เพิ่มจากยอดที่ลูกค้าจ่าย
+            พิมพ์เป็นใบเสร็จ/ใบกำกับภาษีบนกระดาษความร้อน · VAT ถอดใน 7/107 โดยไม่บวกเพิ่มจากยอดที่ลูกค้าจ่าย
           </div>
           <TaxInvoiceBuyerFields value={value} onChange={onChange} />
         </div>

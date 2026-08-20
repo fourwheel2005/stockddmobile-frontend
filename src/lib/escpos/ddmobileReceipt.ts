@@ -1,4 +1,4 @@
-import { EscPosBuilder } from './EscPosBuilder';
+import { EscPosBuilder, type EscPosRasterImage } from './EscPosBuilder';
 import { formatShopDateTimeCompact } from '../datetime';
 
 /** ความกว้างกระดาษ 80mm font A */
@@ -98,7 +98,7 @@ const fmtDateTime = formatShopDateTimeCompact;
  */
 export function buildDDMobileReceipt(
   data: ReceiptData,
-  opts: { duplicate?: boolean; openDrawer?: boolean } = {},
+  opts: { duplicate?: boolean; openDrawer?: boolean; lineQrImage?: EscPosRasterImage } = {},
 ): Uint8Array {
   const b = new EscPosBuilder()
     .init()
@@ -287,6 +287,10 @@ export function buildDDMobileReceipt(
   }
   if (data.shop.website) b.textln(data.shop.website);
   b.textln('เก็บใบเสร็จเพื่อรับประกัน 7 วัน');
+
+  if (opts.lineQrImage) {
+    b.newline().align('C').rasterImage(opts.lineQrImage).newline();
+  }
 
   // ─── Cut + drawer ──────────────────────────────
   b.feedAndCut(4);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getTradeInBlockedReason, isTradeInActive } from '../tradeIn';
+import { getTradeInBlockedReason, isTradeInActive, TRADE_IN_INTAKE_POLICY } from '../tradeIn';
 
 const valid = {
   enabled: true,
@@ -13,6 +13,12 @@ const valid = {
 };
 
 describe('POS trade-in state', () => {
+  it('states the new-only and pending-intake business policy', () => {
+    expect(TRADE_IN_INTAKE_POLICY.newIdentifierOnly).toContain('ไม่เคยอยู่ในระบบ');
+    expect(TRADE_IN_INTAKE_POLICY.destination).toContain('รอลงสต็อก');
+    expect(TRADE_IN_INTAKE_POLICY.destination).toContain('ยังขายไม่ได้');
+  });
+
   it('uses explicit enable state and does not depend on accordion visibility', () => {
     expect(isTradeInActive(true, 'variant-1', '11900')).toBe(true);
     expect(isTradeInActive(false, 'variant-1', '11900')).toBe(false);

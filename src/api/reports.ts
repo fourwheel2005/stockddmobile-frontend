@@ -31,4 +31,9 @@ export const reportsApi = {
 
   inventoryValue: () =>
     api.get<InventoryValueResponse>('/reports/inventory-value').then((x) => x.data),
+
+  /** Excel รายงานยอดขายรายเดือนสำหรับส่งบัญชี (ADMIN/MANAGER). */
+  monthlySalesExcel: (params: { month: string; branchId?: string }) =>
+    api.get<Blob>('/reports/monthly-sales.xlsx', { params, responseType: 'blob' })
+      .then((x) => x.data),
 };

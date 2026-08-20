@@ -56,6 +56,15 @@ describe('buildDDMobileReceipt', () => {
     expect(last3).toEqual([0x1d, 0x56, 0]);
   });
 
+  it('prints the supplied LINE image as an ESC/POS raster at the receipt footer', () => {
+    const bytes = buildDDMobileReceipt(makeReceipt(), {
+      lineQrImage: { width: 8, height: 2, data: new Uint8Array([0xaa, 0x55]) },
+    });
+    const values = Array.from(bytes);
+    const header = [0x1d, 0x76, 0x30, 0, 1, 0, 2, 0, 0xaa, 0x55];
+    expect(values.some((_, index) => header.every((value, offset) => values[index + offset] === value))).toBe(true);
+  });
+
   it('appends drawer kick when openDrawer + CASH', () => {
     const bytes = buildDDMobileReceipt(makeReceipt(), { openDrawer: true });
     // ESC p 0 25 250 at the end

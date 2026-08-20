@@ -857,6 +857,7 @@ export interface CheckoutRequest {
   clientRequestId?: string;
   customerId?: string;
   branchId?: string;                 // ขายที่สาขาไหน (Phase 2C)
+  cashierProfileId?: string;         // ผู้รับเงินที่แสดงบนเอกสาร (ผู้ทำรายการยัง audit จาก login)
   items: CheckoutLine[];
   paymentMethod: PaymentMethod;
   discountAmount?: number;
@@ -885,6 +886,8 @@ export interface CheckoutRequest {
   shippingPartner?: ShippingPartner;
   shippingTrackingNo?: string;
   shippingAddress?: string;
+  shippingRecipientName?: string;
+  shippingRecipientPhone?: string;
   orderChannel?: OrderChannel;
   shippingPaidFrom?: PaidFrom;     // legacy — deprecated
   shippingFeeGrandpa?: number;     // ค่าส่งของตา (บาท)
@@ -955,6 +958,8 @@ export interface SalesOrderResponse {
   shippingPartner: ShippingPartner | null;
   shippingTrackingNo: string | null;
   shippingAddress: string | null;
+  shippingRecipientName: string | null;
+  shippingRecipientPhone: string | null;
   orderChannel: OrderChannel | null;
   shippingPaidFrom: PaidFrom | null;
   shippingFeeGrandpa: number;
@@ -975,11 +980,31 @@ export interface SalesOrderResponse {
   cashSessionId: string | null;
   note: string | null;
   createdBy: string;
+  cashierName: string;
   createdAt: string;
   closedAt: string | null;
+  saleDate?: string;                    // วันขายสำหรับประวัติ/รายงาน; fallback closedAt/createdAt ระหว่าง rolling deploy
   taxInvoiceNo: string | null;
   taxInvoiceIssuedAt: string | null;
   items: SalesOrderItemResponse[];
+}
+
+export interface SavedShippingAddress {
+  id: string;
+  recipientName: string;
+  recipientPhone: string;
+  address: string;
+}
+
+export interface CashierProfile {
+  id: string;
+  name: string;
+}
+
+export interface ShippingAddressInput {
+  recipientName: string;
+  recipientPhone: string;
+  address: string;
 }
 
 // ─── Phase 6: Reports ─────────────────────────────────────────────────────

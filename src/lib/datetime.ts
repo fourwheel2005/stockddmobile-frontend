@@ -44,6 +44,21 @@ function partsInShopZone(d: Date): Record<string, string> {
   return Object.fromEntries(parts.map((p) => [p.type, p.value]));
 }
 
+/** ค่าใน input[type=datetime-local] ตามนาฬิการ้าน โดยไม่พึ่ง timezone ของเครื่อง POS. */
+export function shopDateTimeInput(iso: string | null | undefined): string {
+  const d = parseServerDateTime(iso);
+  if (!d) return '';
+  const p = partsInShopZone(d);
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
+}
+
+/** แปลง datetime-local ของร้าน (ประเทศไทย UTC+07 ไม่มี DST) เป็น ISO UTC สำหรับ API. */
+export function shopDateTimeInputToUtc(value: string): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) return null;
+  const parsed = new Date(`${value}:00+07:00`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+}
+
 /** `dd/MM/yyyy HH:mm` ตามโซนร้าน — รูปแบบที่ใช้บนใบเสร็จความร้อน */
 export function formatShopDateTimeCompact(iso: string | null | undefined): string {
   const d = parseServerDateTime(iso);

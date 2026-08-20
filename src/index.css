@@ -94,7 +94,7 @@ body {
     padding: 2mm;
     text-align: center;
     height: 32mm;
-    overflow: hidden;
+    overflow: visible;
     page-break-inside: avoid;
     display: flex;
     flex-direction: column;

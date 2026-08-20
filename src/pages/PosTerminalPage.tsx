@@ -8,6 +8,7 @@ import { filesApi } from '@/api/files';
 import { extractErrorMessage } from '@/api/client';
 import { formatTHB } from '@/lib/format';
 import { hasRealImei } from '@/lib/escpos/ddmobileReceipt';
+import { validateShippingRecipient } from '@/lib/tspl/shippingLabel';
 import { CustomerPickerModal } from '@/components/CustomerPickerModal';
 import { ImeiPickerModal } from '@/components/ImeiPickerModal';
 import { DeviceLookupModal } from '@/components/DeviceLookupModal';
@@ -21,13 +22,16 @@ import { isValidTaxInvoiceBuyer, type IssueTaxInvoiceRequest } from '@/api/taxIn
 import { RepairBillPrintView } from '@/components/RepairBillPrintView';
 import type {
   CartScanResponse, Customer, InStockItem, OrderChannel,
-  PaymentMethod, PaymentSplit, RepairTicket, SalesOrderResponse, ShippingPartner, TradeInVariantResponse,
+  PaymentMethod, PaymentSplit, RepairTicket, SalesOrderResponse, ShippingAddressInput,
+  ShippingPartner, TradeInVariantResponse,
 } from '@/types/api';
-import { getTradeInBlockedReason, isTradeInActive } from '@/lib/pos/tradeIn';
+import { getTradeInBlockedReason, isTradeInActive, TRADE_IN_INTAKE_POLICY } from '@/lib/pos/tradeIn';
 import { PaymentSplitEditor, validateSplit } from '@/components/pos/PaymentSplitEditor';
 import { SaleDocumentSelector, type SaleDocumentMode } from '@/components/pos/SaleDocumentSelector';
+import { CashierPicker } from '@/components/pos/CashierPicker';
 import { LatestBillActions } from '@/components/pos/LatestBillActions';
 import { ShippingLabelModal } from '@/components/ShippingLabelModal';
+import { SavedShippingAddressPicker } from '@/components/pos/SavedShippingAddressPicker';
 import { CustomItemForm, type CustomItemDraft } from '@/components/pos/CustomItemForm';
 import { type SlipEntry } from '@/components/pos/MultiSlipUpload';
 import { cashRegisterApi } from '@/api/cashRegister';
@@ -168,6 +172,7 @@ export function PosTerminalPage() {
   const [cart, setCart] = useState<CartLine[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH');
   const [paymentRef, setPaymentRef] = useState('');
+  const [cashierProfileId, setCashierProfileId] = useState('');
   const [discount, setDiscount] = useState<number>(0);
   const [vatRate, setVatRate] = useState<number>(0); // % (0 = ไม่คิด VAT)
   const [note, setNote] = useState('');
@@ -224,7 +229,10 @@ export function PosTerminalPage() {
   const [orderChannel, setOrderChannel] = useState<OrderChannel>('WALK_IN');
   const [shippingFee, setShippingFee] = useState<number>(0);
   const [shippingPartner, setShippingPartner] = useState<ShippingPartner | ''>('');
+  const [shippingRecipientName, setShippingRecipientName] = useState('');
+  const [shippingRecipientPhone, setShippingRecipientPhone] = useState('');
   const [shippingAddress, setShippingAddress] = useState('');
+  const [printShippingLabelAfterCheckout, setPrintShippingLabelAfterCheckout] = useState(false);
   const [shippingFeeGrandpa, setShippingFeeGrandpa] = useState<number>(0);
   const [shippingFeeGrandma, setShippingFeeGrandma] = useState<number>(0);
   // การ์ดลูกค้า/จัดส่ง — ยุบไว้ default (หน้าร้านเงินสดไม่ต้องใช้) · กดเปิดเองได้
@@ -501,6 +509,7 @@ export function PosTerminalPage() {
         clientRequestId: clientRequestIdRef.current,
         customerId: customer?.id,
         branchId: useBranchStore.getState().activeBranchId ?? undefined,  // ขายที่สาขาที่เลือก (Phase 2C)
+        cashierProfileId,
         items: cart.map((l) => ({
           variantId: l.custom ? undefined : l.variantId,
           // รายการพิมพ์เอง: ส่งชื่อ + รหัสทุน แทน variant (backend ถอดรหัสทุนเอง) — FIX-099
@@ -535,6 +544,8 @@ export function PosTerminalPage() {
         shippingFee: shippingFee > 0 ? shippingFee : undefined,
         shippingPartner: shippingPartner || undefined,
         // shippingTrackingNo ไม่ใช้ใน POS แล้ว — กรอกทีหลังในหน้าจัดการบิล
+        shippingRecipientName: shippingRecipientName.trim() || undefined,
+        shippingRecipientPhone: shippingRecipientPhone.trim() || undefined,
         shippingAddress: shippingAddress.trim() || undefined,
         shippingFeeGrandpa: shippingFeeGrandpa > 0 ? shippingFeeGrandpa : undefined,
         shippingFeeGrandma: shippingFeeGrandma > 0 ? shippingFeeGrandma : undefined,
@@ -570,18 +581,16 @@ export function PosTerminalPage() {
       setReceiptToPrint(null);
       setLastBill(order);
 
-      // เอกสาร 1 ชุดต่อการขาย: ใบเสร็จปกติ หรือใบเสร็จ/ใบกำกับเต็มรูป (ไม่พิมพ์ซ้ำสองใบ)
-      if (order.taxInvoiceNo) {
-        printer.printTaxInvoice(order.id, { openDrawer: true }).catch((e) => {
-          console.error('Auto-print tax invoice failed:', e);
-        });
-      } else {
-        printer.printReceipt(order.id, {
+      // เอกสารขาย 1 ชุด; ป้ายที่อยู่เป็นงานถัดไปหลัง dialog เอกสารจบ เพื่อไม่เปิดหน้าพิมพ์ชนกัน
+      const documentPrint = order.taxInvoiceNo
+        ? printer.printTaxInvoice(order.id, { openDrawer: true })
+        : printer.printReceipt(order.id, {
           openDrawer: true,
           browserPrint: ({ duplicate }) => printReceiptInBrowser({ order, duplicate }),
-        }).catch((e) => {
-          console.error('Auto-print failed:', e);
         });
+      documentPrint.catch((error) => console.error('Auto-print sale document failed:', error));
+      if (printShippingLabelAfterCheckout) {
+        documentPrint.finally(() => setShippingLabelFor(order)).catch(() => undefined);
       }
       clientRequestIdRef.current = null;   // F-03: บิลถัดไปได้ idempotency key ใหม่
       setScannedDevice(null);              // FIX-146: การ์ดเครื่องที่สแกนไม่ค้างหลังปิดบิล (เคยต้องกด X เอง)
@@ -606,7 +615,10 @@ export function PosTerminalPage() {
       setOrderChannel('WALK_IN');
       setShippingFee(0);
       setShippingPartner('');
+      setShippingRecipientName('');
+      setShippingRecipientPhone('');
       setShippingAddress('');
+      setPrintShippingLabelAfterCheckout(false);
       setShippingFeeGrandpa(0);
       setShippingFeeGrandma(0);
       resetTradeIn();
@@ -631,6 +643,7 @@ export function PosTerminalPage() {
       customerPhone: !customer && collectPhone.trim() ? collectPhone.trim() : undefined,
       note: collectNote.trim() || undefined,
       branchId: useBranchStore.getState().activeBranchId ?? undefined,
+      cashierProfileId,
     }),
     onSuccess: (order) => {
       toast.success(`ออกบิลค่างวด ${order.billNo} · ${formatTHB(order.grandTotal)}`);
@@ -663,8 +676,29 @@ export function PosTerminalPage() {
 
   // ─── Channel + Shipping gating (ตรงกับ PosService validation) ────────
   const isOnline = orderChannel === 'ONLINE';
+  const fillShippingRecipient = (recipient: ShippingAddressInput) => {
+    setShippingRecipientName(recipient.recipientName);
+    setShippingRecipientPhone(recipient.recipientPhone);
+    setShippingAddress(recipient.address);
+  };
+  const copyCustomerToRecipient = () => fillShippingRecipient({
+    recipientName: customer?.name || walkInName.trim(),
+    recipientPhone: customer?.phone || walkInPhone.trim(),
+    address: customer?.address || '',
+  });
+  const selectCustomer = (selected: Customer | null) => {
+    setCustomer(selected);
+    if (!selected) return;
+    setShippingRecipientName((current) => current || selected.name);
+    setShippingRecipientPhone((current) => current || selected.phone || '');
+    setShippingAddress((current) => current || selected.address || '');
+  };
   const hasCustomerIdentity = !!customer || walkInName.trim().length > 0;
-  const onlineNeedsAddress = isOnline && shippingAddress.trim().length === 0;
+  const shippingRecipientError = validateShippingRecipient({
+    name: shippingRecipientName, phone: shippingRecipientPhone, address: shippingAddress,
+  });
+  const onlineRecipientError = isOnline ? shippingRecipientError : null;
+  const labelRecipientError = printShippingLabelAfterCheckout ? shippingRecipientError : null;
   const onlineNeedsPartner = isOnline && !shippingPartner;
   const onlineNeedsIdentity = isOnline && !hasCustomerIdentity;
   const installmentNeedsIdentity = paymentMethod === 'INSTALLMENT' && !hasCustomerIdentity;
@@ -675,8 +709,10 @@ export function PosTerminalPage() {
     || paymentMethod === 'INSTALLMENT' || isOnline;
   const custCardExpanded = custCardOpen || custCardMustOpen;
   const custSummaryName = customer?.name || walkInName || 'ยังไม่ระบุลูกค้า';
-  const shipCardMustOpen = isOnline || shippingFee > 0 || shippingFeeGrandpa > 0 || shippingFeeGrandma > 0
-    || (!!shippingPartner && shippingPartner !== 'PICKUP') || shippingAddress.trim().length > 0;
+  const shipCardMustOpen = isOnline || printShippingLabelAfterCheckout
+    || shippingFee > 0 || shippingFeeGrandpa > 0 || shippingFeeGrandma > 0
+    || (!!shippingPartner && shippingPartner !== 'PICKUP') || shippingAddress.trim().length > 0
+    || shippingRecipientName.trim().length > 0 || shippingRecipientPhone.trim().length > 0;
   const shipCardExpanded = shipCardOpen || shipCardMustOpen;
   const tradeInBlockedReason = getTradeInBlockedReason({
     enabled: tradeInEnabled,
@@ -690,12 +726,14 @@ export function PosTerminalPage() {
   });
   const checkoutBlockedReason =
     !hasOpenSession ? 'กรุณาเปิดเก๊ะก่อน' :
+    !cashierProfileId ? 'กรุณาเลือกผู้รับเงิน' :
     cart.length === 0 ? 'ยังไม่มีสินค้าในตะกร้า' :
     discountExceedsSubtotal ? 'ส่วนลดเกินยอดรวมสินค้า' :
     shippingSplitOver ? 'ค่าส่งของตา+ยาย เกินค่าส่งรวม' :
     onlineNeedsIdentity ? 'ออนไลน์: ต้องระบุชื่อลูกค้า' :
     onlineNeedsPartner ? 'ออนไลน์: ต้องเลือกพาร์ทเนอร์จัดส่ง' :
-    onlineNeedsAddress ? 'ออนไลน์: ต้องกรอกที่อยู่จัดส่ง' :
+    onlineRecipientError ? `ออนไลน์: ${onlineRecipientError}` :
+    labelRecipientError ? `ป้ายที่อยู่: ${labelRecipientError}` :
     installmentNeedsIdentity ? 'ผ่อนชำระ: ต้องระบุชื่อลูกค้า' :
     (documentMode === 'TAX_INVOICE' && !isValidTaxInvoiceBuyer(taxInvoiceDraft))
       ? 'ใบกำกับภาษี: กรอกข้อมูลผู้ซื้อให้ครบ' :
@@ -881,13 +919,14 @@ export function PosTerminalPage() {
                     )}
                     <input className="input" placeholder="หมายเหตุ เช่น งวดที่ 3 / iPhone 13"
                            value={collectNote} onChange={(e) => setCollectNote(e.target.value)} />
+                    <CashierPicker selectedId={cashierProfileId} onSelect={setCashierProfileId} compact />
                     {!hasOpenSession && (
                       <div className="rounded bg-amber-100 px-2 py-1 text-[11px] text-amber-800">
                         ⚠️ ต้องเปิดเก๊ะเงินสดก่อนถึงจะออกบิลได้
                       </div>
                     )}
                     <button type="button"
-                            disabled={collectAmount <= 0 || !hasOpenSession || collectInstallment.isPending}
+                            disabled={collectAmount <= 0 || !hasOpenSession || !cashierProfileId || collectInstallment.isPending}
                             onClick={() => collectInstallment.mutate()}
                             className="btn-primary w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50">
                       {collectInstallment.isPending
@@ -1072,6 +1111,11 @@ export function PosTerminalPage() {
               * จำเป็น (ออนไลน์)
             </span>
           )}
+          {printShippingLabelAfterCheckout && !isOnline && (
+            <span className="shrink-0 rounded bg-orange-100 px-2 py-0.5 text-xs font-semibold text-orange-800">
+              พิมพ์ป้ายหลังปิดบิล
+            </span>
+          )}
           {!shipCardExpanded && (
             <span className="truncate text-xs font-normal text-slate-500">
               {shippingFee > 0 ? `ค่าส่ง ${formatTHB(shippingFee)}` : 'รับเอง / ไม่มีค่าส่ง'}
@@ -1181,19 +1225,39 @@ export function PosTerminalPage() {
             </div>
           </div>
 
-          {isOnline && (
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">
+          {(isOnline || printShippingLabelAfterCheckout) && (
+            <div className="space-y-3 rounded-lg border border-orange-200 bg-orange-50/40 p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <SavedShippingAddressPicker onSelect={fillShippingRecipient} />
+                <button type="button" className="btn-secondary"
+                        disabled={!(customer?.name || walkInName.trim())}
+                        onClick={copyCustomerToRecipient}>
+                  <UserCircle2 className="h-4 w-4" /> คัดลอกจากลูกค้า
+                </button>
+                <span className="text-[11px] text-slate-500">
+                  ระบบจะจำผู้รับอัตโนมัติหลังปิดบิลสำเร็จ
+                </span>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label className="text-xs font-medium text-slate-600">
+                  ชื่อผู้รับ <span className="text-red-600">*</span>
+                  <input className="input mt-1" value={shippingRecipientName} maxLength={80}
+                         placeholder="ชื่อ-นามสกุลผู้รับ"
+                         onChange={(event) => setShippingRecipientName(event.target.value)} />
+                </label>
+                <label className="text-xs font-medium text-slate-600">
+                  เบอร์โทรผู้รับ <span className="text-red-600">*</span>
+                  <input className="input mt-1" value={shippingRecipientPhone} maxLength={30}
+                         inputMode="tel" placeholder="08x-xxx-xxxx"
+                         onChange={(event) => setShippingRecipientPhone(event.target.value)} />
+                </label>
+              </div>
+              <label className="block text-xs font-medium text-slate-600">
                 ที่อยู่จัดส่ง <span className="text-red-600">*</span>
+                <textarea rows={3} className="input mt-1" value={shippingAddress} maxLength={300}
+                          placeholder="บ้านเลขที่ ถนน ตำบล/แขวง อำเภอ/เขต จังหวัด รหัสไปรษณีย์"
+                          onChange={(event) => setShippingAddress(event.target.value)} />
               </label>
-              <textarea
-                rows={3}
-                className="input"
-                placeholder="ชื่อ-นามสกุล / ที่อยู่ / รหัสไปรษณีย์ / เบอร์โทร"
-                value={shippingAddress}
-                onChange={(e) => setShippingAddress(e.target.value)}
-                maxLength={1000}
-              />
             </div>
           )}
 
@@ -1338,6 +1402,10 @@ export function PosTerminalPage() {
         </div>
         {tradeInEnabled && tradeInOpen && (
           <div id="trade-in-details" className="card-body space-y-3">
+            <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              <div className="font-semibold">⚠️ {TRADE_IN_INTAKE_POLICY.newIdentifierOnly}</div>
+              <div className="mt-0.5">{TRADE_IN_INTAKE_POLICY.destination}</div>
+            </div>
             {/* เลือก SKU ของเครื่องเทิร์น */}
             {tradeInVariant ? (
               <div className="flex items-center justify-between gap-2 rounded-md border border-violet-200 bg-violet-50 px-3 py-2 text-sm">
@@ -1354,7 +1422,9 @@ export function PosTerminalPage() {
               </div>
             ) : (
               <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">รุ่น / SKU ของเครื่องที่รับเทิร์น (เครื่องเก่าจะลงสต็อกที่รุ่นนี้)</label>
+                <label className="mb-1 block text-xs font-medium text-slate-600">
+                  รุ่น / SKU มือ 2 สำหรับจัดหมวดเครื่องที่รับเทิร์น
+                </label>
                 <input className="input" placeholder="ค้นหา SKU / รุ่น เช่น iPhone 13"
                        value={tradeInSkuQuery} onChange={(e) => {
                          setTradeInSkuQuery(e.target.value); setTradeInResults([]);
@@ -1409,7 +1479,7 @@ export function PosTerminalPage() {
             )}
             {/* ข้อมูลเครื่องเก่า + มูลค่า */}
             <div className="grid grid-cols-2 gap-2">
-              <input className="input font-mono" maxLength={20} placeholder="IMEI เครื่องเก่า"
+              <input className="input font-mono" maxLength={20} placeholder="IMEI ใหม่ (ต้องไม่เคยมีในระบบ)"
                      value={tradeInImei} onChange={(e) => setTradeInImei(e.target.value)} />
               <input className="input font-mono" maxLength={30} placeholder="Serial (ถ้ามี)"
                      value={tradeInSerial} onChange={(e) => setTradeInSerial(e.target.value)} />
@@ -1451,7 +1521,8 @@ export function PosTerminalPage() {
               </div>
             )}
             <p className="text-[11px] text-slate-500">
-              เครื่องเก่าลงสต็อกอัตโนมัติ (มือ 2 · ทุน = มูลค่าตีเทิร์น) · ยอดขายบันทึกเต็มราคา · รองรับ เงินสด / โอน / ผ่อน (เทิร์นดาวน์)
+              สร้างเครื่องใหม่ใน “รอลงสต็อก” (มือ 2 · ทุน = มูลค่าตีเทิร์น) · ยังไม่เพิ่มจำนวนพร้อมขาย ·
+              ยอดขายบันทึกเต็มราคา · รองรับ เงินสด / โอน / ผ่อน (เทิร์นดาวน์)
             </p>
           </div>
         )}
@@ -1588,12 +1659,19 @@ export function PosTerminalPage() {
                 </div>
               </>
             )}
+            <CashierPicker selectedId={cashierProfileId} onSelect={setCashierProfileId} />
             <SaleDocumentSelector
               mode={documentMode}
               buyerName={taxInvoiceDraft.customerName}
               disabled={checkout.isPending}
+              shippingLabelSelected={printShippingLabelAfterCheckout}
+              shippingRecipientReady={!shippingRecipientError}
               onReceipt={() => { setDocumentMode('RECEIPT'); setVatRate(0); }}
               onTaxInvoice={openTaxInvoiceDetails}
+              onToggleShippingLabel={() => {
+                setPrintShippingLabelAfterCheckout((selected) => !selected);
+                setShipCardOpen(true);
+              }}
             />
             <button
               className="btn-primary w-full bg-emerald-600 hover:bg-emerald-700 text-base"
@@ -1605,8 +1683,8 @@ export function PosTerminalPage() {
                 : checkoutBlockedReason
                   ? checkoutBlockedReason
                   : documentMode === 'TAX_INVOICE'
-                    ? 'รับชำระ · ออกใบกำกับ · พิมพ์'
-                    : 'รับชำระและปิดบิล'}
+                    ? `รับชำระ · ออกใบกำกับ · พิมพ์${printShippingLabelAfterCheckout ? ' · ป้ายที่อยู่' : ''}`
+                    : `รับชำระและปิดบิล${printShippingLabelAfterCheckout ? ' · ป้ายที่อยู่' : ''}`}
             </button>
             {lastBill && (
               <LatestBillActions
@@ -1616,7 +1694,8 @@ export function PosTerminalPage() {
                   openDrawer: false,
                   browserPrint: ({ duplicate }) => printReceiptInBrowser({ order: lastBill, duplicate }),
                 }).catch(() => undefined)}
-                onPrintTaxInvoice={() => printer.printTaxInvoice(lastBill.id, { openDrawer: false }).catch(() => undefined)}
+                onPrintTaxInvoice={() => printer.printTaxInvoice(lastBill.id, { openDrawer: false })
+                  .catch(() => undefined)}
                 onIssueTaxInvoice={() => setTaxInvoiceFor(lastBill)}
                 onPrintShippingLabel={() => setShippingLabelFor(lastBill)}
               />
@@ -1631,7 +1710,7 @@ export function PosTerminalPage() {
       )}
       {showCustomerPicker && (
         <CustomerPickerModal
-          onSelect={(c) => setCustomer(c)}
+          onSelect={selectCustomer}
           onClose={() => setShowCustomerPicker(false)}
         />
       )}

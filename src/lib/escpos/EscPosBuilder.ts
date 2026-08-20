@@ -1,5 +1,12 @@
 import { encodeCp874, thaiDisplayWidth } from './cp874';
 
+export interface EscPosRasterImage {
+  width: number;
+  height: number;
+  /** Packed monochrome pixels, MSB first, row by row. */
+  data: Uint8Array;
+}
+
 /**
  * ESC/POS Builder — สร้างคำสั่ง ESC/POS bytes แบบ chainable.
  *
@@ -163,6 +170,23 @@ export class EscPosBuilder {
     for (let i = 0; i < dataBytes.length; i++) this.buf.push(dataBytes[i]);
     // Function 181: Print
     this.buf.push(0x1d, 0x28, 0x6b, 3, 0, 49, 81, 48);
+    return this;
+  }
+
+  /** GS v 0 — print a pre-rendered monochrome raster image. */
+  rasterImage(image: EscPosRasterImage): this {
+    const widthBytes = Math.ceil(image.width / 8);
+    const expectedLength = widthBytes * image.height;
+    if (image.width <= 0 || image.height <= 0 || image.data.length !== expectedLength) {
+      throw new Error('Invalid ESC/POS raster image dimensions');
+    }
+
+    this.buf.push(
+      0x1d, 0x76, 0x30, 0,
+      widthBytes & 0xff, (widthBytes >> 8) & 0xff,
+      image.height & 0xff, (image.height >> 8) & 0xff,
+    );
+    for (let i = 0; i < image.data.length; i++) this.buf.push(image.data[i]);
     return this;
   }
 

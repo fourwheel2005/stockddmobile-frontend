@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { printOrchestrator } from '@/lib/printer/PrintOrchestrator';
 import { buildDDMobileReceipt } from '@/lib/escpos/ddmobileReceipt';
+import { getLineQrRaster } from '@/lib/escpos/lineQrRaster';
 import { buildTaxInvoice } from '@/lib/escpos/taxInvoice';
 import { buildCashPeriodSummary, buildCashSessionSummary } from '@/lib/escpos/cashSummaryReceipt';
 import { taxInvoiceApi } from '@/api/taxInvoice';
@@ -138,9 +139,11 @@ export function usePrinter() {
         isCash: data.paymentMethod === 'CASH',
         openDrawerRequested: opts.openDrawer,
       });
+      const lineQrImage = await getLineQrRaster();
       const bytes = buildDDMobileReceipt(data, {
         duplicate,
         openDrawer,
+        lineQrImage,
       });
       const browserPrint = opts.browserPrint;
 
@@ -232,12 +235,19 @@ export function usePrinter() {
       const openDrawer = (opts.openDrawer ?? false) && data.paymentMethod === 'CASH';
       const bytes = buildTaxInvoice(data, { copy, openDrawer });
       const result = await printOrchestrator.print(bytes, {
-        billNo: data.taxInvoiceNo, jobId: job.id, openDrawer,
+        billNo: data.taxInvoiceNo,
+        jobId: job.id,
+        openDrawer,
+        duplicate: copy,
+        target: 'receipt',
       });
       const queued = result.strategy === 'PULL_AGENT';
       if (!queued) {
         await printApi.logResult(job.id, {
-          jobType: job.jobType, strategy: result.strategy, printerId: result.printerId, success: true,
+          jobType: job.jobType,
+          strategy: result.strategy,
+          printerId: result.printerId,
+          success: true,
         });
       }
       if (openDrawer && ['LOCAL_BRIDGE', 'WEB_USB', 'PULL_AGENT'].includes(result.strategy)) {
@@ -245,8 +255,8 @@ export function usePrinter() {
           .catch(() => undefined);
       }
       toast.success(queued
-        ? 'ส่งใบกำกับเข้าคิวปริ้นสาขาแล้ว ☁️'
-        : `พิมพ์ใบกำกับ${copy ? ' (สำเนา)' : ' (ต้นฉบับ)'}แล้ว`);
+        ? 'ส่งใบเสร็จ/ใบกำกับภาษีเข้าคิวปริ้นสาขาแล้ว ☁️'
+        : `พิมพ์ใบเสร็จ/ใบกำกับภาษี${copy ? ' (สำเนา)' : ' (ต้นฉบับ)'}แล้ว`);
       return result;
     } catch (e) {
       if (job) {

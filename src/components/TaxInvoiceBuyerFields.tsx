@@ -53,7 +53,7 @@ export function TaxInvoiceBuyerFields({ value, onChange }: {
         <label className="mb-1 block text-sm font-medium">
           ชื่อลูกค้า / บริษัท <span className="text-red-500">*</span>
         </label>
-        <input className="input" value={value.customerName}
+        <input className="input" value={value.customerName} maxLength={200}
                onChange={(e) => set({ customerName: e.target.value })}
                placeholder="ชื่อบุคคล หรือนิติบุคคลตามทะเบียน" autoFocus />
       </div>

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { Receipt, Printer, Undo2, Landmark, CheckCircle2, Clock, XCircle, PackageOpen, PackageCheck, Search, Wrench, FileText } from 'lucide-react';
+import { Receipt, Printer, Undo2, Landmark, CheckCircle2, Clock, XCircle, PackageOpen, PackageCheck, Search, Wrench, FileText, CalendarClock } from 'lucide-react';
 import { posApi } from '@/api/pos';
 import { repairApi } from '@/api/repair';
 import { SalesCalendar } from '@/components/SalesCalendar';
@@ -15,6 +15,7 @@ import { ReturnDeviceModal } from '@/components/ReturnDeviceModal';
 import { TaxInvoiceModal } from '@/components/TaxInvoiceModal';
 import { ShippingLabelModal } from '@/components/ShippingLabelModal';
 import { SecurityCodeModal } from '@/components/SecurityCodeModal';
+import { EditSaleDateModal } from '@/components/EditSaleDateModal';
 import { usePrinter } from '@/hooks/usePrinter';
 import { printAndConfirmReceipt } from '@/lib/printer/browserPrintConfirmation';
 import { formatTHB, formatDateTime } from '@/lib/format';
@@ -84,6 +85,7 @@ export function SalesHistoryPage() {
   const qc = useQueryClient();
   // ทุก role กดได้ แต่ต้องผ่านรหัสความปลอดภัยของร้านเสมอ (FIX-103) — backend บังคับซ้ำอีกชั้น
   const canRefund = useAuthStore((s) => s.hasRole('ADMIN', 'MANAGER', 'STAFF'));
+  const canEditSaleDate = useAuthStore((s) => s.hasRole('ADMIN', 'MANAGER'));
   const [page, setPage] = useState(0);
   const [status, setStatus] = useState<SalesOrderStatus | ''>('');
   const [day, setDay] = useState<string | null>(null);   // วันที่เลือกจากปฏิทิน (YYYY-MM-DD)
@@ -98,6 +100,9 @@ export function SalesHistoryPage() {
   // FIX-150: ออกใบกำกับภาษีเต็มรูปแบบ (บิล PAID)
   const [taxInvoiceFor, setTaxInvoiceFor] = useState<SalesOrderResponse | null>(null);
   const [shippingLabelFor, setShippingLabelFor] = useState<SalesOrderResponse | null>(null);
+  const [dateEditOrder, setDateEditOrder] = useState<SalesOrderResponse | null>(null);
+  const [pendingDateEdit, setPendingDateEdit] =
+    useState<{ order: SalesOrderResponse; saleDate: string; reason: string } | null>(null);
   // ขั้นยืนยันด้วยรหัสความปลอดภัย — เก็บสิ่งที่จะทำไว้ระหว่างรอรหัส (FIX-103)
   const [pendingRefund, setPendingRefund] =
     useState<{ order: SalesOrderResponse; reason: string } | null>(null);
@@ -133,7 +138,9 @@ export function SalesHistoryPage() {
 
   // รวม ขาย + ซ่อม → เรียงตามวันล่าสุด (ISO เรียงตามตัวอักษรได้เลย)
   const rows: HistoryRow[] = [
-    ...(data?.content ?? []).map((s): HistoryRow => ({ kind: 'SALE', date: s.createdAt, sale: s })),
+    ...(data?.content ?? []).map((s): HistoryRow => ({
+      kind: 'SALE', date: s.saleDate ?? s.closedAt ?? s.createdAt, sale: s,
+    })),
     ...(showRepairs ? (repairData?.content ?? []) : [])
       .filter((r) => !day || localDay(r.receivedAt) === day)
       .filter((r) => !q || repairMatches(r, q))
@@ -171,6 +178,18 @@ export function SalesHistoryPage() {
   });
 
   const printer = usePrinter();
+
+  const updateSaleDate = useMutation({
+    mutationFn: ({ id, saleDate, reason, securityCode }:
+      { id: string; saleDate: string; reason: string; securityCode: string }) =>
+      posApi.updateSaleDate(id, saleDate, reason, securityCode),
+    onSuccess: (order) => {
+      toast.success(`แก้วันที่ขายบิล ${order.billNo} แล้ว`);
+      qc.invalidateQueries({ queryKey: ['sales-orders'] });
+      qc.invalidateQueries({ queryKey: ['sales-calendar'] });
+    },
+    onError: (error) => toast.error(extractErrorMessage(error)),
+  });
 
   /** Backend เลือกต้นฉบับ/สำเนาจาก audit; HTML fallback ใช้บิลแถวเดียวกับที่กดเสมอ */
   const handlePrint = async (order: SalesOrderResponse) => {
@@ -265,7 +284,18 @@ export function SalesHistoryPage() {
                   <td className="px-5 py-3 text-xs">{row.sale.paymentMethod ?? '-'}</td>
                   <td className="px-5 py-3"><span className={STATUS_BADGE[row.sale.status]}>{STATUS_LABEL[row.sale.status]}</span></td>
                   <td className="px-5 py-3 text-xs">{row.sale.createdBy}</td>
-                  <td className="px-5 py-3 text-xs text-slate-500">{formatDateTime(row.sale.createdAt)}</td>
+                  <td className="px-5 py-3 text-xs text-slate-500">
+                    <div className="flex items-center gap-1">
+                      <span>{formatDateTime(row.sale.saleDate ?? row.sale.closedAt ?? row.sale.createdAt)}</span>
+                      {canEditSaleDate && (row.sale.status === 'PAID' || row.sale.status === 'REFUNDED') && (
+                        <button type="button" className="rounded p-1 text-brand-600 hover:bg-brand-50"
+                                title="แก้วันที่ขาย" aria-label={`แก้วันที่ขายบิล ${row.sale.billNo}`}
+                                onClick={() => setDateEditOrder(row.sale)}>
+                          <CalendarClock className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-5 py-3">
                     <div className="flex items-center justify-end gap-1">
                       <button
@@ -408,6 +438,29 @@ export function SalesHistoryPage() {
 
       {shippingLabelFor && (
         <ShippingLabelModal order={shippingLabelFor} onClose={() => setShippingLabelFor(null)} />
+      )}
+
+      {dateEditOrder && (
+        <EditSaleDateModal order={dateEditOrder} onClose={() => setDateEditOrder(null)}
+          onConfirm={(saleDate, reason) => {
+            setPendingDateEdit({ order: dateEditOrder, saleDate, reason });
+            setDateEditOrder(null);
+          }} />
+      )}
+
+      {pendingDateEdit && (
+        <SecurityCodeModal
+          action={`แก้วันที่ขายบิล ${pendingDateEdit.order.billNo}`}
+          warning="ประวัติและรายงานยอดขายจะย้ายไปวันที่ใหม่ โดยระบบเก็บวันเดิม ผู้แก้ และเหตุผลไว้ตรวจสอบ"
+          pending={updateSaleDate.isPending}
+          onClose={() => setPendingDateEdit(null)}
+          onConfirm={(securityCode) => updateSaleDate.mutate({
+            id: pendingDateEdit.order.id,
+            saleDate: pendingDateEdit.saleDate,
+            reason: pendingDateEdit.reason,
+            securityCode,
+          }, { onSuccess: () => setPendingDateEdit(null) })}
+        />
       )}
 
       {returnOrder && (

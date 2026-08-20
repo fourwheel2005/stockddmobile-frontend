@@ -1,11 +1,15 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { CalendarRange, Printer, TriangleAlert } from 'lucide-react';
+import { CalendarDays, CalendarRange, ChevronLeft, ChevronRight, Download, Loader2, Printer, TriangleAlert } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { cashRegisterApi } from '@/api/cashRegister';
+import { reportsApi } from '@/api/reports';
+import { extractErrorMessage } from '@/api/client';
 import { PaymentBreakdownCard } from './PaymentBreakdownCard';
 import { formatTHB } from '@/lib/format';
 import { shopToday } from '@/lib/datetime';
 import { usePrinter } from '@/hooks/usePrinter';
+import { useAuthStore } from '@/stores/authStore';
 
 interface Props {
   branchId?: string;
@@ -13,7 +17,9 @@ interface Props {
 
 export function CashSummaryPanel({ branchId }: Props) {
   const [month, setMonth] = useState(shopToday().slice(0, 7));
+  const [exporting, setExporting] = useState(false);
   const printer = usePrinter();
+  const canExportAccounting = useAuthStore((state) => state.hasRole('ADMIN', 'MANAGER'));
   const range = monthRange(month);
   const query = useQuery({
     queryKey: ['cash-register-summary', branchId, range.from, range.to],
@@ -21,20 +27,68 @@ export function CashSummaryPanel({ branchId }: Props) {
   });
   const summary = query.data;
 
+  async function exportMonthlySales() {
+    setExporting(true);
+    try {
+      const blob = await reportsApi.monthlySalesExcel({ month, branchId });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `DDMobile_monthly-sales_${month}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      toast.success('ดาวน์โหลดไฟล์ยอดขายสำหรับบัญชีแล้ว');
+    } catch (error) {
+      toast.error(extractErrorMessage(error));
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="card">
-        <div className="card-body flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
+        <div className="card-body flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="space-y-1">
             <label className="mb-1 block text-sm font-medium">เดือนที่ต้องการสรุป</label>
-            <input className="input w-56" type="month" value={month}
-              onChange={(event) => setMonth(event.target.value || shopToday().slice(0, 7))} />
+            <div className="flex items-center gap-1 rounded-lg border border-slate-300 bg-white p-1 shadow-sm">
+              <button type="button" className="rounded-md p-2 text-slate-500 hover:bg-slate-100"
+                title="เดือนก่อนหน้า" onClick={() => setMonth(shiftMonth(month, -1))}>
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <label className="relative flex min-w-52 flex-1 cursor-pointer items-center gap-2 px-2">
+                <CalendarDays className="h-4 w-4 text-brand-600" />
+                <span className="pointer-events-none flex-1 text-sm font-semibold text-slate-800">
+                  {formatMonthLabel(month)}
+                </span>
+                <input className="absolute inset-0 cursor-pointer opacity-0" type="month" value={month}
+                  aria-label="เลือกเดือนที่ต้องการสรุป"
+                  onChange={(event) => setMonth(event.target.value || shopToday().slice(0, 7))} />
+              </label>
+              <button type="button" className="rounded-md p-2 text-slate-500 hover:bg-slate-100"
+                title="เดือนถัดไป" onClick={() => setMonth(shiftMonth(month, 1))}>
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+            <button type="button" className="text-xs font-medium text-brand-600 hover:underline"
+              onClick={() => setMonth(shopToday().slice(0, 7))}>กลับเดือนปัจจุบัน</button>
           </div>
-          <button className="btn-primary" disabled={!summary?.sessionCount || printer.printing}
-            onClick={() => summary && printer.printCashPeriodSummary(summary)}>
-            <Printer className="h-4 w-4" />
-            {printer.printing ? 'กำลังพิมพ์...' : 'พิมพ์สรุปรายเดือน'}
-          </button>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            {canExportAccounting && (
+              <button className="btn-secondary border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                disabled={exporting} onClick={exportMonthlySales}>
+                {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                {exporting ? 'กำลังสร้าง Excel...' : 'ดาวน์โหลด Excel ส่งบัญชี'}
+              </button>
+            )}
+            <button className="btn-primary" disabled={!summary?.sessionCount || printer.printing}
+              onClick={() => summary && printer.printCashPeriodSummary(summary)}>
+              <Printer className="h-4 w-4" />
+              {printer.printing ? 'กำลังพิมพ์...' : 'พิมพ์สรุปรายเดือน'}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -92,10 +146,22 @@ export function CashSummaryPanel({ branchId }: Props) {
   );
 }
 
-function monthRange(month: string): { from: string; to: string } {
+export function monthRange(month: string): { from: string; to: string } {
   const [year, monthNumber] = month.split('-').map(Number);
   const lastDay = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
   return { from: `${month}-01`, to: `${month}-${String(lastDay).padStart(2, '0')}` };
+}
+
+export function shiftMonth(month: string, offset: number): string {
+  const [year, monthNumber] = month.split('-').map(Number);
+  const date = new Date(Date.UTC(year, monthNumber - 1 + offset, 1));
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+export function formatMonthLabel(month: string): string {
+  const [year, monthNumber] = month.split('-').map(Number);
+  return new Intl.DateTimeFormat('th-TH', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+    .format(new Date(Date.UTC(year, monthNumber - 1, 1)));
 }
 
 function SummaryLine({ label, value, strong, danger }: {

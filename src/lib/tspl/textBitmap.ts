@@ -41,6 +41,23 @@ function canvasContext(width: number, height: number): CanvasRenderingContext2D 
   return canvas.getContext('2d');
 }
 
+export function drawingBitmap(
+  width: number,
+  height: number,
+  draw: (context: CanvasRenderingContext2D) => void,
+): BitmapImage | null {
+  const context = canvasContext(width, height);
+  if (!context) return null;
+  context.fillStyle = '#fff';
+  context.fillRect(0, 0, width, height);
+  context.strokeStyle = '#000';
+  context.fillStyle = '#000';
+  context.lineCap = 'round';
+  context.lineJoin = 'round';
+  draw(context);
+  return toBitmap(context, width, height);
+}
+
 export function textBitmap(text: string, options: TextBitmapOptions): BitmapImage | null {
   if (!text.trim() || options.maxWidth <= 0) return null;
   const measure = canvasContext(1, 1);

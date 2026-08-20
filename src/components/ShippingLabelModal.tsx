@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
+import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { PackageCheck, Printer, X } from 'lucide-react';
 import { backdropCloseHandler, useModalChrome } from '@/hooks/useModalChrome';
 import { useShippingLabelPrinter } from '@/hooks/useShippingLabelPrinter';
@@ -11,6 +12,9 @@ import {
   type ShippingLabelRecipient,
 } from '@/lib/tspl/shippingLabel';
 import type { SalesOrderResponse } from '@/types/api';
+import type { ShippingAddressInput } from '@/types/api';
+import { posApi } from '@/api/pos';
+import { SavedShippingAddressPicker } from '@/components/pos/SavedShippingAddressPicker';
 
 interface ModalProps {
   order: SalesOrderResponse;
@@ -94,37 +98,74 @@ function ModalFooter({ disabled, printing, onClose }: {
   );
 }
 
-export function ShippingLabelModal({ order, onClose }: ModalProps) {
-  useModalChrome(onClose);
+async function rememberPrintedRecipient(recipient: ShippingLabelRecipient, queryClient: QueryClient) {
+  await posApi.rememberShippingAddress({
+    recipientName: recipient.name,
+    recipientPhone: recipient.phone,
+    address: recipient.address,
+  });
+  await queryClient.invalidateQueries({ queryKey: ['shipping-addresses'] });
+}
+
+function useShippingLabelForm(order: SalesOrderResponse, onClose: () => void) {
+  const queryClient = useQueryClient();
   const [recipient, setRecipient] = useState(() => recipientFromOrder(order));
   const printer = useShippingLabelPrinter();
   const update = (field: keyof ShippingLabelRecipient) => (value: string) =>
     setRecipient((current) => ({ ...current, [field]: value }));
+  const chooseSaved = (saved: ShippingAddressInput) => setRecipient({
+    name: saved.recipientName, phone: saved.recipientPhone, address: saved.address,
+  });
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     const error = validateShippingRecipient(recipient);
     if (error) return toast.error(error);
-    if (await printer.printShippingLabel(recipient, order.billNo)) onClose();
+    if (!await printer.printShippingLabel(recipient, order.billNo)) return;
+    try {
+      await rememberPrintedRecipient(recipient, queryClient);
+    } catch (error) {
+      console.error('Shipping label printed but address remember failed:', error);
+      toast.error('พิมพ์ป้ายแล้ว แต่บันทึกที่อยู่ประจำไม่สำเร็จ');
+    }
+    onClose();
   };
+  return { recipient, printer, update, chooseSaved, submit };
+}
 
+function ModalBody({ recipient, printing, update, chooseSaved }: {
+  recipient: ShippingLabelRecipient;
+  printing: boolean;
+  update: (field: keyof ShippingLabelRecipient) => (value: string) => void;
+  chooseSaved: (saved: ShippingAddressInput) => void;
+}) {
+  return (
+    <div className="space-y-3 p-5">
+      <div className="rounded-md border border-orange-200 bg-orange-50 p-2.5 text-xs text-orange-800">
+        กระดาษสติ๊กเกอร์แนวตั้ง <strong>กว้าง 100 × ยาว 150 มม.</strong> · 1 ดวงต่อแถว ·
+        QR ด้านล่างสำหรับเพิ่ม LINE ร้าน ส่วนข้อมูลผู้ส่งและสัญลักษณ์ขนส่งคงที่
+      </div>
+      <SenderCard />
+      <SavedShippingAddressPicker disabled={printing} onSelect={chooseSaved} />
+      <NameField value={recipient.name} disabled={printing} onChange={update('name')} />
+      <AddressField value={recipient.address} disabled={printing} onChange={update('address')} />
+      <PhoneField value={recipient.phone} disabled={printing} onChange={update('phone')} />
+    </div>
+  );
+}
+
+export function ShippingLabelModal({ order, onClose }: ModalProps) {
+  useModalChrome(onClose);
+  const form = useShippingLabelForm(order, onClose);
   return createPortal(
     <div className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-black/50 p-4 sm:items-center"
          onClick={backdropCloseHandler(onClose)}>
-      <form onSubmit={submit} role="dialog" aria-modal="true"
+      <form onSubmit={form.submit} role="dialog" aria-modal="true"
             className="my-auto w-full max-w-lg rounded-lg bg-white shadow-2xl">
         <ModalHeader billNo={order.billNo} onClose={onClose} />
-        <div className="space-y-3 p-5">
-          <div className="rounded-md border border-orange-200 bg-orange-50 p-2.5 text-xs text-orange-800">
-            กระดาษสติ๊กเกอร์แนวตั้ง <strong>กว้าง 100 × ยาว 150 มม.</strong> · 1 ดวงต่อแถว ·
-            QR ด้านล่างเปิดเว็บไซต์ร้าน ส่วนข้อมูลผู้ส่งและสัญลักษณ์ขนส่งคงที่
-          </div>
-          <SenderCard />
-          <NameField value={recipient.name} disabled={printer.isPrinting} onChange={update('name')} />
-          <AddressField value={recipient.address} disabled={printer.isPrinting} onChange={update('address')} />
-          <PhoneField value={recipient.phone} disabled={printer.isPrinting} onChange={update('phone')} />
-        </div>
-        <ModalFooter disabled={printer.isPrinting || !!validateShippingRecipient(recipient)}
-                     printing={printer.isPrinting} onClose={onClose} />
+        <ModalBody recipient={form.recipient} printing={form.printer.isPrinting}
+                   update={form.update} chooseSaved={form.chooseSaved} />
+        <ModalFooter disabled={form.printer.isPrinting || !!validateShippingRecipient(form.recipient)}
+                     printing={form.printer.isPrinting} onClose={onClose} />
       </form>
     </div>,
     document.body,

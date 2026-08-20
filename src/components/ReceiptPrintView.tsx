@@ -1,5 +1,6 @@
 import { formatTHB, formatDateTime } from '@/lib/format';
 import { hasRealImei } from '@/lib/escpos/ddmobileReceipt';
+import { LINE_QR_IMAGE_DATA_URL } from '@/assets/lineQr';
 import type { PaymentMethod, SalesOrderResponse, ShippingPartner } from '@/types/api';
 
 const PAYMENT_TH: Record<PaymentMethod, string> = {
@@ -46,7 +47,7 @@ export function ReceiptPrintView({ order, shopName = 'Stockdd Mobile', duplicate
       <div className="text-sm">
         <div className="flex justify-between"><span>เลขที่บิล:</span><strong>{order.billNo}</strong></div>
         <div className="flex justify-between"><span>วันที่:</span><span>{formatDateTime(order.closedAt ?? order.createdAt)}</span></div>
-        <div className="flex justify-between"><span>ผู้ขาย:</span><span>{order.createdBy}</span></div>
+        <div className="flex justify-between"><span>ผู้รับเงิน:</span><span>{order.cashierName || order.createdBy}</span></div>
         {order.customerName && (
           <div className="flex justify-between"><span>ลูกค้า:</span><span>{order.customerName}</span></div>
         )}
@@ -202,6 +203,13 @@ export function ReceiptPrintView({ order, shopName = 'Stockdd Mobile', duplicate
         ✓ ขอบคุณที่ใช้บริการ<br />
         เก็บใบเสร็จเพื่อเป็นหลักฐานการรับประกัน
       </p>
+      <div className="mt-3 flex justify-center">
+        <img
+          src={LINE_QR_IMAGE_DATA_URL}
+          alt="สแกน LINE DD Mobile"
+          className="h-auto w-48"
+        />
+      </div>
     </div>
   );
 }

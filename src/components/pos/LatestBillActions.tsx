@@ -14,7 +14,7 @@ function BillDocumentActions(props: LatestBillActionsProps) {
   if (props.order.taxInvoiceNo) {
     return (
       <button className="btn-secondary w-full" disabled={props.printing} onClick={props.onPrintTaxInvoice}>
-        <Printer className="h-4 w-4" /> {props.printing ? 'กำลังพิมพ์...' : 'พิมพ์ใบกำกับอีกครั้ง'}
+        <Printer className="h-4 w-4" /> {props.printing ? 'กำลังพิมพ์...' : 'พิมพ์ใบเสร็จ/ใบกำกับอีกครั้ง'}
       </button>
     );
   }
