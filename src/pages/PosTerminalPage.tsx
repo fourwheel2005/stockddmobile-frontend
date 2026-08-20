@@ -25,7 +25,9 @@ import type {
   PaymentMethod, PaymentSplit, RepairTicket, SalesOrderResponse, ShippingAddressInput,
   ShippingPartner, TradeInProductResponse,
 } from '@/types/api';
-import { getTradeInBlockedReason, isTradeInActive, TRADE_IN_INTAKE_POLICY } from '@/lib/pos/tradeIn';
+import {
+  calculateTradeInSettlement, getTradeInBlockedReason, isTradeInActive, TRADE_IN_INTAKE_POLICY,
+} from '@/lib/pos/tradeIn';
 import { PaymentSplitEditor, validateSplit } from '@/components/pos/PaymentSplitEditor';
 import { SaleDocumentSelector, type SaleDocumentMode } from '@/components/pos/SaleDocumentSelector';
 import { CashierPicker } from '@/components/pos/CashierPicker';
@@ -405,11 +407,9 @@ export function PosTerminalPage() {
   const taxBase = Math.max(0, subtotal - discount);
   const vatAmount = Math.round(taxBase * (Number(vatRate) || 0)) / 100;
   const grandTotal = Math.max(0, taxBase + vatAmount + (Number(shippingFee) || 0));
-  // เทิร์น (FIX-105): ยอดขายเต็ม − มูลค่าเทิร์น = net (≥0 รับจากลูกค้า · <0 จ่ายคืน)
+  // เทิร์น (FIX-183): สดเทียบยอดเต็ม · ผ่อนเทียบยอดที่ต้องจ่ายวันนี้ (ดาวน์+อุปกรณ์)
   const tradeInActive = isTradeInActive(tradeInEnabled, tradeInProduct?.id, tradeInValueStr);
   const tradeInValueNum = tradeInActive ? r2(Number(tradeInValueStr)) : 0;
-  const netCollect = grandTotal - tradeInValueNum;
-  // เทิร์นดาวน์ (FIX-106): ผ่อน + เทิร์น → หักเทิร์นจากเงินดาวน์ที่ลูกค้าจ่ายจริงวันนี้
   const isInstallmentSel = paymentMethod === 'INSTALLMENT';
 
   // ค้นชื่อรุ่นใน catalog (ไม่อ่าน Stock/SKU) — เลือกแล้วหยุดค้น
@@ -446,6 +446,14 @@ export function PosTerminalPage() {
   // บิลผ่อน: บรรทัดที่ "จ่ายสดวันนี้" (อุปกรณ์เสริม) = ไม่รวมยอดผ่อน · ติ๊กต่อบรรทัดได้ (FIX-090/094)
   const addOnToday = r2(cart.filter((l) => l.payToday).reduce((s, l) => s + l.sellPrice * l.quantity, 0));
   const payToday = downAmount + addOnToday;
+  const tradeInSettlement = calculateTradeInSettlement({
+    paymentMethod,
+    grandTotal,
+    downPayment: downAmount,
+    addOnToday,
+    tradeInValue: tradeInValueNum,
+  });
+  const netCollect = tradeInSettlement.differenceAmount;
   // แยกยอดรับวันนี้: โอนเท่าที่กรอก (ไม่เกินยอดรวม) · ที่เหลือ = เงินสด (FIX-097)
   const payTransferClamped = Math.min(Math.max(0, payTransfer), payToday);
   const discountExceedsSubtotal = discount > subtotal;
@@ -566,8 +574,8 @@ export function PosTerminalPage() {
           hasBox: tiHasBox, hasCharger: tiHasCharger, hasWarranty: tiHasWarranty,
           needsBattery: tiNeedsBattery, needsScreen: tiNeedsScreen,
           note: tiNote.trim() || undefined,
-          // net<0 เทิร์นสด → วิธีจ่ายคืน · ผ่อน (เทิร์นดาวน์) ไม่ใช้ diffPayoutMethod
-          diffPayoutMethod: (!isInstallment && netCollect < 0) ? tradeInPayoutMethod : undefined,
+          // ส่วนต่างติดลบทั้งสด/ผ่อน → ร้านต้องจ่ายคืนด้วยเงินสดหรือโอน
+          diffPayoutMethod: netCollect < 0 ? tradeInPayoutMethod : undefined,
         } : undefined,
         ...(isInstallment ? {
           installmentMonths,
@@ -730,7 +738,6 @@ export function PosTerminalPage() {
     serialNumber: tradeInSerial,
     batteryHealth: tradeInBattery,
     paymentMethod,
-    downPayment: downAmount,
   });
   const checkoutBlockedReason =
     !hasOpenSession ? 'กรุณาเปิดเก๊ะก่อน' :
@@ -1284,6 +1291,7 @@ export function PosTerminalPage() {
           monthlyTouched={installmentMonthlyTouched} setMonthlyTouched={setInstallmentMonthlyTouched}
           downAmount={downAmount} setDownAmount={setDownAmount}
           payTransfer={payTransfer} setPayTransfer={setPayTransfer}
+          tradeInValue={tradeInActive ? tradeInValueNum : 0}
         />
       )}
 
@@ -1511,12 +1519,17 @@ export function PosTerminalPage() {
                    value={tiNote} onChange={(e) => setTiNote(e.target.value)} />
             {/* เทิร์นดาวน์ (ผ่อน) */}
             {tradeInActive && isInstallmentSel && (
-              <div className="rounded-md bg-violet-50 px-3 py-2 text-xs text-violet-800">
-                เทิร์นดาวน์: หักมูลค่าเทิร์น {formatTHB(tradeInValueNum)} จากเงินดาวน์ · ลูกค้าจ่ายดาวน์วันนี้เท่าที่เหลือ
+              <div className="space-y-1 rounded-md bg-violet-50 px-3 py-2 text-xs text-violet-800">
+                <div className="flex justify-between"><span>เงินดาวน์ + อุปกรณ์จ่ายวันนี้</span><span>{formatTHB(tradeInSettlement.settlementAmount)}</span></div>
+                <div className="flex justify-between"><span>หักมูลค่าเครื่องเก่า</span><span>- {formatTHB(tradeInValueNum)}</span></div>
+                <div className="flex justify-between border-t border-violet-200 pt-1 font-semibold">
+                  <span>{netCollect >= 0 ? 'ลูกค้าชำระส่วนต่างให้ร้าน' : 'ร้านจ่ายส่วนต่างให้ลูกค้า'}</span>
+                  <span>{formatTHB(Math.abs(netCollect))}</span>
+                </div>
               </div>
             )}
-            {/* net < 0 → เลือกวิธีจ่ายคืน (เฉพาะเทิร์นสด ไม่ใช่ผ่อน) */}
-            {tradeInActive && !isInstallmentSel && netCollect < 0 && (
+            {/* net < 0 → ร้านจ่ายส่วนต่างคืนทั้งบิลสดและผ่อน */}
+            {tradeInActive && netCollect < 0 && (
               <div className="rounded-md bg-amber-50 px-3 py-2 text-sm">
                 <div className="mb-1 font-medium text-amber-800">
                   มูลค่าเทิร์นมากกว่ายอดบิล → จ่ายคืนลูกค้า {formatTHB(-netCollect)}
@@ -1534,7 +1547,7 @@ export function PosTerminalPage() {
             <p className="text-[11px] text-slate-500">
               Backend จะหา/สร้าง SKU มือ 2 ตามรุ่น+สี+ความจุให้อัตโนมัติ แล้วสร้างเครื่องลูกค้าตัวใหม่ใน “รอลงสต็อก” ·
               ไม่หยิบและไม่ลดเครื่องใดจาก Stock · ทุน = มูลค่าตีเทิร์น · ยังไม่เพิ่มจำนวนพร้อมขาย ·
-              ยอดขายบันทึกเต็มราคา · รองรับ เงินสด / โอน / ผ่อน (เทิร์นดาวน์)
+              ยอดขายบันทึกเต็มราคา · ส่วนต่างคำนวณอัตโนมัติว่าลูกค้าจ่ายร้านหรือร้านจ่ายลูกค้า
             </p>
           </div>
         )}
@@ -1600,36 +1613,37 @@ export function PosTerminalPage() {
         <div className="card border-amber-400 border-2">
           <div className="card-body space-y-3">
             {paymentMethod === 'INSTALLMENT' ? (
-              // ผ่อน → ตัวใหญ่ = "รับวันนี้" = ดาวน์ + อุปกรณ์เสริมจ่ายสด (หัวชาร์จ/เคส) — FIX-072/FIX-090
+              // ผ่อน → ตัวใหญ่เป็นส่วนต่างสุทธิหลังเครดิตเทิร์น — FIX-183
               (() => {
                 const monthlyShow = installmentMonthly > 0
                   ? installmentMonthly
                   : (installmentMonths > 0 ? Math.ceil(Math.max(0, grandTotal - downAmount - addOnToday) / installmentMonths) : 0);
-                // เทิร์นดาวน์ (FIX-106): เงินจริงที่ลูกค้าจ่ายวันนี้ = payToday − มูลค่าเทิร์น
-                const payNetView = Math.max(0, payToday - (tradeInActive ? tradeInValueNum : 0));
+                const payNetView = tradeInActive ? tradeInSettlement.customerPays : payToday;
+                const payoutView = tradeInActive ? tradeInSettlement.storePays : 0;
                 const transferView = Math.min(payTransferClamped, payNetView);
                 const cashView = payNetView - transferView;
                 return (
                   <>
                     <div className="text-xs uppercase text-amber-700 font-semibold">
-                      รับวันนี้ {addOnToday > 0 ? '(ดาวน์ + อุปกรณ์เสริม)' : '(เงินดาวน์)'}
+                      {payoutView > 0 ? 'ร้านจ่ายส่วนต่างให้ลูกค้า' : 'ลูกค้าชำระส่วนต่างให้ร้าน'}
                     </div>
-                    <div className="rounded-md bg-slate-900 px-4 py-6 text-right text-4xl font-bold text-amber-300">
-                      {formatTHB(payNetView)}
+                    <div className={`rounded-md bg-slate-900 px-4 py-6 text-right text-4xl font-bold ${payoutView > 0 ? 'text-red-300' : 'text-amber-300'}`}>
+                      {formatTHB(payoutView > 0 ? payoutView : payNetView)}
                     </div>
                     {tradeInActive && tradeInValueNum > 0 && (
-                      <div className="flex justify-between text-xs text-violet-700">
-                        <span>↳ หักเทิร์นดาวน์</span><span>- {formatTHB(tradeInValueNum)}</span>
+                      <div className="space-y-1 text-xs text-violet-700">
+                        <div className="flex justify-between"><span>ยอดวันนี้ก่อนเทิร์น</span><span>{formatTHB(payToday)}</span></div>
+                        <div className="flex justify-between"><span>หักมูลค่าเครื่องเก่า</span><span>- {formatTHB(tradeInValueNum)}</span></div>
                       </div>
                     )}
                     {/* แยกเงินสด/เงินโอน ของยอดรับวันนี้ (FIX-097) */}
-                    <div className="flex justify-between text-xs">
-                      <span className="text-slate-500">💵 เงินสด</span>
+                    {payoutView === 0 && <div className="flex justify-between text-xs">
+                      <span className="text-slate-500">💵 รับเงินสด</span>
                       <span className="font-semibold text-slate-700">{formatTHB(cashView)}</span>
-                    </div>
-                    {transferView > 0 && (
+                    </div>}
+                    {payoutView === 0 && transferView > 0 && (
                       <div className="flex justify-between text-xs">
-                        <span className="text-slate-500">📲 เงินโอน</span>
+                        <span className="text-slate-500">📲 รับเงินโอน</span>
                         <span className="font-semibold text-slate-700">{formatTHB(transferView)}</span>
                       </div>
                     )}
@@ -1797,18 +1811,23 @@ interface InstallmentPanelProps {
   downAmount: number; setDownAmount: (n: number) => void;
   /** ยอดรับวันนี้จ่ายเป็นเงินโอนเท่าไหร่ · ที่เหลือ = เงินสด (FIX-097) */
   payTransfer: number; setPayTransfer: (n: number) => void;
+  tradeInValue: number;
 }
 
 function InstallmentPanel({
   grandTotalTarget, addOnToday = 0, months, setMonths, monthly, setMonthly, monthlyTouched, setMonthlyTouched,
-  downAmount, setDownAmount, payTransfer, setPayTransfer,
+  downAmount, setDownAmount, payTransfer, setPayTransfer, tradeInValue,
 }: InstallmentPanelProps) {
   // ยอดผ่อนคงเหลือ = ยอดบิล − ดาวน์ − อุปกรณ์เสริมที่จ่ายสดวันนี้ (หัวชาร์จ/เคส ไม่รวมยอดผ่อน) FIX-090
   const remaining = Math.max(0, grandTotalTarget - downAmount - addOnToday);
   const payToday = downAmount + addOnToday;
-  // ยอดรับวันนี้แยก เงินสด/เงินโอน — โอนไม่เกินยอดรวม · ที่เหลือ = เงินสด (FIX-097)
-  const transferPart = Math.min(Math.max(0, payTransfer), payToday);
-  const cashPart = Math.max(0, payToday - transferPart);
+  const settlement = calculateTradeInSettlement({
+    paymentMethod: 'INSTALLMENT', grandTotal: grandTotalTarget,
+    downPayment: downAmount, addOnToday, tradeInValue,
+  });
+  // รับเงินจริงเฉพาะเมื่อลูกค้าเป็นฝ่ายจ่ายส่วนต่าง; เครดิตเกินจะไปเป็น payout ฝั่งร้าน
+  const transferPart = Math.min(Math.max(0, payTransfer), settlement.customerPays);
+  const cashPart = Math.max(0, settlement.customerPays - transferPart);
 
   // ค่างวด/เดือน — พนักงานกรอกเองได้ (ยืดหยุ่น รองรับดอกเบี้ยบริษัทผ่อน) แล้วคูณกับจำนวนเดือน
   // ค่าตั้งต้น = เงินต้นคงเหลือ ÷ เดือน (ปัดขึ้น) จนกว่าผู้ใช้จะแก้เอง · state+touched อยู่ที่ parent (reset หลังปิดบิล)
@@ -1914,7 +1933,7 @@ function InstallmentPanel({
         {/* ยอดที่ต้องชำระวันนี้ (ยอดเดียว) + แยกเงินสด/เงินโอน (FIX-097) */}
         <div className="rounded-md border-2 border-amber-300 bg-amber-50/70 p-3">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-semibold text-amber-900">ยอดที่ต้องชำระวันนี้</span>
+            <span className="text-sm font-semibold text-amber-900">ยอดวันนี้ก่อนหักเทิร์น</span>
             <span className="text-lg font-bold text-amber-900">{formatTHB(payToday)}</span>
           </div>
           {addOnToday > 0 && (
@@ -1922,32 +1941,52 @@ function InstallmentPanel({
               = เงินดาวน์ {formatTHB(downAmount)} + อุปกรณ์เสริม {formatTHB(addOnToday)}
             </div>
           )}
-          <div className="mt-3 grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1 block text-xs font-medium">📲 เงินโอน (บาท)</label>
-              <input
-                type="number" min={0} max={payToday} step="100" inputMode="numeric"
-                className="input"
-                value={payTransfer || ''}
-                placeholder="0"
-                onChange={(e) => setPayTransfer(Math.max(0, Number(e.target.value) || 0))}
-              />
+          {tradeInValue > 0 && (
+            <div className="mt-2 flex justify-between border-t border-amber-200 pt-2 text-sm text-violet-700">
+              <span>หักมูลค่าเครื่องเก่า</span><span>- {formatTHB(tradeInValue)}</span>
             </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium">💵 เงินสด (บาท)</label>
-              <div className="input flex items-center bg-slate-50 font-semibold text-slate-700">
-                {formatTHB(cashPart)}
-              </div>
-            </div>
+          )}
+          <div className={`mt-2 flex justify-between border-t pt-2 text-sm font-bold ${settlement.storePays > 0 ? 'text-red-700' : 'text-emerald-700'}`}>
+            <span>{settlement.storePays > 0 ? 'ร้านจ่ายส่วนต่างให้ลูกค้า' : 'ลูกค้าชำระส่วนต่างให้ร้าน'}</span>
+            <span>{formatTHB(Math.abs(settlement.differenceAmount))}</span>
           </div>
-          <p className="mt-1 text-[11px] text-slate-500">
-            กรอกยอดโอน · ที่เหลือระบบคิดเป็นเงินสดให้อัตโนมัติ (รวม = {formatTHB(payToday)})
-          </p>
+          {settlement.customerPays > 0 ? (
+            <>
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1 block text-xs font-medium">📲 เงินโอน (บาท)</label>
+                  <input
+                    type="number" min={0} max={settlement.customerPays} step="100" inputMode="numeric"
+                    className="input"
+                    value={Math.min(payTransfer, settlement.customerPays) || ''}
+                    placeholder="0"
+                    onChange={(e) => setPayTransfer(Math.max(0, Number(e.target.value) || 0))}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium">💵 เงินสด (บาท)</label>
+                  <div className="input flex items-center bg-slate-50 font-semibold text-slate-700">
+                    {formatTHB(cashPart)}
+                  </div>
+                </div>
+              </div>
+              <p className="mt-1 text-[11px] text-slate-500">
+                กรอกยอดโอน · ที่เหลือระบบคิดเป็นเงินสดให้อัตโนมัติ (รวม = {formatTHB(settlement.customerPays)})
+              </p>
+            </>
+          ) : settlement.storePays > 0 ? (
+            <p className="mt-2 text-xs text-red-700">เลือกวิธีจ่ายส่วนต่าง เงินสด/โอน ในหัวข้อ “เทิร์นเครื่องเก่า”</p>
+          ) : (
+            <p className="mt-2 text-xs text-emerald-700">ยอดเทิร์นพอดีกับยอดที่ต้องชำระวันนี้ ไม่ต้องรับหรือจ่ายเพิ่ม</p>
+          )}
         </div>
 
         <div className="rounded-md bg-purple-50 px-3 py-2 text-xs text-purple-800">
-          💡 ระบบจะบันทึก: <strong>รับวันนี้ {formatTHB(payToday)}</strong>
-          {' '}(💵 สด {formatTHB(cashPart)}{transferPart > 0 ? ` · 📲 โอน ${formatTHB(transferPart)}` : ''})
+          💡 ระบบจะบันทึก:
+          {settlement.storePays > 0
+            ? <> <strong>ร้านจ่ายลูกค้า {formatTHB(settlement.storePays)}</strong></>
+            : <> <strong>รับจากลูกค้า {formatTHB(settlement.customerPays)}</strong>
+                {' '}(💵 สด {formatTHB(cashPart)}{transferPart > 0 ? ` · 📲 โอน ${formatTHB(transferPart)}` : ''})</>}
           • <strong>{formatTHB(remaining)}</strong> ที่เหลือคือยอดผ่อน
         </div>
       </div>

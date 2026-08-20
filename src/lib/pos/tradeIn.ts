@@ -16,7 +16,36 @@ interface TradeInGuardInput {
   serialNumber: string;
   batteryHealth: string;
   paymentMethod: PaymentMethod;
+}
+
+export interface TradeInSettlement {
+  /** ยอดที่เทียบเครดิตเทิร์น: สด=ยอดบิล, ผ่อน=ดาวน์+อุปกรณ์จ่ายวันนี้ */
+  settlementAmount: number;
+  /** signed: + ลูกค้าจ่ายร้าน, - ร้านจ่ายลูกค้า */
+  differenceAmount: number;
+  customerPays: number;
+  storePays: number;
+}
+
+const money = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
+
+export function calculateTradeInSettlement(input: {
+  paymentMethod: PaymentMethod;
+  grandTotal: number;
   downPayment: number;
+  addOnToday: number;
+  tradeInValue: number;
+}): TradeInSettlement {
+  const settlementAmount = money(input.paymentMethod === 'INSTALLMENT'
+    ? Math.max(0, input.downPayment) + Math.max(0, input.addOnToday)
+    : Math.max(0, input.grandTotal));
+  const differenceAmount = money(settlementAmount - Math.max(0, input.tradeInValue));
+  return {
+    settlementAmount,
+    differenceAmount,
+    customerPays: Math.max(0, differenceAmount),
+    storePays: Math.max(0, -differenceAmount),
+  };
 }
 
 export function isTradeInActive(
@@ -50,9 +79,6 @@ export function getTradeInBlockedReason(input: TradeInGuardInput): string | null
     if (!Number.isInteger(battery) || battery < 0 || battery > 100) {
       return 'เทิร์น: สุขภาพแบตต้องเป็นเลขจำนวนเต็ม 0–100';
     }
-  }
-  if (input.paymentMethod === 'INSTALLMENT' && value > input.downPayment) {
-    return 'เทิร์นดาวน์: มูลค่าเทิร์นเกินเงินดาวน์ — ใช้เทิร์นสด หรือเพิ่มดาวน์';
   }
   return null;
 }

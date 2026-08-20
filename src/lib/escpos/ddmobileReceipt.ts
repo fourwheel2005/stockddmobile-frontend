@@ -39,6 +39,9 @@ export interface ReceiptData {
   shippingFee: number;
   grandTotal: number;
   tradeInValue?: number | null;   // เทิร์นเครื่องเก่า (FIX-105)
+  tradeInSettlementAmount?: number | null;
+  tradeInDifferenceAmount?: number | null; // + ลูกค้าจ่ายร้าน · - ร้านจ่ายลูกค้า
+  tradeInDifferenceMethod?: string | null;
   paidAmount?: number | null;
   changeAmount?: number | null;
   paymentMethod?: string | null;
@@ -208,15 +211,19 @@ export function buildDDMobileReceipt(
     }
 
     if ((data.tradeInValue ?? 0) > 0) {
-      // เทิร์น (FIX-105): โชว์ยอดขายเต็ม − มูลค่าเทิร์น = รับสุทธิ / จ่ายคืน
-      b.justify('ยอดขาย:', fmtTHB(data.grandTotal), W);
+      // FIX-183: ยอดขายเต็มไม่เปลี่ยน; snapshot บอกชัดว่าใครจ่ายส่วนต่างให้ใคร
+      const difference = data.tradeInDifferenceAmount
+        ?? (data.grandTotal - (data.tradeInValue ?? 0));
+      b.justify('ยอดขายเต็ม:', fmtTHB(data.grandTotal), W);
       b.justify('หักเทิร์นเครื่องเก่า:', '-' + fmtTHB(data.tradeInValue!), W);
-      const net = data.grandTotal - (data.tradeInValue ?? 0);
       b.separator('=', W);
-      if (net >= 0) {
-        b.size(2, 1).justify('รับสุทธิ:', fmtTHB(net), W / 2).size(1, 1);
+      if (difference >= 0) {
+        b.size(2, 1).justify('ลูกค้าจ่ายร้าน:', fmtTHB(difference), W / 2).size(1, 1);
       } else {
-        b.size(2, 1).justify('จ่ายคืนลูกค้า:', fmtTHB(-net), W / 2).size(1, 1);
+        b.size(2, 1).justify('ร้านจ่ายลูกค้า:', fmtTHB(-difference), W / 2).size(1, 1);
+      }
+      if (data.tradeInDifferenceMethod) {
+        b.justify('วิธีรับ/จ่ายส่วนต่าง:', PAYMENT_TH[data.tradeInDifferenceMethod] ?? data.tradeInDifferenceMethod, W);
       }
       b.separator('=', W);
     } else {
@@ -225,11 +232,32 @@ export function buildDDMobileReceipt(
       b.separator('=', W);
     }
   } else {
-    // ผ่อน → ยอดสุทธิ = ยอดที่ต้องชำระวันนี้ (ดาวน์ + อุปกรณ์เสริม) ไม่โชว์ราคาเครื่องเต็ม — FIX-072/FIX-097
+    // ผ่อนยังไม่โชว์ราคาเครื่องเต็ม แต่บิลเทิร์นต้องระบุฐาน/เครดิต/ส่วนต่างครบ — FIX-183
     const addOn = data.addOnTotal ?? 0;
-    b.separator('=', W);
-    b.size(2, 1).justify('ชำระวันนี้:', fmtTHB((data.downPaymentAmount ?? 0) + addOn), W / 2).size(1, 1);
-    b.separator('=', W);
+    if ((data.tradeInValue ?? 0) > 0) {
+      const settlement = data.tradeInSettlementAmount
+        ?? ((data.downPaymentAmount ?? 0) + addOn);
+      const difference = data.tradeInDifferenceAmount
+        ?? (settlement - (data.tradeInValue ?? 0));
+      b.justify('เงินดาวน์:', fmtTHB(data.downPaymentAmount ?? 0), W);
+      if (addOn > 0) b.justify('อุปกรณ์จ่ายวันนี้:', fmtTHB(addOn), W);
+      b.justify('ยอดวันนี้ก่อนเทิร์น:', fmtTHB(settlement), W);
+      b.justify('มูลค่าเครื่องเก่า:', '-' + fmtTHB(data.tradeInValue), W);
+      b.separator('=', W);
+      if (difference >= 0) {
+        b.size(2, 1).justify('ลูกค้าจ่ายร้าน:', fmtTHB(difference), W / 2).size(1, 1);
+      } else {
+        b.size(2, 1).justify('ร้านจ่ายลูกค้า:', fmtTHB(-difference), W / 2).size(1, 1);
+      }
+      if (data.tradeInDifferenceMethod) {
+        b.justify('วิธีรับ/จ่ายส่วนต่าง:', PAYMENT_TH[data.tradeInDifferenceMethod] ?? data.tradeInDifferenceMethod, W);
+      }
+      b.separator('=', W);
+    } else {
+      b.separator('=', W);
+      b.size(2, 1).justify('ชำระวันนี้:', fmtTHB((data.downPaymentAmount ?? 0) + addOn), W / 2).size(1, 1);
+      b.separator('=', W);
+    }
   }
 
   // ─── Payment ────────────────────────────────────

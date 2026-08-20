@@ -160,4 +160,23 @@ describe('buildDDMobileReceipt', () => {
     expect(str).toMatch(/6/);
     expect(str).toMatch(/10,000\.00|10000\.00/);
   });
+
+  it('prints installment trade-in settlement when the store pays the customer', () => {
+    const bytes = buildDDMobileReceipt(makeReceipt({
+      paymentMethod: 'INSTALLMENT',
+      installmentMonths: 10,
+      downPaymentAmount: 5000,
+      addOnTotal: 1000,
+      tradeInValue: 8000,
+      tradeInSettlementAmount: 6000,
+      tradeInDifferenceAmount: -2000,
+      tradeInDifferenceMethod: 'TRANSFER',
+    }));
+    const text = String.fromCharCode(...bytes);
+
+    expect(text).toContain('5,000.00');
+    expect(text).toContain('1,000.00');
+    expect(text).toContain('8,000.00');
+    expect(text).toContain('2,000.00');
+  });
 });

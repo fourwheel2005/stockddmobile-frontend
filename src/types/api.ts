@@ -910,7 +910,7 @@ export interface TradeInRequest {
   needsBattery?: boolean;
   needsScreen?: boolean;
   note?: string;                   // อุปกรณ์อื่นที่ต้องเปลี่ยน / โน้ต
-  /** วิธีจ่ายส่วนต่างคืนลูกค้า เมื่อมูลค่าเทิร์น > ยอดบิล (net<0) — CASH/TRANSFER */
+  /** วิธีจ่ายส่วนต่างคืน เมื่อราคาเทิร์นเกินยอดที่ต้องชำระวันนี้ — CASH/TRANSFER */
   diffPayoutMethod?: PaymentMethod;
 }
 
@@ -948,6 +948,9 @@ export interface SalesOrderResponse {
   grandTotal: number;
   paidAmount: number;
   tradeInValue?: number | null;      // มูลค่าตีเทิร์น (FIX-105)
+  tradeInSettlementAmount?: number | null;
+  tradeInDifferenceAmount?: number | null; // + ลูกค้าจ่ายร้าน · - ร้านจ่ายลูกค้า
+  tradeInDifferenceMethod?: PaymentMethod | null;
   tradeInSerialId?: string | null;   // เครื่องเทิร์นที่ลงสต็อก
   paymentMethod: PaymentMethod | null;
   installmentMonths: number | null;

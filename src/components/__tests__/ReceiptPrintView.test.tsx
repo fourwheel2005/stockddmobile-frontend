@@ -41,4 +41,23 @@ describe('ReceiptPrintView document marking', () => {
     expect(html).toContain('alt="สแกน LINE DD Mobile"');
     expect(html).toContain('src="data:image/jpeg;base64,');
   });
+
+  it('shows who pays the installment trade-in difference', () => {
+    const tradeOrder = {
+      ...order,
+      paymentMethod: 'INSTALLMENT',
+      installmentMonths: 10,
+      downPaymentAmount: 5000,
+      tradeInValue: 8000,
+      tradeInSettlementAmount: 5000,
+      tradeInDifferenceAmount: -3000,
+      tradeInDifferenceMethod: 'TRANSFER',
+    } as unknown as SalesOrderResponse;
+
+    const html = renderToStaticMarkup(<ReceiptPrintView order={tradeOrder} />);
+
+    expect(html).toContain('ส่วนต่างร้านจ่ายให้ลูกค้า');
+    expect(html).toContain('3,000.00');
+    expect(html).toContain('โอนเงิน / QR');
+  });
 });

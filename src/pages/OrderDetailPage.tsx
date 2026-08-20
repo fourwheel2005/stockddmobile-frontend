@@ -6,13 +6,22 @@ import { posApi } from '@/api/pos';
 import { extractErrorMessage } from '@/api/client';
 import { useAuthStore } from '@/stores/authStore';
 import { formatTHB, formatDateTime } from '@/lib/format';
-import type { SalesOrderStatus } from '@/types/api';
+import type { PaymentMethod, SalesOrderStatus } from '@/types/api';
 
 const STATUS_LABEL: Record<SalesOrderStatus, { text: string; cls: string }> = {
   DRAFT: { text: 'ยังไม่ปิดบิล', cls: 'bg-slate-200 text-slate-600' },
   PAID: { text: 'จ่ายแล้ว', cls: 'bg-emerald-100 text-emerald-800' },
   CANCELLED: { text: 'ยกเลิก', cls: 'bg-red-100 text-red-700' },
   REFUNDED: { text: 'คืนเงินแล้ว', cls: 'bg-amber-100 text-amber-800' },
+};
+
+const PAYMENT_LABEL: Record<PaymentMethod, string> = {
+  CASH: 'เงินสด',
+  TRANSFER: 'เงินโอน',
+  CARD: 'บัตร',
+  QR: 'QR',
+  INSTALLMENT: 'ผ่อนชำระ',
+  MIXED: 'ผสม',
 };
 
 function Row({ label, value, strong }: { label: string; value: React.ReactNode; strong?: boolean }) {
@@ -62,7 +71,16 @@ export function OrderDetailPage() {
 
   const st = STATUS_LABEL[o.status];
   const isInstallment = o.paymentMethod === 'INSTALLMENT';
-  const remaining = isInstallment ? Math.max(0, o.grandTotal - (o.downPaymentAmount ?? 0)) : 0;
+  const addOnToday = isInstallment
+    ? o.items.filter((item) => item.payToday === true).reduce((sum, item) => sum + item.lineTotal, 0)
+    : 0;
+  const installmentSettlement = o.tradeInSettlementAmount
+    ?? o.paidAmount
+    ?? ((o.downPaymentAmount ?? 0) + addOnToday);
+  const remaining = isInstallment ? Math.max(0, o.grandTotal - installmentSettlement) : 0;
+  const tradeInSettlement = isInstallment ? installmentSettlement : o.grandTotal;
+  const tradeInDifference = o.tradeInDifferenceAmount
+    ?? (tradeInSettlement - (o.tradeInValue ?? 0));
 
   return (
     <div className="space-y-5">
@@ -182,12 +200,19 @@ export function OrderDetailPage() {
               <Row label="ยอดสุทธิ" value={formatTHB(o.grandTotal)} strong />
               {(o.tradeInValue ?? 0) > 0 && (
                 <>
-                  <Row label="หักเทิร์นเครื่องเก่า" value={`- ${formatTHB(o.tradeInValue!)}`} />
                   <Row
-                    label={o.grandTotal - o.tradeInValue! >= 0 ? 'รับสุทธิจากลูกค้า' : 'จ่ายคืนลูกค้า'}
-                    value={formatTHB(Math.abs(o.grandTotal - o.tradeInValue!))}
+                    label={isInstallment ? 'ยอดวันนี้ก่อนเทิร์น' : 'ฐานเทียบเทิร์น'}
+                    value={formatTHB(tradeInSettlement)}
+                  />
+                  <Row label="มูลค่าเทิร์นเครื่องเก่า" value={`- ${formatTHB(o.tradeInValue!)}`} />
+                  <Row
+                    label={tradeInDifference >= 0 ? 'ลูกค้าจ่ายส่วนต่างให้ร้าน' : 'ร้านจ่ายส่วนต่างให้ลูกค้า'}
+                    value={formatTHB(Math.abs(tradeInDifference))}
                     strong
                   />
+                  {o.tradeInDifferenceMethod && (
+                    <Row label="วิธีรับ/จ่ายส่วนต่าง" value={PAYMENT_LABEL[o.tradeInDifferenceMethod]} />
+                  )}
                 </>
               )}
             </div>

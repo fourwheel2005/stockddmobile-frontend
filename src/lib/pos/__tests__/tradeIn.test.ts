@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { getTradeInBlockedReason, isTradeInActive, TRADE_IN_INTAKE_POLICY } from '../tradeIn';
+import {
+  calculateTradeInSettlement, getTradeInBlockedReason, isTradeInActive, TRADE_IN_INTAKE_POLICY,
+} from '../tradeIn';
 
 const valid = {
   enabled: true,
@@ -11,7 +13,6 @@ const valid = {
   serialNumber: '',
   batteryHealth: '88',
   paymentMethod: 'CASH' as const,
-  downPayment: 0,
 };
 
 describe('POS trade-in state', () => {
@@ -41,11 +42,11 @@ describe('POS trade-in state', () => {
     })).toContain('IMEI');
   });
 
-  it('blocks mixed payment and trade-in above installment down payment', () => {
+  it('blocks mixed payment but allows trade-in above installment down payment', () => {
     expect(getTradeInBlockedReason({ ...valid, paymentMethod: 'MIXED' })).toContain('จ่ายแบบผสม');
     expect(getTradeInBlockedReason({
-      ...valid, paymentMethod: 'INSTALLMENT', downPayment: 10000,
-    })).toContain('เกินเงินดาวน์');
+      ...valid, paymentMethod: 'INSTALLMENT', value: 15000,
+    })).toBeNull();
   });
 
   it('accepts battery boundaries and rejects values outside 0–100', () => {
@@ -59,7 +60,31 @@ describe('POS trade-in state', () => {
   it('accepts a complete cash or installment trade-in', () => {
     expect(getTradeInBlockedReason(valid)).toBeNull();
     expect(getTradeInBlockedReason({
-      ...valid, paymentMethod: 'INSTALLMENT', downPayment: 11900,
+      ...valid, paymentMethod: 'INSTALLMENT',
     })).toBeNull();
+  });
+
+  it('calculates who pays the difference for installment trade-in', () => {
+    expect(calculateTradeInSettlement({
+      paymentMethod: 'INSTALLMENT', grandTotal: 30000,
+      downPayment: 10000, addOnToday: 0, tradeInValue: 8000,
+    })).toEqual({ settlementAmount: 10000, differenceAmount: 2000, customerPays: 2000, storePays: 0 });
+
+    expect(calculateTradeInSettlement({
+      paymentMethod: 'INSTALLMENT', grandTotal: 30000,
+      downPayment: 5000, addOnToday: 1000, tradeInValue: 8000,
+    })).toEqual({ settlementAmount: 6000, differenceAmount: -2000, customerPays: 0, storePays: 2000 });
+
+    expect(calculateTradeInSettlement({
+      paymentMethod: 'INSTALLMENT', grandTotal: 30000,
+      downPayment: 5000, addOnToday: 1000, tradeInValue: 6000,
+    })).toEqual({ settlementAmount: 6000, differenceAmount: 0, customerPays: 0, storePays: 0 });
+  });
+
+  it('uses the full bill as settlement base for non-installment trade-in', () => {
+    expect(calculateTradeInSettlement({
+      paymentMethod: 'CASH', grandTotal: 30000,
+      downPayment: 0, addOnToday: 0, tradeInValue: 35000,
+    })).toEqual({ settlementAmount: 30000, differenceAmount: -5000, customerPays: 0, storePays: 5000 });
   });
 });

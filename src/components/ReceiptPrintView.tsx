@@ -143,12 +143,32 @@ export function ReceiptPrintView({ order, shopName = 'Stockdd Mobile', duplicate
           </>
         )}
         {hidePrice && (
-          // ผ่อน → ยอดสุทธิ = ยอดที่ต้องชำระวันนี้ (ดาวน์ + อุปกรณ์เสริม) — FIX-072/FIX-097
+          // บิลไม่เทิร์นคงยอดเดิม; บิลเทิร์นแสดงส่วนต่างใน block ถัดไป — FIX-183
           <div className="flex justify-between border-t border-slate-400 pt-1 text-base">
-            <strong>ยอดที่ต้องชำระวันนี้:</strong>
+            <strong>{(order.tradeInValue ?? 0) > 0 ? 'ยอดวันนี้ก่อนหักเทิร์น:' : 'ยอดที่ต้องชำระวันนี้:'}</strong>
             <strong>{formatTHB((order.downPaymentAmount ?? 0) + addOn)}</strong>
           </div>
         )}
+        {(order.tradeInValue ?? 0) > 0 && (() => {
+          const settlement = order.tradeInSettlementAmount
+            ?? (hidePrice ? (order.downPaymentAmount ?? 0) + addOn : order.grandTotal);
+          const difference = order.tradeInDifferenceAmount
+            ?? settlement - (order.tradeInValue ?? 0);
+          return (
+            <div className="my-2 space-y-1 border-y border-dashed border-violet-300 py-2">
+              {hidePrice && <div className="flex justify-between"><span>เงินดาวน์:</span><span>{formatTHB(order.downPaymentAmount ?? 0)}</span></div>}
+              {hidePrice && addOn > 0 && <div className="flex justify-between"><span>อุปกรณ์จ่ายวันนี้:</span><span>{formatTHB(addOn)}</span></div>}
+              <div className="flex justify-between text-violet-700"><span>มูลค่ารับซื้อเครื่องเก่า:</span><span>- {formatTHB(order.tradeInValue ?? 0)}</span></div>
+              <div className="flex justify-between font-bold">
+                <span>{difference >= 0 ? 'ส่วนต่างลูกค้าจ่ายให้ร้าน:' : 'ส่วนต่างร้านจ่ายให้ลูกค้า:'}</span>
+                <span>{formatTHB(Math.abs(difference))}</span>
+              </div>
+              {order.tradeInDifferenceMethod && (
+                <div className="flex justify-between"><span>วิธีรับ/จ่ายส่วนต่าง:</span><span>{PAYMENT_TH[order.tradeInDifferenceMethod]}</span></div>
+              )}
+            </div>
+          );
+        })()}
         <div className="flex justify-between">
           <span>วิธีชำระ:</span>
           <span>{order.paymentMethod ? PAYMENT_TH[order.paymentMethod] : '-'}</span>
