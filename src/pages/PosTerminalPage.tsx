@@ -111,6 +111,7 @@ function newRequestId(): string {
 /** ปัด 2 ตำแหน่ง — เงินที่ "คำนวณต่อ" ฝั่ง FE เป็น float ต้องปัดก่อนส่ง ไม่งั้นชน @Digits(fraction=2) ฝั่ง BE
  *  เช่น 2099.99−1500 = 599.9899999999998 → 400 ปิดบิลไม่ได้ (QA FIX-151) */
 const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+import { changeFromTender, round2, suggestTenders } from '@/lib/pos/tender';
 
 export function PosTerminalPage() {
   const qc = useQueryClient();
@@ -180,6 +181,9 @@ export function PosTerminalPage() {
   const [paymentRef, setPaymentRef] = useState('');
   const [cashierProfileId, setCashierProfileId] = useState('');
   const [discount, setDiscount] = useState<number>(0);
+  // FIX-156: เงินที่ลูกค้ายื่น (string กัน float ตั้งแต่ต้นทาง) — reset เมื่อเปลี่ยนวิธีจ่าย/ปิดบิลสำเร็จ
+  const [tenderText, setTenderText] = useState('');
+  useEffect(() => { setTenderText(''); }, [paymentMethod]);
   const [vatRate, setVatRate] = useState<number>(0); // % (0 = ไม่คิด VAT)
   const [note, setNote] = useState('');
   const [lastBill, setLastBill] = useState<SalesOrderResponse | null>(null);
@@ -456,6 +460,15 @@ export function PosTerminalPage() {
   const netCollect = tradeInSettlement.differenceAmount;
   // แยกยอดรับวันนี้: โอนเท่าที่กรอก (ไม่เกินยอดรวม) · ที่เหลือ = เงินสด (FIX-097)
   const payTransferClamped = Math.min(Math.max(0, payTransfer), payToday);
+  // FIX-156: ยอดเงินสดที่ต้องรับจริงของบิล (cashDue) แยกตามวิธีจ่าย — สูตรเดียวกับที่ backend ใช้ set cashAmount
+  const tenderInstNet = r2(Math.max(0, payToday - (paymentMethod === 'INSTALLMENT' && tradeInActive ? tradeInValueNum : 0)));
+  const tenderCashDue =
+    paymentMethod === 'CASH' ? Math.max(0, r2(netCollect))
+    : paymentMethod === 'MIXED' ? r2(mixedSplit.cash || 0)
+    : paymentMethod === 'INSTALLMENT' ? r2(tenderInstNet - Math.min(payTransferClamped, tenderInstNet))
+    : 0;
+  const tenderChange = changeFromTender(tenderText, tenderCashDue);
+  const tenderShort = tenderChange != null && tenderChange < 0;
   const discountExceedsSubtotal = discount > subtotal;
 
   // Add an IMEI from the picker modal to the cart
@@ -535,6 +548,9 @@ export function PosTerminalPage() {
           payToday: isInstallment ? l.payToday : undefined,
         })),
         paymentMethod,
+        // FIX-156: ส่งเฉพาะเมื่อกรอก + บิลมีส่วนเงินสด + ไม่ขาด (backend คำนวณทอนเอง)
+        tenderedAmount: tenderText.trim() !== '' && tenderCashDue > 0 && tenderChange != null && tenderChange >= 0
+          ? round2(Number(tenderText)) : undefined,
         paymentReference: paymentRef || undefined,
         // V31 — multi-slip array (Q1) — backend persists all into sales_order_slips
         slipFileIds: slips.length > 0 ? slips.map((s) => s.fileId) : undefined,
@@ -588,7 +604,10 @@ export function PosTerminalPage() {
       });
     },
     onSuccess: (order) => {
-      toast.success(`ปิดบิลสำเร็จ — ${order.billNo}`);
+      toast.success(order.changeAmount != null
+        ? `ปิดบิลสำเร็จ — ${order.billNo} · เงินทอน ${formatTHB(order.changeAmount)}`
+        : `ปิดบิลสำเร็จ — ${order.billNo}`,
+        order.changeAmount != null ? { duration: 8000 } : undefined);
       qc.invalidateQueries({ queryKey: ['inventory'] });
       qc.invalidateQueries({ queryKey: ['transactions'] });
       qc.invalidateQueries({ queryKey: ['sales-orders'] });
@@ -611,6 +630,7 @@ export function PosTerminalPage() {
       setCart([]);
       setCustomer(null);
       setDiscount(0);
+      setTenderText('');   // FIX-156: กันยอดรับเงินค้างข้ามบิล
       setPaymentRef('');
       setNote('');
       setDownAmount(0);
@@ -753,6 +773,7 @@ export function PosTerminalPage() {
     (documentMode === 'TAX_INVOICE' && !isValidTaxInvoiceBuyer(taxInvoiceDraft))
       ? 'ใบกำกับภาษี: กรอกข้อมูลผู้ซื้อให้ครบ' :
     mixedError ? `จ่ายแบบผสม: ${mixedError}` :
+    tenderShort ? `รับเงินมาน้อยกว่ายอดเงินสด (ขาด ${formatTHB(Math.abs(tenderChange!))})` :
     tradeInBlockedReason ? tradeInBlockedReason :
     null;
 
@@ -1684,6 +1705,43 @@ export function PosTerminalPage() {
                   {formatTHB(tradeInActive ? Math.abs(netCollect) : grandTotal)}
                 </div>
               </>
+            )}
+            {/* FIX-156: รับเงิน/ทอนเงิน — โชว์เฉพาะบิลที่มีส่วนเงินสด · ไม่บังคับกรอก */}
+            {tenderCashDue > 0 && (
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-3">
+                <div className="mb-1.5 flex items-center justify-between text-xs">
+                  <span className="font-semibold text-emerald-800">💵 รับเงิน / ทอนเงิน</span>
+                  <span className="text-slate-500">ยอดสด {formatTHB(tenderCashDue)}</span>
+                </div>
+                <div className="flex gap-2">
+                  <input type="number" min={0} step="0.01" inputMode="decimal"
+                         className="input flex-1 text-right text-lg font-semibold tabular-nums"
+                         placeholder="ลูกค้าให้มา..."
+                         value={tenderText}
+                         onChange={(e) => setTenderText(e.target.value)} />
+                </div>
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  <button type="button" className="rounded border border-emerald-300 bg-white px-2.5 py-1 text-xs font-medium hover:bg-emerald-100"
+                          onClick={() => setTenderText(String(tenderCashDue))}>พอดี</button>
+                  {suggestTenders(tenderCashDue).map((v) => (
+                    <button key={v} type="button"
+                            className="rounded border border-emerald-300 bg-white px-2.5 py-1 text-xs font-medium tabular-nums hover:bg-emerald-100"
+                            onClick={() => setTenderText(String(v))}>{v.toLocaleString('th-TH')}</button>
+                  ))}
+                </div>
+                {tenderChange != null && (
+                  tenderChange >= 0 ? (
+                    <div className="mt-2 flex items-baseline justify-between rounded-md bg-emerald-600 px-3 py-2 text-white">
+                      <span className="text-sm font-medium">เงินทอน</span>
+                      <span className="text-2xl font-bold tabular-nums">{formatTHB(tenderChange)}</span>
+                    </div>
+                  ) : (
+                    <div className="mt-2 rounded-md bg-red-50 px-3 py-1.5 text-sm font-semibold text-red-700">
+                      ยังขาดอีก {formatTHB(Math.abs(tenderChange))}
+                    </div>
+                  )
+                )}
+              </div>
             )}
             <CashierPicker selectedId={cashierProfileId} onSelect={setCashierProfileId} />
             <SaleDocumentSelector

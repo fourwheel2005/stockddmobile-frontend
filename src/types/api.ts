@@ -852,6 +852,8 @@ export interface OwnerLedgerResponse {
 export interface CheckoutRequest {
   /** F-03 (FIX-132): idempotency key ต่อตะกร้า — กันปิดบิลซ้ำจาก retry/timeout/กดซ้ำ */
   clientRequestId?: string;
+  /** เงินสดที่ลูกค้ายื่น (FIX-156) — เฉพาะบิลมีส่วนเงินสด · backend คำนวณทอนเอง */
+  tenderedAmount?: number;
   customerId?: string;
   branchId?: string;                 // ขายที่สาขาไหน (Phase 2C)
   cashierProfileId?: string;         // ผู้รับเงินที่แสดงบนเอกสาร (ผู้ทำรายการยัง audit จาก login)
@@ -968,6 +970,8 @@ export interface SalesOrderResponse {
   shippingFeeGrandma: number;
   // ─── V31 — Payment breakdown ──────────────────────────────────
   cashAmount: number;
+  tenderedAmount?: number | null;   // เงินที่ลูกค้ายื่น (FIX-156)
+  changeAmount?: number | null;     // เงินทอน (snapshot backend)
   transferAmount: number;
   cardAmount: number;
   qrAmount: number;

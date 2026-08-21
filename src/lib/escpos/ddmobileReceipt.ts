@@ -43,6 +43,7 @@ export interface ReceiptData {
   tradeInDifferenceAmount?: number | null; // + ลูกค้าจ่ายร้าน · - ร้านจ่ายลูกค้า
   tradeInDifferenceMethod?: string | null;
   paidAmount?: number | null;
+  tenderedAmount?: number | null;   // เงินที่ลูกค้ายื่น (FIX-156)
   changeAmount?: number | null;
   paymentMethod?: string | null;
   paymentReference?: string | null;
@@ -267,11 +268,11 @@ export function buildDDMobileReceipt(
   if (data.paymentReference) {
     b.justify('อ้างอิง:', data.paymentReference, W);
   }
-  if (data.paymentMethod === 'CASH' && data.paidAmount != null) {
-    b.justify('รับเงิน:', fmtTHB(data.paidAmount), W);
-    if ((data.changeAmount ?? 0) > 0) {
-      b.justify('เงินทอน:', fmtTHB(data.changeAmount!), W);
-    }
+  // FIX-156: รับเงิน/เงินทอน จาก snapshot ที่ backend คำนวณตอนปิดบิล (พิมพ์ซ้ำได้ค่าเดิมเสมอ)
+  // ครอบทุกวิธีจ่ายที่มีส่วนเงินสด+กรอกยอดรับ — เดิมผูก paidAmount (= ยอดบิลเสมอ) จึงไม่เคยแสดงทอนจริง
+  if (data.tenderedAmount != null) {
+    b.justify('รับเงิน:', fmtTHB(data.tenderedAmount), W);
+    b.justify('เงินทอน:', fmtTHB(data.changeAmount ?? 0), W);
   }
 
   // ─── Installment ────────────────────────────────
