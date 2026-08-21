@@ -12,20 +12,21 @@ import {
   LayoutDashboard, Boxes, Package, ArrowUpFromLine,
   History, BellRing, LogOut, SlidersHorizontal, ScanLine, Users, Layers, Receipt,
   BarChart3, ShieldCheck, Tag, Wrench, Menu, X, Wallet, Landmark, Building2, ArrowLeftRight, UserCog,
-  CreditCard, PackageOpen,
+  CreditCard, PackageOpen, PackageCheck,
 } from 'lucide-react';
 
 /**
  * สิทธิ์เมนู (FIX-102) — STAFF = "ขายหน้าร้านอย่างเดียว"
- * เห็นได้เฉพาะ POS / เก๊ะเงินสด / งานซ่อม / ประวัติบิลขาย (เฉพาะบิลตัวเอง)
+ * เห็นได้เฉพาะ POS / พิมพ์ใบจัดส่ง / เก๊ะเงินสด / งานซ่อม / ประวัติบิลขาย (เฉพาะบิลตัวเอง)
  * เมนูที่เหลือทั้งหมดเป็นของ ADMIN/MANAGER — backend ก็ปิดซ้ำอีกชั้น (deny-by-default)
  */
 const ALL_ROLES = ['ADMIN', 'MANAGER', 'STAFF'] as const;
 const BACK_OFFICE = ['ADMIN', 'MANAGER'] as const;
 
-const navItems = [
+export const navItems = [
   { to: '/',             label: 'Dashboard',     icon: LayoutDashboard,   roles: BACK_OFFICE },
   { to: '/pos',          label: 'POS ขายหน้าร้าน', icon: ScanLine,          roles: ALL_ROLES },
+  { to: '/shipping-labels', label: 'พิมพ์ใบจัดส่ง', icon: PackageCheck,      roles: ALL_ROLES },
   { to: '/cash-register', label: 'เก๊ะเงินสด',      icon: Wallet,            roles: ALL_ROLES },
   { to: '/repairs',      label: 'งานซ่อม',        icon: Wrench,            roles: ALL_ROLES },
   { to: '/inventory',    label: 'คลังสต็อก',     icon: Boxes,             roles: BACK_OFFICE },

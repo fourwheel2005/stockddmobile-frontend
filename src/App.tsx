@@ -26,6 +26,7 @@ import { TransfersPage } from '@/pages/TransfersPage';
 import { WarrantyPage } from '@/pages/WarrantyPage';
 import { ScannerTestPage } from '@/pages/ScannerTestPage';
 import { PrintLabelsPage } from '@/pages/PrintLabelsPage';
+import { ShippingLabelsPage } from '@/pages/ShippingLabelsPage';
 import { CashRegisterPage } from '@/pages/CashRegisterPage';
 import { FinancePendingPage } from '@/pages/FinancePendingPage';
 import { UsersPage } from '@/pages/UsersPage';
@@ -42,10 +43,11 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
 
-      {/* ─── STAFF เข้าได้: ขายหน้าร้าน + เก๊ะ + งานซ่อม + ประวัติบิลของตัวเอง (FIX-102) ─── */}
+      {/* ─── STAFF เข้าได้: POS + พิมพ์ใบจัดส่ง + เก๊ะ + งานซ่อม + ประวัติบิลตัวเอง ─── */}
       <Route element={<ProtectedRoute />}>
         <Route element={<AppShell />}>
           <Route path="/pos" element={<PosTerminalPage />} />
+          <Route path="/shipping-labels" element={<ShippingLabelsPage />} />
           <Route path="/cash-register" element={<CashRegisterPage />} />
           <Route path="/repairs" element={<RepairListPage />} />
           <Route path="/sales" element={<SalesHistoryPage />} />
