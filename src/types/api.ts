@@ -321,6 +321,32 @@ export interface StockSummaryResponse {
   secondHandAvailable: number;
 }
 
+export interface DailyStockHeld {
+  pendingIntake: number;
+  reserved: number;
+  defective: number;
+  returned: number;
+}
+
+export interface DailyStockOnHand {
+  readyToSell: number;
+  held: DailyStockHeld;
+  expectedPhysical: number;
+}
+
+export interface DailyStockGroup {
+  label: string;
+  onHand: DailyStockOnHand;
+  soldToday: number;
+}
+
+export interface DailyStockBalance {
+  context: { businessDate: string; branchId: string | null };
+  newDevices: DailyStockGroup;
+  secondHandDevices: DailyStockGroup;
+  total: DailyStockGroup;
+}
+
 /** F-12 (FIX-135): แถว reconciliation — serialized SKU ที่ inventory.quantity ไม่ตรงจำนวน IMEI พร้อมขายจริง */
 export interface StockReconciliationRow {
   variantId: string;

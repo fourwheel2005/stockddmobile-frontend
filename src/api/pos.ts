@@ -3,6 +3,7 @@ import type {
   CartScanResponse,
   CashierProfile,
   CheckoutRequest,
+  DailyStockBalance,
   InStockItem,
   PageResponse,
   SalesDayCount,
@@ -98,6 +99,11 @@ export const posApi = {
 
   inStockItems: (params: { variantId?: string; q?: string; page?: number; size?: number } = {}) =>
     api.get<PageResponse<InStockItem>>('/pos/in-stock-items', { params }).then((r) => r.data),
+
+  dailyStockBalance: (branchId?: string) =>
+    api.get<DailyStockBalance>('/pos/reports/daily-stock-balance', {
+      params: branchId ? { branchId } : {},
+    }).then((r) => r.data),
 
   // ─── Q4 — Shipping partner report ─────────────────────────────────
   shippingPartnerReport: (params: { from?: string; to?: string } = {}) =>

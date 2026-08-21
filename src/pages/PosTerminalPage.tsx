@@ -32,6 +32,7 @@ import { PaymentSplitEditor, validateSplit } from '@/components/pos/PaymentSplit
 import { SaleDocumentSelector, type SaleDocumentMode } from '@/components/pos/SaleDocumentSelector';
 import { CashierPicker } from '@/components/pos/CashierPicker';
 import { LatestBillActions } from '@/components/pos/LatestBillActions';
+import { DailyStockBalanceCard } from '@/components/pos/DailyStockBalanceCard';
 import { ShippingLabelModal } from '@/components/ShippingLabelModal';
 import { SavedShippingAddressPicker } from '@/components/pos/SavedShippingAddressPicker';
 import { CustomItemForm, type CustomItemDraft } from '@/components/pos/CustomItemForm';
@@ -836,6 +837,8 @@ export function PosTerminalPage() {
           <PrinterStatusBadge status={printer.status} onClick={() => setShowPrinterSettings(true)} />
         </div>
       </div>
+
+      <DailyStockBalanceCard branchId={activeBranchId ?? undefined} />
 
       {/* Scanner + Payment selector */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
