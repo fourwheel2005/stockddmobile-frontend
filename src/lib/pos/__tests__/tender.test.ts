@@ -42,9 +42,9 @@ describe('suggestTenders — ปุ่มแบงค์ถัดไป', () => 
   it('ยอด 24,500 (หาร 100/500 ลงตัว) → เสนอเกินยอดเสมอ ไม่ซ้ำ', () => {
     expect(suggestTenders(24500)).toEqual([24600, 25000, 30000]);
   });
-  it('ยอด 24,900 → [25000, 30000] ไม่มีตัวซ้ำ', () => {
+  it('ยอด 24,900 → [25000, 30000, 31000] ไม่มีตัวซ้ำ', () => {
     const s = suggestTenders(24900);
-    expect(s).toEqual([25000, 25400, 30000].filter((v) => s.includes(v)).length === s.length ? s : s);
+    expect(s).toEqual([25000, 30000, 31000]);
     expect(new Set(s).size).toBe(s.length);
     expect(s.every((v) => v > 24900)).toBe(true);
   });

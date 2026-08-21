@@ -173,6 +173,18 @@ export function ReceiptPrintView({ order, shopName = 'Stockdd Mobile', duplicate
           <span>วิธีชำระ:</span>
           <span>{order.paymentMethod ? PAYMENT_TH[order.paymentMethod] : '-'}</span>
         </div>
+        {order.tenderedAmount != null && (
+          <>
+            <div className="flex justify-between">
+              <span>รับเงิน:</span>
+              <span>{formatTHB(order.tenderedAmount)}</span>
+            </div>
+            <div className="flex justify-between font-semibold">
+              <span>เงินทอน:</span>
+              <span>{formatTHB(order.changeAmount ?? 0)}</span>
+            </div>
+          </>
+        )}
         {order.paymentMethod === 'INSTALLMENT' && order.installmentMonths && (
           <>
             {/* แยกเงินสด/เงินโอน ของยอดรับวันนี้ (FIX-097) */}

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   calculateTradeInSettlement, getTradeInBlockedReason, isTradeInActive, TRADE_IN_INTAKE_POLICY,
 } from '../tradeIn';
+import { changeFromTender } from '../tender';
 
 const valid = {
   enabled: true,
@@ -86,5 +87,16 @@ describe('POS trade-in state', () => {
       paymentMethod: 'CASH', grandTotal: 30000,
       downPayment: 0, addOnToday: 0, tradeInValue: 35000,
     })).toEqual({ settlementAmount: 30000, differenceAmount: -5000, customerPays: 0, storePays: 5000 });
+  });
+
+  it('calculates cash tender/change from the customer-pay difference only', () => {
+    const settlement = calculateTradeInSettlement({
+      paymentMethod: 'INSTALLMENT', grandTotal: 30000,
+      downPayment: 5000, addOnToday: 1000, tradeInValue: 4000,
+    });
+
+    expect(settlement.customerPays).toBe(2000);
+    expect(changeFromTender('3000', settlement.customerPays)).toBe(1000);
+    expect(changeFromTender('1999.99', settlement.customerPays)).toBe(-0.01);
   });
 });

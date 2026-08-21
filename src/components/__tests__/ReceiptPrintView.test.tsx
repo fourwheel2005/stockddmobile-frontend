@@ -60,4 +60,19 @@ describe('ReceiptPrintView document marking', () => {
     expect(html).toContain('3,000.00');
     expect(html).toContain('โอนเงิน / QR');
   });
+
+  it('shows the immutable tender and change snapshot in browser fallback receipts', () => {
+    const tenderedOrder = {
+      ...order,
+      tenderedAmount: 1000,
+      changeAmount: 200,
+    } as unknown as SalesOrderResponse;
+
+    const html = renderToStaticMarkup(<ReceiptPrintView order={tenderedOrder} />);
+
+    expect(html).toContain('รับเงิน:');
+    expect(html).toContain('1,000.00');
+    expect(html).toContain('เงินทอน:');
+    expect(html).toContain('200.00');
+  });
 });
