@@ -27,6 +27,10 @@ export const posApi = {
   createCashier: (name: string) =>
     api.post<CashierProfile>('/pos/cashiers', { name }).then((r) => r.data),
 
+  /** ลบชื่อผู้รับเงิน (soft delete — บิลเก่าไม่กระทบ) */
+  deleteCashier: (id: string) =>
+    api.delete(`/pos/cashiers/${id}`).then(() => undefined),
+
   searchShippingAddresses: (q = '', page = 0, size = 20) =>
     api.get<PageResponse<SavedShippingAddress>>('/pos/shipping-addresses', {
       params: { q, page, size },

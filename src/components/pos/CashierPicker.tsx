@@ -38,6 +38,23 @@ export function CashierPicker({ selectedId, onSelect, compact = false }: Props) 
     onError: (error) => toast.error(extractErrorMessage(error)),
   });
 
+  const removeProfile = useMutation({
+    mutationFn: (id: string) => posApi.deleteCashier(id),
+    onSuccess: (_result, id) => {
+      queryClient.setQueryData<CashierProfile[]>(QUERY_KEY, (current = []) =>
+        current.filter((item) => item.id !== id));
+      if (selectedId === id) onSelect('');   // ลบชื่อที่เลือกอยู่ → บังคับเลือกใหม่ (effect เลือกตัวแรกให้)
+      toast.success('ลบชื่อผู้รับเงินแล้ว');
+    },
+    onError: (error) => toast.error(extractErrorMessage(error)),
+  });
+
+  const confirmRemove = (profile: CashierProfile) => {
+    if (window.confirm(`ลบ “${profile.name}” ออกจากรายชื่อผู้รับเงิน?\nบิลเก่าที่พิมพ์ชื่อนี้ไปแล้วไม่กระทบ`)) {
+      removeProfile.mutate(profile.id);
+    }
+  };
+
   const submit = () => {
     const name = newName.trim().replace(/\s+/g, ' ');
     if (name.length < 2) {
@@ -73,18 +90,34 @@ export function CashierPicker({ selectedId, onSelect, compact = false }: Props) 
           {query.data.map((profile) => {
             const selected = profile.id === selectedId;
             return (
-              <button
-                type="button"
-                role="radio"
-                aria-checked={selected}
+              <span
                 key={profile.id}
-                onClick={() => onSelect(profile.id)}
-                className={`rounded-full border px-3 py-1.5 text-sm font-medium transition ${selected
+                className={`inline-flex items-center overflow-hidden rounded-full border text-sm font-medium transition ${selected
                   ? 'border-emerald-600 bg-emerald-600 text-white shadow-sm'
                   : 'border-slate-300 bg-white text-slate-700 hover:border-emerald-400'}`}
               >
-                {selected ? '✓ ' : ''}{profile.name}
-              </button>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  onClick={() => onSelect(profile.id)}
+                  className="px-3 py-1.5"
+                >
+                  {selected ? '✓ ' : ''}{profile.name}
+                </button>
+                <button
+                  type="button"
+                  aria-label={`ลบ ${profile.name}`}
+                  title={`ลบ ${profile.name}`}
+                  disabled={removeProfile.isPending}
+                  onClick={(event) => { event.stopPropagation(); confirmRemove(profile); }}
+                  className={`-ml-1 px-2 py-1.5 ${selected
+                    ? 'text-emerald-100 hover:bg-emerald-700 hover:text-white'
+                    : 'text-slate-400 hover:bg-red-50 hover:text-red-600'}`}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </span>
             );
           })}
         </div>
