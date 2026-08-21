@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   buildShippingLabelTspl,
+  removeDuplicatedPhone,
   recipientFromOrder,
   validateShippingRecipient,
   type ShippingLabelRecipient,
@@ -76,10 +77,23 @@ describe('buildShippingLabelTspl', () => {
     expect(tspl).toContain('BITMAP 470,36,1,2,0,');
     expect(tspl).not.toContain('QRCODE');
     expect(tspl).not.toContain('SCAN WEBSITE');
-    expect(tspl.match(/BOX (48|218),(850|1010)/g)).toHaveLength(4);
+    expect(tspl.match(/BOX (48|218),(890|1030)/g)).toHaveLength(4);
+    expect(tspl).toContain('BAR 38,875,724,4');
+    expect(tspl).not.toContain('BAR 38,815,724,4');
     expect(rendered).toContain('TikTok : ddmobileplus');
     expect(rendered).toContain('Facebook :');
     expect(rendered.join(' ')).toContain('ดีดีโมบาย ไอโฟนผ่อนง่าย (สำรอง)');
+  });
+
+  it('accepts editable shipping branding without changing label geometry', () => {
+    const rendered = stubCanvas();
+    const tspl = new TextDecoder().decode(buildShippingLabelTspl(RECIPIENT, LINE_QR_BITMAP, {
+      senderName: 'ร้านสาขาทดสอบ', senderAddress: ['1/2 บรรทัดแรก', 'บรรทัดสอง 75000'],
+      senderPhone: '088-818-8385', tiktok: 'newshop', facebook: 'เพจใหม่',
+    }));
+    expect(rendered).toContain('ร้านสาขาทดสอบ');
+    expect(rendered).toContain('TikTok : newshop');
+    expect(tspl).toContain('BAR 38,875,724,4');
   });
 
   it('does not allow recipient content to inject TSPL commands', () => {
@@ -90,6 +104,16 @@ describe('buildShippingLabelTspl', () => {
 });
 
 describe('shipping recipient', () => {
+  it('removes a pasted duplicate phone line before layout', () => {
+    expect(removeDuplicatedPhone(
+      '734/51 ต.แม่กลอง\nจ.สมุทรสงคราม 75000\nโทร. 088-818-8385',
+      '0888188385',
+    )).toBe('734/51 ต.แม่กลอง จ.สมุทรสงคราม 75000');
+    expect(removeDuplicatedPhone(
+      '734/51 ต.แม่กลอง จ.สมุทรสงคราม 75000 โทร 088-818-8385',
+      '0888188385',
+    )).toBe('734/51 ต.แม่กลอง จ.สมุทรสงคราม 75000');
+  });
   it('prefills recipient fields from the sales order', () => {
     expect(recipientFromOrder({
       customerName: ' ลูกค้า ', customerPhone: ' 0890000000 ', shippingAddress: ' ที่อยู่ ',

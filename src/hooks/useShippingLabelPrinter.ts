@@ -2,7 +2,11 @@ import { useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { extractErrorMessage } from '@/api/client';
 import { requireLabelBridge } from '@/lib/printer/labelBridge';
-import { buildShippingLabelTspl, type ShippingLabelRecipient } from '@/lib/tspl/shippingLabel';
+import {
+  buildShippingLabelTspl,
+  type ShippingLabelBranding,
+  type ShippingLabelRecipient,
+} from '@/lib/tspl/shippingLabel';
 import { getShippingLineQrBitmap } from '@/lib/tspl/shippingLineQrBitmap';
 
 export function createShippingLabelPrintContext(billNo?: string, now = Date.now()) {
@@ -22,13 +26,14 @@ export function useShippingLabelPrinter() {
   const printShippingLabel = async (
     recipient: ShippingLabelRecipient,
     billNo?: string,
+    branding?: ShippingLabelBranding,
   ): Promise<boolean> => {
     if (printingLock.current) return false;
     printingLock.current = true;
     setIsPrinting(true);
     try {
       const lineQrImage = await getShippingLineQrBitmap();
-      const bytes = buildShippingLabelTspl(recipient, lineQrImage);
+      const bytes = buildShippingLabelTspl(recipient, lineQrImage, branding);
       const bridge = await requireLabelBridge();
       const context = createShippingLabelPrintContext(billNo);
       await bridge.print(bytes, { billNo: context.reference, target: 'label' });

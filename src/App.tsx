@@ -30,6 +30,7 @@ import { ShippingLabelsPage } from '@/pages/ShippingLabelsPage';
 import { CashRegisterPage } from '@/pages/CashRegisterPage';
 import { FinancePendingPage } from '@/pages/FinancePendingPage';
 import { UsersPage } from '@/pages/UsersPage';
+import { StoreProfilePage } from '@/pages/StoreProfilePage';
 import { useAuthStore } from '@/stores/authStore';
 
 /** หน้าแรกต่างกันตาม role — STAFF ไม่มี Dashboard แล้ว (FIX-102) */
@@ -89,6 +90,7 @@ export default function App() {
           {/* เครื่องเทิร์นรอลงสต็อก — แก้ข้อมูล/เพิ่มรูป แล้วรับเข้าสต็อก (FIX-142) */}
           <Route path="/pending-intake" element={<PendingIntakePage />} />
           <Route path="/reports" element={<ReportsPage />} />
+          <Route path="/store-profile" element={<StoreProfilePage />} />
           {/* V31 — ไฟแนนซ์ค้างจ่าย */}
           <Route path="/finance-pending" element={<FinancePendingPage />} />
         </Route>

@@ -1187,3 +1187,27 @@ export interface WarrantyLookup {
   isWarrantyActive: boolean | null;
   soldOnBill: string | null;
 }
+
+/** Source of truth กลางของข้อมูลหน้าร้าน เอกสารภาษี และใบจัดส่ง. */
+export interface StoreProfile {
+  version: number;
+  shopName: string;
+  receiptAddress: string;
+  receiptPhone: string;
+  website: string;
+  legalName: string;
+  branchLabel: string;
+  taxAddress: string;
+  taxId: string;
+  taxPhone: string;
+  shippingSenderName: string;
+  shippingAddressLine1: string;
+  shippingAddressLine2: string;
+  shippingPhone: string;
+  tiktok: string;
+  facebook: string;
+  updatedBy: string;
+  updatedAt: string | null;
+}
+
+export type UpdateStoreProfileRequest = Omit<StoreProfile, 'updatedBy' | 'updatedAt'>;

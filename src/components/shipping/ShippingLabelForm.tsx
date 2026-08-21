@@ -5,12 +5,13 @@ import { Printer } from 'lucide-react';
 import { posApi } from '@/api/pos';
 import { useShippingLabelPrinter } from '@/hooks/useShippingLabelPrinter';
 import {
-  SHIPPING_LABEL_SENDER,
+  DEFAULT_SHIPPING_LABEL_BRANDING,
   validateShippingRecipient,
   type ShippingLabelRecipient,
 } from '@/lib/tspl/shippingLabel';
 import type { ShippingAddressInput } from '@/types/api';
 import { SavedShippingAddressPicker } from '@/components/pos/SavedShippingAddressPicker';
+import { useStoreProfile } from '@/hooks/useStoreProfile';
 
 interface ShippingLabelFormProps {
   initialRecipient: ShippingLabelRecipient;
@@ -33,13 +34,13 @@ export const EMPTY_SHIPPING_LABEL_RECIPIENT: ShippingLabelRecipient = {
   phone: '',
 };
 
-function SenderCard() {
+function SenderCard({ branding }: { branding: typeof DEFAULT_SHIPPING_LABEL_BRANDING }) {
   return (
     <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-      <div className="mb-1 text-xs font-semibold text-slate-500">ผู้ส่ง (คงที่บนป้าย)</div>
-      <div className="font-semibold">{SHIPPING_LABEL_SENDER.name}</div>
-      {SHIPPING_LABEL_SENDER.address.map((line) => <div key={line}>{line}</div>)}
-      <div>โทร. {SHIPPING_LABEL_SENDER.phone}</div>
+      <div className="mb-1 text-xs font-semibold text-slate-500">ผู้ส่ง (แก้ได้ในเมนูข้อมูลร้าน)</div>
+      <div className="font-semibold">{branding.senderName}</div>
+      {branding.senderAddress.map((line) => <div key={line}>{line}</div>)}
+      <div>โทร. {branding.senderPhone}</div>
     </div>
   );
 }
@@ -91,6 +92,14 @@ function useShippingLabelForm(props: ShippingLabelFormProps) {
   const queryClient = useQueryClient();
   const [recipient, setRecipient] = useState(props.initialRecipient);
   const printer = useShippingLabelPrinter();
+  const storeProfile = useStoreProfile();
+  const branding = storeProfile.data ? {
+    senderName: storeProfile.data.shippingSenderName,
+    senderAddress: [storeProfile.data.shippingAddressLine1, storeProfile.data.shippingAddressLine2],
+    senderPhone: storeProfile.data.shippingPhone,
+    tiktok: storeProfile.data.tiktok,
+    facebook: storeProfile.data.facebook,
+  } : DEFAULT_SHIPPING_LABEL_BRANDING;
   const update = (field: keyof ShippingLabelRecipient) => (value: string) =>
     setRecipient((current) => ({ ...current, [field]: value }));
   const chooseSaved = (saved: ShippingAddressInput) => setRecipient({
@@ -102,7 +111,7 @@ function useShippingLabelForm(props: ShippingLabelFormProps) {
     event.preventDefault();
     const error = validateShippingRecipient(recipient);
     if (error) return toast.error(error);
-    if (!await printer.printShippingLabel(recipient, props.reference)) return;
+    if (!await printer.printShippingLabel(recipient, props.reference, branding)) return;
     try {
       await rememberRecipient(recipient, queryClient);
     } catch (rememberError) {
@@ -111,7 +120,7 @@ function useShippingLabelForm(props: ShippingLabelFormProps) {
     }
     props.onPrinted();
   };
-  return { recipient, printer, update, chooseSaved, submit };
+  return { recipient, printer, branding, update, chooseSaved, submit };
 }
 
 function FormBody({ form }: { form: ReturnType<typeof useShippingLabelForm> }) {
@@ -121,7 +130,7 @@ function FormBody({ form }: { form: ReturnType<typeof useShippingLabelForm> }) {
         กระดาษสติ๊กเกอร์แนวตั้ง <strong>กว้าง 100 × ยาว 150 มม.</strong> · 1 ดวงต่อแถว ·
         QR LINE อยู่ข้างข้อมูลผู้ส่ง ส่วนสัญลักษณ์ขนส่งและช่องทางร้านอยู่ด้านล่าง
       </div>
-      <SenderCard />
+      <SenderCard branding={form.branding} />
       <SavedShippingAddressPicker disabled={form.printer.isPrinting} onSelect={form.chooseSaved} />
       <NameField value={form.recipient.name} disabled={form.printer.isPrinting} onChange={form.update('name')} />
       <AddressField value={form.recipient.address} disabled={form.printer.isPrinting}

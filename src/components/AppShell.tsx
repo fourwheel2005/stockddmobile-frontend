@@ -50,6 +50,7 @@ export const navItems = [
   { to: '/alerts',       label: 'แจ้งเตือน',     icon: BellRing,          roles: BACK_OFFICE },
   { to: '/transfers',    label: 'โอนสาขา',       icon: ArrowLeftRight,    roles: BACK_OFFICE },
   { to: '/branches',     label: 'สาขา',          icon: Building2,         roles: BACK_OFFICE },
+  { to: '/store-profile', label: 'ข้อมูลร้าน',    icon: Building2,         roles: BACK_OFFICE },
   { to: '/users',        label: 'จัดการพนักงาน',  icon: UserCog,           roles: ['ADMIN'] as const },
 ];
 

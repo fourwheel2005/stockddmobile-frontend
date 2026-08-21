@@ -24,6 +24,22 @@ export const SHIPPING_LABEL_SOCIAL = {
   facebook: 'ดีดีโมบาย ไอโฟนผ่อนง่าย (สำรอง)',
 } as const;
 
+export interface ShippingLabelBranding {
+  senderName: string;
+  senderAddress: string[];
+  senderPhone: string;
+  tiktok: string;
+  facebook: string;
+}
+
+export const DEFAULT_SHIPPING_LABEL_BRANDING: ShippingLabelBranding = {
+  senderName: SHIPPING_LABEL_SENDER.name,
+  senderAddress: [...SHIPPING_LABEL_SENDER.address],
+  senderPhone: SHIPPING_LABEL_SENDER.phone,
+  tiktok: SHIPPING_LABEL_SOCIAL.tiktok,
+  facebook: SHIPPING_LABEL_SOCIAL.facebook,
+};
+
 export interface ShippingLabelRecipient {
   name: string;
   address: string;
@@ -68,14 +84,15 @@ function drawTextAt(builder: TsplBuilder, text: string, x: number, y: number,
   return y + image.h + 5;
 }
 
-function drawSender(builder: TsplBuilder, lineQrImage?: BitmapImage): void {
+function drawSender(builder: TsplBuilder, branding: ShippingLabelBranding,
+                    lineQrImage?: BitmapImage): void {
   let y = drawTextAt(builder, 'ผู้ส่ง :', CONTENT_X, 42, SENDER_BOLD);
-  y = drawTextAt(builder, SHIPPING_LABEL_SENDER.name, CONTENT_X, y,
+  y = drawTextAt(builder, branding.senderName, CONTENT_X, y,
     { ...SENDER_BOLD, fontSize: 36 });
-  for (const line of SHIPPING_LABEL_SENDER.address) {
+  for (const line of branding.senderAddress) {
     y = drawTextAt(builder, line, CONTENT_X, y, SENDER_BODY);
   }
-  drawTextAt(builder, `โทร. ${SHIPPING_LABEL_SENDER.phone}`, CONTENT_X, y, SENDER_BOLD);
+  drawTextAt(builder, `โทร. ${branding.senderPhone}`, CONTENT_X, y, SENDER_BOLD);
   if (lineQrImage) builder.bitmap(470, 36, lineQrImage);
   builder.raw('BAR 38,500,724,4');
 }
@@ -83,9 +100,23 @@ function drawSender(builder: TsplBuilder, lineQrImage?: BitmapImage): void {
 function drawRecipient(builder: TsplBuilder, recipient: ShippingLabelRecipient): void {
   let y = drawText(builder, 'ผู้รับ :', 526, { ...BODY_BOLD, fontSize: 34 });
   y = drawText(builder, `คุณ ${recipient.name.trim()}`, y, { ...BODY_BOLD, fontSize: 34 });
-  const address = wrapText(recipient.address.trim(), BODY, 4);
+  const addressText = removeDuplicatedPhone(recipient.address, recipient.phone);
+  const address = wrapText(addressText, BODY, 3);
   for (const line of address) y = drawText(builder, line, y, BODY);
-  drawText(builder, `โทร. ${recipient.phone.trim()}`, Math.max(y + 8, 760), BODY_BOLD);
+  drawText(builder, `โทร. ${recipient.phone.trim()}`, Math.max(y + 8, 740), BODY_BOLD);
+}
+
+export function removeDuplicatedPhone(address: string, phone: string): string {
+  const digits = phone.replace(/\D/g, '');
+  const phonePattern = /(?:โทร(?:ศัพท์)?\.?\s*:?\s*)?(?:\+66|0)[\d()\s-]{8,}/gi;
+  return address
+    .replace(phonePattern, (candidate) => {
+      const candidateDigits = candidate.replace(/\D/g, '');
+      return digits.length >= 9 && candidateDigits.includes(digits) ? ' ' : candidate;
+    })
+    .replace(/[\r\n]+/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
 }
 
 type HandlingIcon = 'FRAGILE' | 'HANDLE_WITH_CARE' | 'KEEP_DRY' | 'THIS_SIDE_UP';
@@ -135,17 +166,18 @@ function drawHandlingBox(builder: TsplBuilder, x: number, y: number, icon: Handl
   if (image) builder.bitmap(x + 12, y + 12, image);
 }
 
-function drawFooter(builder: TsplBuilder): void {
-  builder.raw('BAR 38,815,724,4');
-  drawHandlingBox(builder, 48, 850, 'FRAGILE');
-  drawHandlingBox(builder, 218, 850, 'HANDLE_WITH_CARE');
-  drawHandlingBox(builder, 48, 1010, 'KEEP_DRY');
-  drawHandlingBox(builder, 218, 1010, 'THIS_SIDE_UP');
+function drawFooter(builder: TsplBuilder, branding: ShippingLabelBranding): void {
+  // Recipient content ends no lower than ~790 dots; keep a physical safety gap before footer.
+  builder.raw('BAR 38,875,724,4');
+  drawHandlingBox(builder, 48, 890, 'FRAGILE');
+  drawHandlingBox(builder, 218, 890, 'HANDLE_WITH_CARE');
+  drawHandlingBox(builder, 48, 1030, 'KEEP_DRY');
+  drawHandlingBox(builder, 218, 1030, 'THIS_SIDE_UP');
 
   const social: TextBitmapOptions = { fontSize: 25, bold: true, maxWidth: 350 };
-  let y = drawTextAt(builder, `TikTok : ${SHIPPING_LABEL_SOCIAL.tiktok}`, 405, 875, social);
+  let y = drawTextAt(builder, `TikTok : ${branding.tiktok}`, 405, 915, social);
   y = drawTextAt(builder, 'Facebook :', 405, y + 18, social);
-  for (const line of wrapText(SHIPPING_LABEL_SOCIAL.facebook, social, 3)) {
+  for (const line of wrapText(branding.facebook, social, 3)) {
     y = drawTextAt(builder, line, 405, y, social);
   }
 }
@@ -164,14 +196,15 @@ function setup(builder: TsplBuilder): void {
 export function buildShippingLabelTspl(
   recipient: ShippingLabelRecipient,
   lineQrImage?: BitmapImage,
+  branding: ShippingLabelBranding = DEFAULT_SHIPPING_LABEL_BRANDING,
 ): Uint8Array {
   const validationError = validateShippingRecipient(recipient);
   if (validationError) throw new Error(validationError);
   const builder = new TsplBuilder();
   setup(builder);
-  drawSender(builder, lineQrImage);
+  drawSender(builder, branding, lineQrImage);
   drawRecipient(builder, recipient);
-  drawFooter(builder);
+  drawFooter(builder, branding);
   builder.raw('PRINT 1,1');
   return builder.build();
 }
