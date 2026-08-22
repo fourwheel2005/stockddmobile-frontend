@@ -9,6 +9,7 @@ import { WsStatusIndicator } from '@/components/WsStatusIndicator';
 import { CashDrawerIndicator } from '@/components/CashDrawerIndicator';
 import { BranchSelector } from '@/components/BranchSelector';
 import {
+  Eye,
   LayoutDashboard, Boxes, Package, ArrowUpFromLine,
   History, BellRing, LogOut, SlidersHorizontal, ScanLine, Users, Layers, Receipt,
   BarChart3, ShieldCheck, Tag, Wrench, Menu, X, Wallet, Landmark, Building2, ArrowLeftRight, UserCog,
@@ -52,6 +53,8 @@ export const navItems = [
   { to: '/branches',     label: 'สาขา',          icon: Building2,         roles: BACK_OFFICE },
   { to: '/store-profile', label: 'ข้อมูลร้าน',    icon: Building2,         roles: BACK_OFFICE },
   { to: '/users',        label: 'จัดการพนักงาน',  icon: UserCog,           roles: ['ADMIN'] as const },
+  // FIX-159: รายงานหลังบ้านทั้งหมด — เห็นเฉพาะเจ้าของ (FREEDOM) คนเดียว
+  { to: '/audit',        label: 'รายงานหลังบ้าน', icon: Eye,               roles: ['FREEDOM'] as const },
 ];
 
 function Wordmark() {
@@ -93,9 +96,12 @@ export function AppShell() {
     navigate('/login', { replace: true });
   };
 
-  const visibleNav = navItems.filter(
-    (n) => !n.roles || (user && n.roles.includes(user.role as never))
-  );
+  const visibleNav = navItems.filter((n) => {
+    if (!n.roles || !user) return !n.roles;
+    // FIX-159: FREEDOM เห็นทุกเมนู · เมนูที่ระบุ FREEDOM ล้วน = เฉพาะเจ้าของ
+    if (user.role === 'FREEDOM') return true;
+    return n.roles.includes(user.role as never);
+  });
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-slate-50">

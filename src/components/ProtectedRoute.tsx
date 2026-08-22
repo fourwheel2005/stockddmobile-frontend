@@ -15,7 +15,8 @@ export function ProtectedRoute({ roles }: Props) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  if (roles && roles.length > 0 && (!userRole || !roles.includes(userRole))) {
+  // FIX-159: FREEDOM (เจ้าของ) ผ่านทุกหน้า
+  if (roles && roles.length > 0 && userRole !== 'FREEDOM' && (!userRole || !roles.includes(userRole))) {
     // STAFF ไม่มีสิทธิ์หน้า Dashboard แล้ว (FIX-102) → ส่งกลับหน้าขาย ไม่งั้นจะเด้งวน
     return <Navigate to={userRole === 'STAFF' ? '/pos' : '/'} replace />;
   }

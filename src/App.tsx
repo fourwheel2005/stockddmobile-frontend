@@ -30,6 +30,7 @@ import { ShippingLabelsPage } from '@/pages/ShippingLabelsPage';
 import { CashRegisterPage } from '@/pages/CashRegisterPage';
 import { FinancePendingPage } from '@/pages/FinancePendingPage';
 import { UsersPage } from '@/pages/UsersPage';
+import { AuditTrailPage } from '@/pages/AuditTrailPage';
 import { StoreProfilePage } from '@/pages/StoreProfilePage';
 import { useAuthStore } from '@/stores/authStore';
 
@@ -100,6 +101,13 @@ export default function App() {
       <Route element={<ProtectedRoute roles={['ADMIN']} />}>
         <Route element={<AppShell />}>
           <Route path="/users" element={<UsersPage />} />
+        </Route>
+      </Route>
+
+      {/* ─── รายงานหลังบ้านทั้งหมด — เจ้าของ (FREEDOM) คนเดียว (FIX-159) ─── */}
+      <Route element={<ProtectedRoute roles={['FREEDOM']} />}>
+        <Route element={<AppShell />}>
+          <Route path="/audit" element={<AuditTrailPage />} />
         </Route>
       </Route>
 

@@ -8,6 +8,7 @@ import { formatDateTime } from '@/lib/format';
 import type { Role } from '@/types/api';
 
 const ROLE_INFO: Record<Role, { label: string; hint: string; cls: string }> = {
+  FREEDOM: { label: 'เจ้าของสูงสุด (Freedom)', hint: 'สิทธิ์ทุกอย่าง — บัญชีนี้ไม่แสดง/แก้ในหน้านี้', cls: 'badge-amber' },
   ADMIN:   { label: 'เจ้าของ (ADMIN)',   hint: 'เห็นทุกอย่าง + จัดการพนักงาน', cls: 'badge-red' },
   MANAGER: { label: 'ผู้จัดการ',          hint: 'เห็นต้นทุน/รายงาน/สต็อก',      cls: 'badge-blue' },
   STAFF:   { label: 'พนักงานขาย (STAFF)', hint: 'ขายหน้าร้านอย่างเดียว',        cls: 'badge-slate' },

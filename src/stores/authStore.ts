@@ -26,6 +26,7 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: () => !!get().accessToken && !!get().user,
       hasRole: (...roles) => {
         const role = get().user?.role;
+        if (role === 'FREEDOM') return true;   // FIX-159: เจ้าของ — สิทธิ์ superset ทุก gate
         return !!role && roles.includes(role);
       },
     }),
