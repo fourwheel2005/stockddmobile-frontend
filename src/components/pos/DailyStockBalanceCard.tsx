@@ -96,7 +96,30 @@ function HeldBreakdown({ group }: { group: DailyStockGroup }) {
 function ReportFooter({ data }: { data: DailyStockBalance }) {
   return (
     <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-3 text-sm">
-      <span className="text-slate-600">รวมควรพบจริง <strong className="text-slate-900">{data.total.onHand.expectedPhysical} เครื่อง</strong> · ขายวันนี้ {data.total.soldToday} เครื่อง</span>
+      <span className="text-slate-600">
+        รวมควรพบจริง <strong className="text-slate-900">{data.total.onHand.expectedPhysical} เครื่อง</strong>
+        {' · ขายวันนี้ '}{data.total.soldToday} เครื่อง
+        {/* FIX-158: รับเข้าวันนี้ทุกช่องทาง */}
+        {data.intakeToday.total > 0 && (
+          <>
+            {' · รับเข้าวันนี้ '}<strong className="text-slate-900">{data.intakeToday.total} เครื่อง</strong>
+            <span className="ml-1 inline-flex flex-wrap gap-1 align-middle">
+              {data.intakeToday.purchase > 0 && (
+                <span className="rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-medium text-sky-700">ซื้อเข้า {data.intakeToday.purchase}</span>
+              )}
+              {data.intakeToday.tradeIn > 0 && (
+                <span className="rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-700">เทิร์น {data.intakeToday.tradeIn}</span>
+              )}
+              {data.intakeToday.outright > 0 && (
+                <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">ลูกค้ามาขาย {data.intakeToday.outright}</span>
+              )}
+              {data.intakeToday.buyback > 0 && (
+                <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">บอลลูน/คืนเครื่อง {data.intakeToday.buyback}</span>
+              )}
+            </span>
+          </>
+        )}
+      </span>
       <span className="text-xs text-slate-500">ไม่รวมเครื่องขายแล้ว เครื่องโอนออก และเครื่องกำลังโอน</span>
     </div>
   );

@@ -345,6 +345,36 @@ export interface DailyStockBalance {
   newDevices: DailyStockGroup;
   secondHandDevices: DailyStockGroup;
   total: DailyStockGroup;
+  /** รับเข้าวันนี้ทุกช่องทาง (FIX-158) */
+  intakeToday: {
+    total: number;
+    purchase: number;   // มือ2/ของซื้อเข้า (รวมซัพพลายเออร์)
+    tradeIn: number;    // เทิร์นเข้า
+    outright: number;   // ลูกค้ามาขาย (ซื้อขายขาด)
+    buyback: number;    // บอลลูนไม่ไปต่อ + ลูกค้าคืนเครื่อง
+  };
+}
+
+/** ตรวจนับสต็อกเปิด/ปิดร้าน (FIX-158) */
+export interface StockCountRequestPayload {
+  countedNew: number;
+  countedSecondHand: number;
+  certified: true;
+  certifiedName: string;
+  note?: string;
+}
+
+export interface StockCountResponse {
+  phase: 'OPENING' | 'CLOSING';
+  expectedNew: number;
+  expectedSecondHand: number;
+  countedNew: number;
+  countedSecondHand: number;
+  varianceNew: number;
+  varianceSecondHand: number;
+  matched: boolean;
+  certifiedName: string;
+  countedAt: string;
 }
 
 /** F-12 (FIX-135): แถว reconciliation — serialized SKU ที่ inventory.quantity ไม่ตรงจำนวน IMEI พร้อมขายจริง */
@@ -369,7 +399,7 @@ export type SerializedStatus =
 
 export type AcquisitionType =
   // ประเภทธุรกรรม
-  | 'PURCHASE' | 'TRADE_IN' | 'OUTRIGHT' | 'RETURN_CREDIT'
+  | 'PURCHASE' | 'TRADE_IN' | 'OUTRIGHT' | 'RETURN_CREDIT' | 'BALLOON_BUYBACK'
   // ซัพพลายเออร์หน้าร้าน
   | 'ICE' | 'BORROW' | 'P_GREEN' | 'GREETER' | 'RED_HEAT' | 'AMP_MOBILE';
 export type ServiceState = 'AWAITING_REPAIR' | 'SENT_CLAIM';
@@ -839,11 +869,13 @@ export interface OpenSessionRequest {
   /** เว้นว่าง = ใช้เงินทอนตั้งต้นมาตรฐานของร้าน (FIX-100) */
   openingFloat?: number;
   note?: string;
+  stockCount: StockCountRequestPayload;   // FIX-158 บังคับ
 }
 
 export interface CloseSessionRequest {
   actualClose: number;
   note?: string;
+  stockCount: StockCountRequestPayload;   // FIX-158 บังคับ
 }
 
 export interface CashMovementRequest {

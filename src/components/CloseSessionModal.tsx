@@ -1,3 +1,4 @@
+import { StockCountSection, type StockCountPayload } from '@/components/cash/StockCountSection';
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -32,12 +33,14 @@ export function CloseSessionModal({ session, onClose, onClosed }: Props) {
     + Number(session.breakdown?.cardTotal ?? 0)
     + Number(session.breakdown?.qrTotal ?? 0);
   const counted = actual != null;
+  // FIX-158: ตรวจนับสต็อกก่อนปิดร้าน — null = ยังกรอกไม่ครบ (บล็อกปุ่ม)
+  const [stockCount, setStockCount] = useState<StockCountPayload | null>(null);
   const variance = (actual ?? 0) - expected;
   const VARIANCE_THRESHOLD = 50;
   const willAlert = Math.abs(variance) > VARIANCE_THRESHOLD;
 
   const close = useMutation({
-    mutationFn: () => cashRegisterApi.close(session.id, { actualClose: actual ?? 0, note: note || undefined }),
+    mutationFn: () => cashRegisterApi.close(session.id, { actualClose: actual ?? 0, note: note || undefined, stockCount: stockCount! }),
     onSuccess: async (s) => {
       const v = Number(s.variance ?? 0);
       if (Math.abs(v) > VARIANCE_THRESHOLD) {
@@ -158,16 +161,22 @@ export function CloseSessionModal({ session, onClose, onClosed }: Props) {
               />
             </div>
           )}
+
+          {/* FIX-158: บังคับตรวจนับสต็อกก่อนปิดร้าน */}
+          <StockCountSection phaseLabel="ก่อนปิดร้าน" onChange={setStockCount} />
         </div>
 
         <div className="flex shrink-0 items-center justify-end gap-2 border-t bg-slate-50/50 px-5 py-3 rounded-b-xl">
           <button className="btn-secondary" onClick={onClose}>ยกเลิก</button>
           <button
             className="btn-primary bg-rose-600 hover:bg-rose-700"
-            disabled={close.isPending || printer.printing || actual == null || (willAlert && !note.trim())}
+            disabled={close.isPending || printer.printing || actual == null || (willAlert && !note.trim()) || !stockCount}
+            title={!stockCount ? 'ต้องตรวจนับสต็อก + ติ๊กรับรอง + เลือกชื่อก่อน' : undefined}
             onClick={() => close.mutate()}>
             <DoorClosed className="h-4 w-4" />
-            {close.isPending || printer.printing ? 'กำลังปิดและพิมพ์...' : 'ปิดเก๊ะและพิมพ์สรุป'}
+            {close.isPending || printer.printing ? 'กำลังปิดและพิมพ์...'
+              : !stockCount ? 'ตรวจนับสต็อกให้ครบก่อนปิดเก๊ะ'
+              : 'ปิดเก๊ะและพิมพ์สรุป'}
           </button>
         </div>
       </div>

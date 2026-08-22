@@ -154,6 +154,9 @@ export function CashRegisterPage() {
           <PaymentBreakdownCard breakdown={session.breakdown ?? null}
             refundTotal={session.refundTotal} netSalesTotal={session.netSalesTotal} />
 
+          {/* FIX-158: บันทึกตรวจนับสต็อกของ session (เปิดร้าน/ปิดร้าน) */}
+          <StockCountHistory sessionId={session.id} />
+
           {/* Movements log */}
           <div className="card">
             <div className="card-header flex items-center gap-2">
@@ -311,3 +314,33 @@ function Stat({ label, value, mono, small, highlight }: {
 
 // Unused imports cleanup
 void AlertTriangle;
+
+
+/** บันทึกตรวจนับสต็อกของ session (FIX-158) — เปิดร้าน/ปิดร้าน + ผลต่าง + ผู้รับรอง */
+function StockCountHistory({ sessionId }: { sessionId: string }) {
+  const { data } = useQuery({
+    queryKey: ['stock-counts', sessionId],
+    queryFn: () => cashRegisterApi.stockCounts(sessionId),
+  });
+  if (!data || data.length === 0) return null;
+  return (
+    <div className="card">
+      <div className="card-header">🧮 บันทึกตรวจนับเครื่อง</div>
+      <div className="divide-y">
+        {data.map((c) => (
+          <div key={c.phase} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-5 py-2.5 text-sm">
+            <span className="w-24 font-semibold">{c.phase === 'OPENING' ? '🌅 เปิดร้าน' : '🌙 ปิดร้าน'}</span>
+            <span className="tabular-nums">มือ1 นับได้ {c.countedNew}/{c.expectedNew}</span>
+            <span className="tabular-nums">มือ2 นับได้ {c.countedSecondHand}/{c.expectedSecondHand}</span>
+            {c.matched
+              ? <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">✓ ตรง</span>
+              : <span className="rounded bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">
+                  ผลต่าง มือ1 {c.varianceNew >= 0 ? `+${c.varianceNew}` : c.varianceNew} · มือ2 {c.varianceSecondHand >= 0 ? `+${c.varianceSecondHand}` : c.varianceSecondHand}
+                </span>}
+            <span className="ml-auto text-xs text-slate-500">รับรองโดย {c.certifiedName} · {formatDateTime(c.countedAt)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}

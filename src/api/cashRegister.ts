@@ -28,6 +28,10 @@ export const cashRegisterApi = {
   addMovement: (id: string, req: CashMovementRequest) =>
     api.post<CashSessionResponse>(`/cash-register/${id}/movements`, req).then((r) => r.data),
 
+  /** บันทึกตรวจนับสต็อกของ session (FIX-158) */
+  stockCounts: (id: string) =>
+    api.get<import('@/types/api').StockCountResponse[]>(`/cash-register/sessions/${id}/stock-counts`).then((r) => r.data),
+
   close: (id: string, req: CloseSessionRequest) =>
     api.post<CashSessionResponse>(`/cash-register/${id}/close`, req).then((r) => r.data),
 

@@ -20,6 +20,7 @@ const REPORT: DailyStockBalance = {
       held: { pendingIntake: 2, reserved: 0, defective: 1, returned: 0 },
     },
   },
+  intakeToday: { total: 3, purchase: 1, tradeIn: 1, outright: 1, buyback: 0 },
   total: {
     label: 'รวมทั้งหมด', soldToday: 3,
     onHand: {

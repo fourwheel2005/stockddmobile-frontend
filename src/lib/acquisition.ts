@@ -7,6 +7,7 @@ export const ACQ_INFO: Record<AcquisitionType, { th: string; help: string; group
   TRADE_IN:      { th: 'เทิร์น',         help: 'รับเทิร์นจากลูกค้า (มักเป็นมือ 2)', group: 'TXN' },
   OUTRIGHT:      { th: 'ซื้อขายขาด',     help: 'ซื้อขายขาด — ไม่รับคืน/เคลม',      group: 'TXN' },
   RETURN_CREDIT: { th: 'เครื่องคืน (มีเครดิต)', help: 'ลูกค้าคืนเครื่อง มีเครดิต — กรอกชื่อลูกค้า', group: 'TXN' },
+  BALLOON_BUYBACK: { th: 'บอลลูนซื้อคืน', help: 'ลูกค้าผ่อนบอลลูนไม่ไปต่อ ขายเครื่องคืนร้าน (FIX-158)', group: 'TXN' },
   // ─── ซัพพลายเออร์ (nickname หน้าร้าน) ─────────────────────
   ICE:        { th: 'น้ำแข็ง',        help: 'รับจากซัพพลายเออร์ "น้ำแข็ง"',     group: 'SUPPLIER' },
   BORROW:     { th: 'ยืมมั้ย',        help: 'รับจาก "ยืมมั้ย"',                 group: 'SUPPLIER' },
@@ -18,7 +19,7 @@ export const ACQ_INFO: Record<AcquisitionType, { th: string; help: string; group
 
 /** ลำดับการแสดงผลใน dropdown — ธุรกรรมก่อน แล้วซัพพลายเออร์ */
 export const ACQ_ORDER: AcquisitionType[] = [
-  'PURCHASE', 'TRADE_IN', 'OUTRIGHT', 'RETURN_CREDIT',
+  'PURCHASE', 'TRADE_IN', 'OUTRIGHT', 'RETURN_CREDIT', 'BALLOON_BUYBACK',
   'ICE', 'BORROW', 'P_GREEN', 'GREETER', 'RED_HEAT', 'AMP_MOBILE',
 ];
 

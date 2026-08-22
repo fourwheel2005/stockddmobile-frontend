@@ -8,6 +8,7 @@ import { formatTHB } from '@/lib/format';
 import { parseServerDateTime } from '@/lib/datetime';
 import { useModalChrome, backdropCloseHandler } from '@/hooks/useModalChrome';
 import { useBranchStore } from '@/stores/branchStore';
+import { StockCountSection, type StockCountPayload } from '@/components/cash/StockCountSection';
 
 interface Props {
   onOpened?: () => void;
@@ -34,6 +35,8 @@ export function OpenSessionModal({ onOpened, onClose }: Props) {
   });
   const [openingFloat, setOpeningFloat] = useState<number | null>(null);
   const [note, setNote] = useState('');
+  // FIX-158: ตรวจนับสต็อกเปิดร้าน — null = ยังกรอกไม่ครบ (บล็อกปุ่ม)
+  const [stockCount, setStockCount] = useState<StockCountPayload | null>(null);
   const effectiveFloat = openingFloat ?? Number(defaults?.defaultOpeningFloat ?? DEFAULT_OPENING_FLOAT);
 
   useModalChrome(onClose);
@@ -42,6 +45,7 @@ export function OpenSessionModal({ onOpened, onClose }: Props) {
     mutationFn: () => cashRegisterApi.open({
       openingFloat: effectiveFloat, note: note || undefined,
       branchId: useBranchStore.getState().activeBranchId ?? undefined,  // เปิดกะของสาขาที่เลือก (Phase 2C)
+      stockCount: stockCount!,   // FIX-158 — ปุ่มถูก disable จนกว่าจะครบ
     }),
     onSuccess: (s) => {
       // P4 — backend idempotent: ถ้า session มีอยู่แล้ว backend คืนของเดิม
@@ -126,16 +130,22 @@ export function OpenSessionModal({ onOpened, onClose }: Props) {
               maxLength={500}
             />
           </div>
+
+          {/* FIX-158: บังคับตรวจนับสต็อกก่อนเปิดร้าน */}
+          <StockCountSection phaseLabel="เปิดร้าน" onChange={setStockCount} />
         </div>
 
         <div className="flex items-center justify-end gap-2 border-t bg-slate-50/50 px-5 py-3 rounded-b-xl">
           <button className="btn-secondary" onClick={onClose}>ยกเลิก</button>
           <button
             className="btn-primary bg-emerald-600 hover:bg-emerald-700"
-            disabled={open.isPending}
+            disabled={open.isPending || !stockCount}
+            title={!stockCount ? 'ต้องตรวจนับสต็อก + ติ๊กรับรอง + เลือกชื่อก่อน' : undefined}
             onClick={() => open.mutate()}>
             <DoorOpen className="h-4 w-4" />
-            {open.isPending ? 'กำลังเปิด...' : `เปิดเก๊ะ ${formatTHB(openingFloat)}`}
+            {open.isPending ? 'กำลังเปิด...'
+              : !stockCount ? 'ตรวจนับสต็อกให้ครบก่อนเปิดเก๊ะ'
+              : `เปิดเก๊ะ ${formatTHB(openingFloat)}`}
           </button>
         </div>
       </div>
