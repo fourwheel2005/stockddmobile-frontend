@@ -19,6 +19,12 @@ const LINE_QR_BITMAP = {
   h: 2,
 };
 
+const HANDLING_SYMBOLS_BITMAP = {
+  data: new Uint8Array([0x0f, 0xf0, 0xaa, 0x55]),
+  wBytes: 2,
+  h: 2,
+};
+
 function stubCanvas(): string[] {
   const renderedText: string[] = [];
   vi.stubGlobal('document', {
@@ -46,7 +52,12 @@ function stubCanvas(): string[] {
 }
 
 function commands(recipient = RECIPIENT): string {
-  return new TextDecoder().decode(buildShippingLabelTspl(recipient, LINE_QR_BITMAP));
+  return new TextDecoder().decode(buildShippingLabelTspl(
+    recipient,
+    LINE_QR_BITMAP,
+    undefined,
+    HANDLING_SYMBOLS_BITMAP,
+  ));
 }
 
 afterEach(() => vi.unstubAllGlobals());
@@ -77,7 +88,8 @@ describe('buildShippingLabelTspl', () => {
     expect(tspl).toContain('BITMAP 470,36,1,2,0,');
     expect(tspl).not.toContain('QRCODE');
     expect(tspl).not.toContain('SCAN WEBSITE');
-    expect(tspl.match(/BOX (48|218),(890|1030)/g)).toHaveLength(4);
+    expect(tspl).toContain('BITMAP 48,886,2,2,0,');
+    expect(tspl).not.toMatch(/BOX (48|218),(890|1030)/);
     expect(tspl).toContain('BAR 38,875,724,4');
     expect(tspl).not.toContain('BAR 38,815,724,4');
     expect(rendered).toContain('TikTok : ddmobileplus');
@@ -90,7 +102,7 @@ describe('buildShippingLabelTspl', () => {
     const tspl = new TextDecoder().decode(buildShippingLabelTspl(RECIPIENT, LINE_QR_BITMAP, {
       senderName: 'ร้านสาขาทดสอบ', senderAddress: ['1/2 บรรทัดแรก', 'บรรทัดสอง 75000'],
       senderPhone: '088-818-8385', tiktok: 'newshop', facebook: 'เพจใหม่',
-    }));
+    }, HANDLING_SYMBOLS_BITMAP));
     expect(rendered).toContain('ร้านสาขาทดสอบ');
     expect(rendered).toContain('TikTok : newshop');
     expect(tspl).toContain('BAR 38,875,724,4');

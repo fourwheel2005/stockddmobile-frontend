@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { ReceiptPrintView } from '../ReceiptPrintView';
+import { LINE_QR_IMAGE_URL } from '@/assets/lineQr';
 import type { SalesOrderResponse } from '@/types/api';
 
 const order = {
@@ -39,7 +40,7 @@ describe('ReceiptPrintView document marking', () => {
     const html = renderToStaticMarkup(<ReceiptPrintView order={order} />);
 
     expect(html).toContain('alt="สแกน LINE DD Mobile"');
-    expect(html).toContain('src="data:image/jpeg;base64,');
+    expect(html).toContain(`src="${LINE_QR_IMAGE_URL}"`);
   });
 
   it('shows who pays the installment trade-in difference', () => {

@@ -1,4 +1,4 @@
-import { LINE_QR_IMAGE_DATA_URL } from '@/assets/lineQr';
+import { LINE_QR_IMAGE_URL } from '@/assets/lineQr';
 import type { EscPosRasterImage } from './EscPosBuilder';
 
 const PRINT_WIDTH = 280;
@@ -28,7 +28,7 @@ async function createRaster(): Promise<EscPosRasterImage> {
     throw new Error('Browser นี้ไม่รองรับการแปลงรูป QR LINE สำหรับเครื่องพิมพ์');
   }
 
-  const image = await loadImage(LINE_QR_IMAGE_DATA_URL);
+  const image = await loadImage(LINE_QR_IMAGE_URL);
   const source = document.createElement('canvas');
   source.width = image.naturalWidth;
   source.height = image.naturalHeight;

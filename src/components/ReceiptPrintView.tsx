@@ -1,6 +1,6 @@
 import { formatTHB, formatDateTime } from '@/lib/format';
 import { hasRealImei } from '@/lib/escpos/ddmobileReceipt';
-import { LINE_QR_IMAGE_DATA_URL } from '@/assets/lineQr';
+import { LINE_QR_IMAGE_URL } from '@/assets/lineQr';
 import type { PaymentMethod, SalesOrderResponse, ShippingPartner } from '@/types/api';
 
 const PAYMENT_TH: Record<PaymentMethod, string> = {
@@ -237,7 +237,7 @@ export function ReceiptPrintView({ order, shopName = 'Stockdd Mobile', duplicate
       </p>
       <div className="mt-3 flex justify-center">
         <img
-          src={LINE_QR_IMAGE_DATA_URL}
+          src={LINE_QR_IMAGE_URL}
           alt="สแกน LINE DD Mobile"
           className="h-auto w-48"
         />

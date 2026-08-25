@@ -1,7 +1,7 @@
 import type { SalesOrderResponse } from '@/types/api';
 import { TsplBuilder } from './TsplBuilder';
 import type { BitmapImage } from './TsplBuilder';
-import { drawingBitmap, textBitmap, wrapText, type TextBitmapOptions } from './textBitmap';
+import { textBitmap, wrapText, type TextBitmapOptions } from './textBitmap';
 
 const DPMM = 8;
 const LABEL_WIDTH_MM = 100;
@@ -119,60 +119,14 @@ export function removeDuplicatedPhone(address: string, phone: string): string {
     .trim();
 }
 
-type HandlingIcon = 'FRAGILE' | 'HANDLE_WITH_CARE' | 'KEEP_DRY' | 'THIS_SIDE_UP';
-
-function iconBitmap(icon: HandlingIcon): BitmapImage | null {
-  return drawingBitmap(126, 118, (context) => {
-    context.lineWidth = 7;
-    if (icon === 'FRAGILE') {
-      context.beginPath();
-      context.moveTo(28, 16); context.lineTo(98, 16); context.lineTo(86, 66);
-      context.quadraticCurveTo(63, 84, 40, 66); context.closePath(); context.stroke();
-      context.beginPath();
-      context.moveTo(63, 18); context.lineTo(53, 39); context.lineTo(70, 51); context.lineTo(57, 69); context.stroke();
-      context.fillRect(57, 78, 12, 27); context.fillRect(35, 103, 56, 8);
-      return;
-    }
-    if (icon === 'HANDLE_WITH_CARE') {
-      context.strokeRect(43, 18, 42, 42);
-      context.beginPath();
-      context.moveTo(18, 98); context.lineTo(18, 60); context.lineTo(40, 83);
-      context.quadraticCurveTo(50, 94, 60, 96);
-      context.moveTo(108, 98); context.lineTo(108, 60); context.lineTo(86, 83);
-      context.quadraticCurveTo(76, 94, 66, 96); context.stroke();
-      return;
-    }
-    if (icon === 'KEEP_DRY') {
-      context.beginPath(); context.arc(63, 55, 43, Math.PI, 2 * Math.PI); context.stroke();
-      context.beginPath();
-      context.moveTo(20, 55); context.quadraticCurveTo(31, 43, 42, 55);
-      context.quadraticCurveTo(53, 43, 63, 55); context.quadraticCurveTo(74, 43, 85, 55);
-      context.quadraticCurveTo(96, 43, 106, 55); context.stroke();
-      context.beginPath(); context.moveTo(63, 55); context.lineTo(63, 98);
-      context.quadraticCurveTo(63, 112, 76, 105); context.stroke();
-      return;
-    }
-    context.fillRect(27, 43, 10, 62); context.fillRect(88, 43, 10, 62);
-    context.beginPath();
-    context.moveTo(16, 48); context.lineTo(32, 18); context.lineTo(48, 48);
-    context.moveTo(77, 48); context.lineTo(93, 18); context.lineTo(109, 48); context.fill();
-    context.fillRect(14, 106, 98, 8);
-  });
-}
-
-function drawHandlingBox(builder: TsplBuilder, x: number, y: number, icon: HandlingIcon): void {
-  builder.raw(`BOX ${x},${y},${x + 150},${y + 142},3`);
-  const image = iconBitmap(icon);
-  if (image) builder.bitmap(x + 12, y + 12, image);
-}
-
-function drawFooter(builder: TsplBuilder, branding: ShippingLabelBranding): void {
+function drawFooter(
+  builder: TsplBuilder,
+  branding: ShippingLabelBranding,
+  handlingSymbolsImage?: BitmapImage,
+): void {
   // Recipient content ends no lower than ~790 dots; keep a physical safety gap before footer.
   builder.raw('BAR 38,875,724,4');
-  drawHandlingBox(builder, 48, 890, 'FRAGILE');
-  drawHandlingBox(builder, 218, 890, 'HANDLE_WITH_CARE');
-  drawHandlingBox(builder, 48, 1030, 'KEEP_DRY');
-  drawHandlingBox(builder, 218, 1030, 'THIS_SIDE_UP');
+  if (handlingSymbolsImage) builder.bitmap(48, 886, handlingSymbolsImage);
 
   const social: TextBitmapOptions = { fontSize: 25, bold: true, maxWidth: 350 };
   let y = drawTextAt(builder, `TikTok : ${branding.tiktok}`, 405, 915, social);
@@ -197,6 +151,7 @@ export function buildShippingLabelTspl(
   recipient: ShippingLabelRecipient,
   lineQrImage?: BitmapImage,
   branding: ShippingLabelBranding = DEFAULT_SHIPPING_LABEL_BRANDING,
+  handlingSymbolsImage?: BitmapImage,
 ): Uint8Array {
   const validationError = validateShippingRecipient(recipient);
   if (validationError) throw new Error(validationError);
@@ -204,7 +159,7 @@ export function buildShippingLabelTspl(
   setup(builder);
   drawSender(builder, branding, lineQrImage);
   drawRecipient(builder, recipient);
-  drawFooter(builder, branding);
+  drawFooter(builder, branding, handlingSymbolsImage);
   builder.raw('PRINT 1,1');
   return builder.build();
 }

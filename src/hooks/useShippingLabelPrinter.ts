@@ -7,6 +7,7 @@ import {
   type ShippingLabelBranding,
   type ShippingLabelRecipient,
 } from '@/lib/tspl/shippingLabel';
+import { getShippingHandlingSymbolsBitmap } from '@/lib/tspl/shippingHandlingSymbolsBitmap';
 import { getShippingLineQrBitmap } from '@/lib/tspl/shippingLineQrBitmap';
 
 export function createShippingLabelPrintContext(billNo?: string, now = Date.now()) {
@@ -32,8 +33,11 @@ export function useShippingLabelPrinter() {
     printingLock.current = true;
     setIsPrinting(true);
     try {
-      const lineQrImage = await getShippingLineQrBitmap();
-      const bytes = buildShippingLabelTspl(recipient, lineQrImage, branding);
+      const [lineQrImage, handlingSymbolsImage] = await Promise.all([
+        getShippingLineQrBitmap(),
+        getShippingHandlingSymbolsBitmap(),
+      ]);
+      const bytes = buildShippingLabelTspl(recipient, lineQrImage, branding, handlingSymbolsImage);
       const bridge = await requireLabelBridge();
       const context = createShippingLabelPrintContext(billNo);
       await bridge.print(bytes, { billNo: context.reference, target: 'label' });
