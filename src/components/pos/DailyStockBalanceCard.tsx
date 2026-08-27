@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Boxes, RefreshCw } from 'lucide-react';
+import { Boxes, Cable, Package, PlugZap, RefreshCw } from 'lucide-react';
 import { posApi } from '@/api/pos';
 import type { DailyStockBalance, DailyStockGroup } from '@/types/api';
 
@@ -20,7 +20,7 @@ export function DailyStockBalanceCard({ branchId }: Props) {
     refetchInterval: REFRESH_INTERVAL_MS,
   });
   return (
-    <section className="card overflow-hidden" aria-label="รายงานตรวจนับเครื่องวันนี้">
+    <section className="card overflow-hidden" aria-label="รายงานตรวจนับสต็อกวันนี้">
       <ReportHeader data={query.data} fetching={query.isFetching} onRefresh={() => query.refetch()} />
       <ReportContent data={query.data} loading={query.isLoading} error={query.isError} />
     </section>
@@ -33,7 +33,7 @@ function ReportHeader({ data, fetching, onRefresh }: {
   return (
     <div className="card-header flex flex-wrap items-center justify-between gap-2">
       <div>
-        <div className="flex items-center gap-2"><Boxes className="h-5 w-5" /> ตรวจนับเครื่องวันนี้</div>
+        <div className="flex items-center gap-2"><Boxes className="h-5 w-5" /> ตรวจนับสต็อกวันนี้</div>
         <p className="mt-0.5 text-xs font-normal text-slate-500">
           {data ? `วันที่ ${formatThaiDate(data.context.businessDate)}` : 'กำลังโหลดวันที่'} · ยอดปัจจุบันหลังหักเครื่องที่ขายแล้ว · อัปเดตทุก 1 นาที
         </p>
@@ -56,6 +56,7 @@ function ReportContent({ data, loading, error }: {
         <StockGroupCard group={data.newDevices} tone="emerald" />
         <StockGroupCard group={data.secondHandDevices} tone="amber" />
       </div>
+      <AccessorySection data={data} />
       <ReportFooter data={data} />
     </div>
   );
@@ -80,6 +81,55 @@ function StockGroupCard({ group, tone }: { group: DailyStockGroup; tone: 'emeral
   );
 }
 
+function AccessorySection({ data }: { data: DailyStockBalance }) {
+  if (!data.accessories) return null;
+  return (
+    <div className="mt-4 border-t border-slate-200 pt-4">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h3 className="flex items-center gap-1.5 text-sm font-semibold text-slate-800">
+            <PlugZap className="h-4 w-4 text-sky-600" /> อุปกรณ์เสริม — แยกจากยอดเครื่อง
+          </h3>
+          <p className="text-[11px] text-slate-500">รวมสินค้าแบบมี Serial และแบบนับจำนวน โดยไม่บวกเข้าเครื่องมือ 1</p>
+        </div>
+        {data.context.accessoryInventoryGlobal && data.context.branchId && (
+          <span className="rounded bg-amber-100 px-2 py-1 text-[10px] font-medium text-amber-800">
+            Accessory แบบนับจำนวนเป็นยอดรวมทุกสาขา
+          </span>
+        )}
+      </div>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <AccessoryCard icon={<PlugZap className="h-4 w-4" />} group={data.accessories.chargerHeads} unit="หัว" tone="sky" />
+        <AccessoryCard icon={<Cable className="h-4 w-4" />} group={data.accessories.chargingCables} unit="เส้น" tone="violet" />
+        <AccessoryCard icon={<Package className="h-4 w-4" />} group={data.accessories.otherAccessories} unit="ชิ้น" tone="slate" />
+      </div>
+    </div>
+  );
+}
+
+function AccessoryCard({ icon, group, unit, tone }: {
+  icon: React.ReactNode; group: DailyStockGroup; unit: string; tone: 'sky' | 'violet' | 'slate';
+}) {
+  const colors = {
+    sky: 'border-sky-200 bg-sky-50/70 text-sky-700',
+    violet: 'border-violet-200 bg-violet-50/70 text-violet-700',
+    slate: 'border-slate-200 bg-slate-50 text-slate-700',
+  }[tone];
+  return (
+    <div className={`rounded-lg border p-3 ${colors}`}>
+      <div className="flex items-center justify-between gap-2">
+        <span className="flex items-center gap-1.5 text-sm font-semibold">{icon}{group.label}</span>
+        <span className="text-2xl font-bold text-slate-900">{group.onHand.expectedPhysical}<small className="ml-1 text-xs font-medium">{unit}</small></span>
+      </div>
+      <div className="mt-2 flex justify-between text-[11px] text-slate-600">
+        <span>พร้อมขาย {group.onHand.readyToSell}</span>
+        <span>รอดำเนินการ {heldTotal(group)}</span>
+        <span>ขายวันนี้ {group.soldToday}</span>
+      </div>
+    </div>
+  );
+}
+
 function Metric({ label, value }: { label: string; value: number }) {
   return <div className="rounded-md bg-white/80 px-2 py-2"><div className="text-lg font-bold text-slate-800">{value}</div><div className="text-slate-500">{label}</div></div>;
 }
@@ -97,7 +147,7 @@ function ReportFooter({ data }: { data: DailyStockBalance }) {
   return (
     <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-3 text-sm">
       <span className="text-slate-600">
-        รวมควรพบจริง <strong className="text-slate-900">{data.total.onHand.expectedPhysical} เครื่อง</strong>
+        รวมเครื่องที่ควรพบจริง <strong className="text-slate-900">{data.total.onHand.expectedPhysical} เครื่อง</strong>
         {' · ขายวันนี้ '}{data.total.soldToday} เครื่อง
         {/* FIX-158: รับเข้าวันนี้ทุกช่องทาง */}
         {data.intakeToday.total > 0 && (
@@ -120,6 +170,11 @@ function ReportFooter({ data }: { data: DailyStockBalance }) {
           </>
         )}
       </span>
+      {data.accessories && (
+        <span className="text-slate-600">
+          รวมอุปกรณ์เสริม <strong className="text-slate-900">{data.accessories.total.onHand.expectedPhysical} ชิ้น</strong>
+        </span>
+      )}
       <span className="text-xs text-slate-500">ไม่รวมเครื่องขายแล้ว เครื่องโอนออก และเครื่องกำลังโอน</span>
     </div>
   );

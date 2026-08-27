@@ -5,7 +5,7 @@ import type { DailyStockBalance } from '@/types/api';
 import { DailyStockBalanceCard, dailyStockBalanceKey } from '../DailyStockBalanceCard';
 
 const REPORT: DailyStockBalance = {
-  context: { businessDate: '2026-08-21', branchId: 'branch-main' },
+  context: { businessDate: '2026-08-21', branchId: 'branch-main', accessoryInventoryGlobal: true },
   newDevices: {
     label: 'เครื่องใหม่ (มือ 1)', soldToday: 2,
     onHand: {
@@ -21,6 +21,24 @@ const REPORT: DailyStockBalance = {
     },
   },
   intakeToday: { total: 3, purchase: 1, tradeIn: 1, outright: 1, buyback: 0 },
+  accessories: {
+    chargerHeads: {
+      label: 'หัวชาร์จ', soldToday: 1,
+      onHand: { readyToSell: 12, expectedPhysical: 13, held: { pendingIntake: 0, reserved: 1, defective: 0, returned: 0 } },
+    },
+    chargingCables: {
+      label: 'สายชาร์จ', soldToday: 3,
+      onHand: { readyToSell: 10, expectedPhysical: 10, held: { pendingIntake: 0, reserved: 0, defective: 0, returned: 0 } },
+    },
+    otherAccessories: {
+      label: 'อุปกรณ์เสริมอื่น', soldToday: 0,
+      onHand: { readyToSell: 5, expectedPhysical: 5, held: { pendingIntake: 0, reserved: 0, defective: 0, returned: 0 } },
+    },
+    total: {
+      label: 'รวมอุปกรณ์เสริม', soldToday: 4,
+      onHand: { readyToSell: 27, expectedPhysical: 28, held: { pendingIntake: 0, reserved: 1, defective: 0, returned: 0 } },
+    },
+  },
   total: {
     label: 'รวมทั้งหมด', soldToday: 3,
     onHand: {
@@ -41,12 +59,17 @@ describe('DailyStockBalanceCard', () => {
       </QueryClientProvider>,
     );
 
-    expect(html).toContain('ตรวจนับเครื่องวันนี้');
+    expect(html).toContain('ตรวจนับสต็อกวันนี้');
     expect(html).toContain('21/08/2569');
     expect(html).toContain('เครื่องใหม่ (มือ 1)');
     expect(html).toContain('เครื่องมือสอง');
     expect(html).toContain('รอลงสต๊อก 2');
-    expect(html).toContain('รวมควรพบจริง <strong class="text-slate-900">13 เครื่อง');
+    expect(html).toContain('รวมเครื่องที่ควรพบจริง <strong class="text-slate-900">13 เครื่อง');
     expect(html).toContain('ขายวันนี้ 3 เครื่อง');
+    expect(html).toContain('หัวชาร์จ');
+    expect(html).toContain('13<small class="ml-1 text-xs font-medium">หัว');
+    expect(html).toContain('สายชาร์จ');
+    expect(html).toContain('10<small class="ml-1 text-xs font-medium">เส้น');
+    expect(html).toContain('Accessory แบบนับจำนวนเป็นยอดรวมทุกสาขา');
   });
 });

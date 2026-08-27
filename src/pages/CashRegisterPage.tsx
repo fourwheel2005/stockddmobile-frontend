@@ -325,17 +325,20 @@ function StockCountHistory({ sessionId }: { sessionId: string }) {
   if (!data || data.length === 0) return null;
   return (
     <div className="card">
-      <div className="card-header">🧮 บันทึกตรวจนับเครื่อง</div>
+      <div className="card-header">🧮 บันทึกตรวจนับเครื่องและอุปกรณ์เสริม</div>
       <div className="divide-y">
         {data.map((c) => (
           <div key={c.phase} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-5 py-2.5 text-sm">
             <span className="w-24 font-semibold">{c.phase === 'OPENING' ? '🌅 เปิดร้าน' : '🌙 ปิดร้าน'}</span>
             <span className="tabular-nums">มือ1 นับได้ {c.countedNew}/{c.expectedNew}</span>
             <span className="tabular-nums">มือ2 นับได้ {c.countedSecondHand}/{c.expectedSecondHand}</span>
+            <span className="tabular-nums">หัวชาร์จ {c.countedChargerHeads}/{c.expectedChargerHeads}</span>
+            <span className="tabular-nums">สายชาร์จ {c.countedChargingCables}/{c.expectedChargingCables}</span>
+            <span className="tabular-nums">อุปกรณ์อื่น {c.countedOtherAccessories}/{c.expectedOtherAccessories}</span>
             {c.matched
               ? <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">✓ ตรง</span>
               : <span className="rounded bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">
-                  ผลต่าง มือ1 {c.varianceNew >= 0 ? `+${c.varianceNew}` : c.varianceNew} · มือ2 {c.varianceSecondHand >= 0 ? `+${c.varianceSecondHand}` : c.varianceSecondHand}
+                  ผลต่าง มือ1 {signed(c.varianceNew)} · มือ2 {signed(c.varianceSecondHand)} · หัว {signed(c.varianceChargerHeads)} · สาย {signed(c.varianceChargingCables)} · อื่น {signed(c.varianceOtherAccessories)}
                 </span>}
             <span className="ml-auto text-xs text-slate-500">รับรองโดย {c.certifiedName} · {formatDateTime(c.countedAt)}</span>
           </div>
@@ -343,4 +346,8 @@ function StockCountHistory({ sessionId }: { sessionId: string }) {
       </div>
     </div>
   );
+}
+
+function signed(value: number) {
+  return value >= 0 ? `+${value}` : String(value);
 }

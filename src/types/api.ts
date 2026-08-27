@@ -341,10 +341,16 @@ export interface DailyStockGroup {
 }
 
 export interface DailyStockBalance {
-  context: { businessDate: string; branchId: string | null };
+  context: { businessDate: string; branchId: string | null; accessoryInventoryGlobal: boolean };
   newDevices: DailyStockGroup;
   secondHandDevices: DailyStockGroup;
   total: DailyStockGroup;
+  accessories?: {
+    chargerHeads: DailyStockGroup;
+    chargingCables: DailyStockGroup;
+    otherAccessories: DailyStockGroup;
+    total: DailyStockGroup;
+  };
   /** รับเข้าวันนี้ทุกช่องทาง (FIX-158) */
   intakeToday: {
     total: number;
@@ -359,6 +365,9 @@ export interface DailyStockBalance {
 export interface StockCountRequestPayload {
   countedNew: number;
   countedSecondHand: number;
+  countedChargerHeads: number;
+  countedChargingCables: number;
+  countedOtherAccessories: number;
   certified: true;
   certifiedName: string;
   note?: string;
@@ -368,10 +377,19 @@ export interface StockCountResponse {
   phase: 'OPENING' | 'CLOSING';
   expectedNew: number;
   expectedSecondHand: number;
+  expectedChargerHeads: number;
+  expectedChargingCables: number;
+  expectedOtherAccessories: number;
   countedNew: number;
   countedSecondHand: number;
+  countedChargerHeads: number;
+  countedChargingCables: number;
+  countedOtherAccessories: number;
   varianceNew: number;
   varianceSecondHand: number;
+  varianceChargerHeads: number;
+  varianceChargingCables: number;
+  varianceOtherAccessories: number;
   matched: boolean;
   certifiedName: string;
   countedAt: string;

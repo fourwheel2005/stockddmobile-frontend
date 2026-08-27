@@ -71,7 +71,7 @@ export function OpenSessionModal({ onOpened, onClose }: Props) {
       className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/70 p-4 pt-[10vh] backdrop-blur-sm animate-modal-fade-in">
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md rounded-xl bg-white shadow-2xl animate-modal-zoom-in">
+        className="w-full max-w-2xl rounded-xl bg-white shadow-2xl animate-modal-zoom-in">
         <div className="flex items-center justify-between border-b px-5 py-3.5">
           <h2 className="flex items-center gap-2 font-semibold">
             <DoorOpen className="h-5 w-5 text-emerald-600" />

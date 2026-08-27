@@ -1,115 +1,146 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ClipboardCheck } from 'lucide-react';
+import { Cable, ClipboardCheck, Package, PlugZap, Smartphone } from 'lucide-react';
 import { posApi } from '@/api/pos';
 import { useBranchStore } from '@/stores/branchStore';
 
-/** payload ตรวจนับที่ส่งไปกับ open/close เก๊ะ (FIX-158) — null = ยังกรอกไม่ครบ (ห้าม submit) */
 export interface StockCountPayload {
   countedNew: number;
   countedSecondHand: number;
+  countedChargerHeads: number;
+  countedChargingCables: number;
+  countedOtherAccessories: number;
   certified: true;
   certifiedName: string;
   note?: string;
 }
 
-/**
- * ส่วนตรวจนับเครื่องจริงหน้าร้าน (FIX-158) — ฝังใน modal เปิด/ปิดเก๊ะ (บังคับกรอกครบก่อน submit)
- * โชว์ยอดที่ระบบคาด (มือ1/มือ2) → แคชเชียร์กรอกยอดนับจริง → ติ๊กรับรอง + เลือกชื่อ
- * ยอดไม่ตรง = เตือนเหลืองแต่ไม่บล็อก (บันทึกผลต่างเป็นหลักฐาน — ระบบไม่ auto ปรับสต็อก)
- */
+export interface StockCountTexts {
+  newDevices: string;
+  secondHandDevices: string;
+  chargerHeads: string;
+  chargingCables: string;
+  otherAccessories: string;
+}
+
+interface ExpectedCounts {
+  newDevices: number | null;
+  secondHandDevices: number | null;
+  chargerHeads: number | null;
+  chargingCables: number | null;
+  otherAccessories: number | null;
+}
+
+const EMPTY_COUNTS: StockCountTexts = {
+  newDevices: '', secondHandDevices: '', chargerHeads: '', chargingCables: '', otherAccessories: '',
+};
+
+export function createStockCountPayload(
+  counts: StockCountTexts,
+  certified: boolean,
+  certifiedName: string,
+): StockCountPayload | null {
+  const values = Object.values(counts).map((value) => Number(value));
+  if (Object.values(counts).some((value) => value.trim() === '')) return null;
+  if (values.some((value) => !Number.isInteger(value) || value < 0)) return null;
+  if (!certified || !certifiedName.trim()) return null;
+  return {
+    countedNew: values[0], countedSecondHand: values[1],
+    countedChargerHeads: values[2], countedChargingCables: values[3],
+    countedOtherAccessories: values[4], certified: true, certifiedName: certifiedName.trim(),
+  };
+}
+
+function hasMismatch(payload: StockCountPayload, expected: ExpectedCounts): boolean {
+  return payload.countedNew !== expected.newDevices
+    || payload.countedSecondHand !== expected.secondHandDevices
+    || payload.countedChargerHeads !== expected.chargerHeads
+    || payload.countedChargingCables !== expected.chargingCables
+    || payload.countedOtherAccessories !== expected.otherAccessories;
+}
+
 export function StockCountSection({ phaseLabel, onChange }: {
-  phaseLabel: string;                       // "เปิดร้าน" | "ก่อนปิดร้าน"
+  phaseLabel: string;
   onChange: (payload: StockCountPayload | null) => void;
 }) {
-  const branchId = useBranchStore((s) => s.activeBranchId);
+  const branchId = useBranchStore((state) => state.activeBranchId);
   const balance = useQuery({
     queryKey: ['daily-stock-balance', branchId, 'count-section'],
     queryFn: () => posApi.dailyStockBalance(branchId ?? undefined),
   });
   const cashiers = useQuery({ queryKey: ['pos', 'cashiers'], queryFn: posApi.listCashiers });
-
-  const [countedNewText, setCountedNewText] = useState('');
-  const [countedUsedText, setCountedUsedText] = useState('');
+  const [counts, setCounts] = useState<StockCountTexts>(EMPTY_COUNTS);
   const [certified, setCertified] = useState(false);
   const [certifiedName, setCertifiedName] = useState('');
 
-  const expectedNew = balance.data?.newDevices.onHand.expectedPhysical ?? null;
-  const expectedUsed = balance.data?.secondHandDevices.onHand.expectedPhysical ?? null;
-
-  const payload = useMemo<StockCountPayload | null>(() => {
-    const n = Number(countedNewText);
-    const u = Number(countedUsedText);
-    if (countedNewText.trim() === '' || countedUsedText.trim() === '') return null;
-    if (!Number.isInteger(n) || !Number.isInteger(u) || n < 0 || u < 0) return null;
-    if (!certified || certifiedName.trim() === '') return null;
-    return { countedNew: n, countedSecondHand: u, certified: true, certifiedName: certifiedName.trim() };
-  }, [countedNewText, countedUsedText, certified, certifiedName]);
-
+  const expected: ExpectedCounts = {
+    newDevices: balance.data?.newDevices.onHand.expectedPhysical ?? null,
+    secondHandDevices: balance.data?.secondHandDevices.onHand.expectedPhysical ?? null,
+    chargerHeads: balance.data?.accessories?.chargerHeads.onHand.expectedPhysical ?? null,
+    chargingCables: balance.data?.accessories?.chargingCables.onHand.expectedPhysical ?? null,
+    otherAccessories: balance.data?.accessories?.otherAccessories.onHand.expectedPhysical ?? null,
+  };
+  const payload = useMemo(
+    () => createStockCountPayload(counts, certified, certifiedName),
+    [counts, certified, certifiedName],
+  );
   useEffect(() => { onChange(payload); }, [payload, onChange]);
 
-  const diffBadge = (counted: string, expected: number | null) => {
-    if (counted.trim() === '' || expected == null) return null;
-    const diff = Number(counted) - expected;
-    if (!Number.isFinite(diff)) return null;
-    return diff === 0
-      ? <span className="text-xs font-semibold text-emerald-600">✓ ตรง</span>
-      : <span className="text-xs font-semibold text-red-600">{diff > 0 ? `เกิน +${diff}` : `ขาด ${diff}`}</span>;
+  const updateCount = (key: keyof StockCountTexts, value: string) => {
+    setCounts((current) => ({ ...current, [key]: value }));
   };
 
   return (
     <div className="rounded-lg border-2 border-sky-200 bg-sky-50/50 p-3">
-      <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-sky-900">
+      <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-sky-900">
         <ClipboardCheck className="h-4 w-4" />
-        ตรวจนับเครื่องจริง ({phaseLabel}) <span className="text-red-500">*</span>
+        ตรวจนับสต็อกจริง ({phaseLabel}) <span className="text-red-500">*</span>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <div className="mb-1 flex items-center justify-between text-xs text-slate-600">
-            <span>มือ 1 — ระบบคาด <strong>{expectedNew ?? '...'}</strong></span>
-            {diffBadge(countedNewText, expectedNew)}
-          </div>
-          <input type="number" min={0} step={1} inputMode="numeric"
-                 className="input w-full text-center text-lg font-semibold tabular-nums"
-                 placeholder="นับได้..."
-                 value={countedNewText} onChange={(e) => setCountedNewText(e.target.value)} />
-        </div>
-        <div>
-          <div className="mb-1 flex items-center justify-between text-xs text-slate-600">
-            <span>มือ 2 — ระบบคาด <strong>{expectedUsed ?? '...'}</strong></span>
-            {diffBadge(countedUsedText, expectedUsed)}
-          </div>
-          <input type="number" min={0} step={1} inputMode="numeric"
-                 className="input w-full text-center text-lg font-semibold tabular-nums"
-                 placeholder="นับได้..."
-                 value={countedUsedText} onChange={(e) => setCountedUsedText(e.target.value)} />
-        </div>
-      </div>
+      <CountGroup title="เครื่อง — ไม่นับรวมอุปกรณ์เสริม" icon={<Smartphone className="h-4 w-4" />}
+                  columns="sm:grid-cols-2">
+        <CountInput label="เครื่องมือ 1" value={counts.newDevices} expected={expected.newDevices}
+                    unit="เครื่อง" onChange={(value) => updateCount('newDevices', value)} />
+        <CountInput label="เครื่องมือ 2" value={counts.secondHandDevices} expected={expected.secondHandDevices}
+                    unit="เครื่อง" onChange={(value) => updateCount('secondHandDevices', value)} />
+      </CountGroup>
 
-      {payload && expectedNew != null && expectedUsed != null
-        && (payload.countedNew !== expectedNew || payload.countedSecondHand !== expectedUsed) && (
+      <CountGroup title="อุปกรณ์เสริม — แยกนับจากเครื่อง" icon={<PlugZap className="h-4 w-4" />}
+                  columns="sm:grid-cols-3">
+        <CountInput label="หัวชาร์จ" value={counts.chargerHeads} expected={expected.chargerHeads}
+                    unit="หัว" onChange={(value) => updateCount('chargerHeads', value)} icon={<PlugZap className="h-3.5 w-3.5" />} />
+        <CountInput label="สายชาร์จ" value={counts.chargingCables} expected={expected.chargingCables}
+                    unit="เส้น" onChange={(value) => updateCount('chargingCables', value)} icon={<Cable className="h-3.5 w-3.5" />} />
+        <CountInput label="อุปกรณ์อื่น" value={counts.otherAccessories} expected={expected.otherAccessories}
+                    unit="ชิ้น" onChange={(value) => updateCount('otherAccessories', value)} icon={<Package className="h-3.5 w-3.5" />} />
+      </CountGroup>
+      {branchId && balance.data?.context.accessoryInventoryGlobal && (
+        <p className="-mt-2 mb-3 rounded bg-amber-100 px-2 py-1 text-[11px] text-amber-800">
+          หมายเหตุ: Accessory แบบนับจำนวนในฐานข้อมูลปัจจุบันเป็นยอดรวมทุกสาขา ส่วนแบบมี Serial กรองตามสาขานี้
+        </p>
+      )}
+
+      {payload && Object.values(expected).every((value) => value != null) && hasMismatch(payload, expected) && (
         <div className="mt-2 rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">
-          ⚠️ ยอดไม่ตรงกับระบบ — บันทึกได้ แต่ผลต่างจะถูกเก็บเป็นหลักฐานให้ผู้จัดการตรวจสอบ
+          ⚠️ ยอดไม่ตรงกับระบบ — บันทึกได้ แต่ผลต่างของแต่ละกลุ่มจะถูกเก็บเป็นหลักฐาน
         </div>
       )}
 
-      <label className="mt-2 flex items-start gap-2 text-sm text-slate-700">
+      <label className="mt-3 flex items-start gap-2 text-sm text-slate-700">
         <input type="checkbox" className="mt-0.5" checked={certified}
-               onChange={(e) => setCertified(e.target.checked)} />
-        <span>ข้าพเจ้าตรวจนับเครื่องในตู้จริง <strong>ตามรุ่นและจำนวน</strong> แล้วตามยอดข้างต้น</span>
+               onChange={(event) => setCertified(event.target.checked)} />
+        <span>ข้าพเจ้าตรวจนับ <strong>เครื่องและอุปกรณ์เสริมแยกตามประเภท</strong> แล้วตามยอดข้างต้น</span>
       </label>
 
       <div className="mt-2">
         <label className="mb-1 block text-xs font-medium text-slate-600">ผู้รับรองการนับ (แคชเชียร์ผู้ดูแลเก๊ะ)</label>
         <div className="flex flex-wrap gap-1.5">
-          {(cashiers.data ?? []).map((c) => (
-            <button key={c.id} type="button"
-                    onClick={() => setCertifiedName(c.name)}
-                    className={`rounded-full border px-3 py-1 text-sm ${certifiedName === c.name
+          {(cashiers.data ?? []).map((cashier) => (
+            <button key={cashier.id} type="button" onClick={() => setCertifiedName(cashier.name)}
+                    className={`rounded-full border px-3 py-1 text-sm ${certifiedName === cashier.name
                       ? 'border-sky-600 bg-sky-600 font-semibold text-white'
                       : 'border-slate-300 bg-white text-slate-700 hover:border-sky-400'}`}>
-              {certifiedName === c.name ? '✓ ' : ''}{c.name}
+              {certifiedName === cashier.name ? '✓ ' : ''}{cashier.name}
             </button>
           ))}
           {cashiers.data?.length === 0 && (
@@ -117,6 +148,41 @@ export function StockCountSection({ phaseLabel, onChange }: {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function CountGroup({ title, icon, columns, children }: {
+  title: string; icon: React.ReactNode; columns: string; children: React.ReactNode;
+}) {
+  return (
+    <div className="mb-3 rounded-md border border-slate-200 bg-white/70 p-2.5">
+      <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-slate-700">{icon}{title}</div>
+      <div className={`grid grid-cols-1 gap-2 ${columns}`}>{children}</div>
+    </div>
+  );
+}
+
+function CountInput({ label, value, expected, unit, onChange, icon }: {
+  label: string; value: string; expected: number | null; unit: string;
+  onChange: (value: string) => void; icon?: React.ReactNode;
+}) {
+  const difference = value.trim() === '' || expected == null ? null : Number(value) - expected;
+  return (
+    <div>
+      <div className="mb-1 flex min-h-8 items-end justify-between gap-1 text-xs text-slate-600">
+        <span className="flex items-start gap-1">
+          {icon}<span>{label}<br />ระบบคาด <strong>{expected ?? '...'} {unit}</strong></span>
+        </span>
+        {difference === 0 && <span className="shrink-0 font-semibold text-emerald-600">✓ ตรง</span>}
+        {difference != null && difference !== 0 && (
+          <span className="shrink-0 font-semibold text-red-600">{difference > 0 ? `เกิน +${difference}` : `ขาด ${difference}`}</span>
+        )}
+      </div>
+      <input type="number" min={0} step={1} inputMode="numeric"
+             aria-label={`จำนวนนับจริง ${label}`}
+             className="input w-full text-center text-lg font-semibold tabular-nums"
+             placeholder="นับได้..." value={value} onChange={(event) => onChange(event.target.value)} />
     </div>
   );
 }
