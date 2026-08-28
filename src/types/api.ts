@@ -289,6 +289,7 @@ export interface InventoryResponse {
   availableQty: number;
   reorderPoint: number;
   lowStock: boolean;
+  serialized: boolean;
   newInStock?: number;            // จำนวนพร้อมขาย "มือ 1"
   secondHandInStock?: number;     // จำนวนพร้อมขาย "มือ 2"
   everReceived?: boolean;         // เคยมีเครื่องเข้า SKU นี้ไหม — แยก "ขายหมด" vs "ยังไม่เคยรับเข้า" (FIX-113)
@@ -319,6 +320,11 @@ export interface StockSummaryResponse {
   totalAvailable: number;
   newAvailable: number;
   secondHandAvailable: number;
+  totalAccessoriesAvailable: number;
+  chargerHeadsAvailable: number;
+  chargingCablesAvailable: number;
+  otherAccessoriesAvailable: number;
+  accessoryInventoryGlobal: boolean;
 }
 
 export interface DailyStockHeld {

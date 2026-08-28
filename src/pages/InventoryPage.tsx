@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Search, Smartphone, X, ChevronRight, ChevronDown } from 'lucide-react';
-import { inventoryApi } from '@/api/inventory';
+import { Cable, ChevronDown, ChevronRight, Package, PlugZap, Search, Smartphone, X } from 'lucide-react';
+import { inventoryApi, type InventoryStockGroup } from '@/api/inventory';
 import { useBranchStore } from '@/stores/branchStore';
 import { useAuthStore } from '@/stores/authStore';
 import { SerialsModal } from '@/components/SerialsModal';
@@ -18,7 +18,8 @@ const STATUS_LABEL: Record<string, { text: string; cls: string }> = {
 };
 
 type ConditionFilter = '' | 'NEW' | 'SECOND_HAND';
-type ViewMode = 'device' | 'variant';
+type ViewMode = 'device' | 'variant' | 'accessory';
+type AccessoryGroup = Extract<InventoryStockGroup, 'ACCESSORY' | 'CHARGER_HEAD' | 'CHARGING_CABLE' | 'OTHER_ACCESSORY'>;
 
 const CONDITION_TH: Record<string, string> = {
   NEW: 'มือ 1', SECOND_HAND: 'มือ 2', LIKE_NEW: 'สภาพดี', REFURBISHED: 'รีเฟอร์บ', DEFECTIVE: 'ชำรุด',
@@ -26,6 +27,7 @@ const CONDITION_TH: Record<string, string> = {
 
 export function InventoryPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('device');
+  const [accessoryGroup, setAccessoryGroup] = useState<AccessoryGroup>('ACCESSORY');
   const [page, setPage] = useState(0);
   const [lowStockOnly, setLowStockOnly] = useState(false);
   const [condition, setCondition] = useState<ConditionFilter>('');
@@ -36,12 +38,18 @@ export function InventoryPage() {
   const [foundDevice, setFoundDevice] = useState<SerializedItemResponse | null>(null);
   const [notFound, setNotFound] = useState<string | null>(null);
   const [serialsFor, setSerialsFor] = useState<{ variantId: string; productName: string; sku: string; highlightId?: string } | null>(null);
+  const activeBranchId = useBranchStore((s) => s.activeBranchId);
 
   // มุมมองรวมรุ่น — ดึงมาทั้งหมด (ร้านมี variant ไม่กี่สิบ) แล้ว group ตามชื่อรุ่นฝั่ง client
   const { data, isLoading } = useQuery({
-    queryKey: ['inventory', { lowStockOnly, condition }],
-    enabled: viewMode === 'variant',
-    queryFn: () => inventoryApi.list({ page: 0, size: 500, lowStockOnly, condition: condition || undefined }),
+    queryKey: ['inventory', { lowStockOnly, condition, viewMode, accessoryGroup, activeBranchId }],
+    enabled: viewMode !== 'device',
+    queryFn: () => inventoryApi.list({
+      page: 0, size: 500, lowStockOnly,
+      condition: viewMode === 'variant' ? condition || undefined : undefined,
+      stockGroup: viewMode === 'accessory' ? accessoryGroup : 'DEVICE',
+      branchId: activeBranchId || undefined,
+    }),
   });
 
   // debounce ค้นหาเครื่อง (IMEI/Serial/รหัส/รุ่น) — ค้นข้ามทุกสถานะรวมเครื่องที่ขายแล้ว
@@ -51,7 +59,6 @@ export function InventoryPage() {
   }, [deviceSearchInput]);
 
   // มุมมองรายเครื่อง (flat ทุกรุ่น) — filter ตาม condition (chips) + status + คำค้น
-  const activeBranchId = useBranchStore((s) => s.activeBranchId);
   const { data: devices, isLoading: devicesLoading } = useQuery({
     queryKey: ['inventory-serials', { page, condition, deviceStatus, deviceQ, activeBranchId }],
     enabled: viewMode === 'device',
@@ -60,13 +67,14 @@ export function InventoryPage() {
       condition: condition || undefined,
       status: deviceStatus || undefined,
       branchId: activeBranchId || undefined,   // กรองตามสาขาที่เลือก (Phase 2A)
+      stockGroup: 'DEVICE',
       q: deviceQ || undefined,
     }),
   });
 
   const { data: summary } = useQuery({
-    queryKey: ['inventory-summary'],
-    queryFn: () => inventoryApi.summary(),
+    queryKey: ['inventory-summary', activeBranchId],
+    queryFn: () => inventoryApi.summary(activeBranchId || undefined),
   });
 
   // F-12 (FIX-135): reconciliation — เตือน manager/admin เมื่อยอด inventory ไม่ตรงจำนวน IMEI จริง (read-only)
@@ -77,7 +85,13 @@ export function InventoryPage() {
     queryFn: () => inventoryApi.reconciliation(),
   });
 
-  const pickCondition = (c: ConditionFilter) => { setCondition(c); setPage(0); };
+  const pickCondition = (c: ConditionFilter) => {
+    setCondition(c); setPage(0);
+    if (viewMode === 'accessory') setViewMode('device');
+  };
+  const pickAccessory = (group: AccessoryGroup) => {
+    setAccessoryGroup(group); setCondition(''); setPage(0); setViewMode('accessory');
+  };
   const pickView = (v: ViewMode) => { setViewMode(v); setPage(0); };
 
   // group variant ตามชื่อรุ่น (iPhone 13 ที่กระจายหลาย variant → รวมเป็นหมวดเดียว)
@@ -233,45 +247,48 @@ export function InventoryPage() {
         </div>
       )}
 
-      {/* สรุปจำนวนเครื่องพร้อมขาย + filter มือ1/มือ2 (กดเพื่อกรองตาราง) */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <button
-          type="button"
-          onClick={() => pickCondition('')}
-          className={`rounded-lg border p-3 text-left transition-colors ${
-            condition === '' ? 'border-brand-400 bg-brand-50 ring-1 ring-brand-300' : 'border-slate-200 bg-white hover:bg-slate-50'
-          }`}>
-          <div className="text-xs text-slate-500">พร้อมขายทั้งหมด</div>
-          <div className="mt-0.5 text-2xl font-bold text-slate-800">
-            {summary ? formatNumber(summary.totalAvailable) : '—'} <span className="text-sm font-normal text-slate-400">เครื่อง</span>
-          </div>
-        </button>
-        <button
-          type="button"
-          onClick={() => pickCondition('NEW')}
-          className={`rounded-lg border p-3 text-left transition-colors ${
-            condition === 'NEW' ? 'border-emerald-400 bg-emerald-50 ring-1 ring-emerald-300' : 'border-slate-200 bg-white hover:bg-slate-50'
-          }`}>
-          <div className="text-xs text-slate-500">มือ 1 (ใหม่)</div>
-          <div className="mt-0.5 text-2xl font-bold text-emerald-700">
-            {summary ? formatNumber(summary.newAvailable) : '—'} <span className="text-sm font-normal text-slate-400">เครื่อง</span>
-          </div>
-        </button>
-        <button
-          type="button"
-          onClick={() => pickCondition('SECOND_HAND')}
-          className={`rounded-lg border p-3 text-left transition-colors ${
-            condition === 'SECOND_HAND' ? 'border-amber-400 bg-amber-50 ring-1 ring-amber-300' : 'border-slate-200 bg-white hover:bg-slate-50'
-          }`}>
-          <div className="text-xs text-slate-500">มือ 2 (มือสอง)</div>
-          <div className="mt-0.5 text-2xl font-bold text-amber-700">
-            {summary ? formatNumber(summary.secondHandAvailable) : '—'} <span className="text-sm font-normal text-slate-400">เครื่อง</span>
-          </div>
-        </button>
-      </div>
+      {/* สรุปพร้อมขาย — เครื่องและ accessory เป็นคนละยอด/คนละหน่วย */}
+      <section aria-label="สรุปเครื่องพร้อมขาย">
+        <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
+          <Smartphone className="h-4 w-4 text-brand-600" /> เครื่อง — ไม่รวมอุปกรณ์เสริม
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <SummaryButton label="พร้อมขายทั้งหมด" value={summary?.totalAvailable} unit="เครื่อง"
+                         active={viewMode !== 'accessory' && condition === ''} tone="brand"
+                         onClick={() => pickCondition('')} />
+          <SummaryButton label="มือ 1 (ใหม่)" value={summary?.newAvailable} unit="เครื่อง"
+                         active={viewMode !== 'accessory' && condition === 'NEW'} tone="emerald"
+                         onClick={() => pickCondition('NEW')} />
+          <SummaryButton label="มือ 2 (มือสอง)" value={summary?.secondHandAvailable} unit="เครื่อง"
+                         active={viewMode !== 'accessory' && condition === 'SECOND_HAND'} tone="amber"
+                         onClick={() => pickCondition('SECOND_HAND')} />
+        </div>
+      </section>
 
-      {/* View toggle: รายเครื่อง / รวมรุ่น */}
-      <div className="flex items-center gap-2">
+      <section aria-label="สรุปอุปกรณ์เสริมพร้อมขาย">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-sm font-semibold text-slate-700">
+          <span className="flex items-center gap-2"><PlugZap className="h-4 w-4 text-sky-600" /> อุปกรณ์เสริม — รวม {summary ? formatNumber(summary.totalAccessoriesAvailable) : '—'} ชิ้น</span>
+          {activeBranchId && summary?.accessoryInventoryGlobal && (
+            <span className="rounded bg-amber-100 px-2 py-1 text-[10px] font-medium text-amber-800">
+              แบบนับจำนวนเป็นยอดรวมทุกสาขา · แบบมี Serial กรองตามสาขา
+            </span>
+          )}
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <SummaryButton label="หัวชาร์จ" value={summary?.chargerHeadsAvailable} unit="หัว"
+                         icon={<PlugZap className="h-4 w-4" />} active={viewMode === 'accessory' && accessoryGroup === 'CHARGER_HEAD'} tone="sky"
+                         onClick={() => pickAccessory('CHARGER_HEAD')} />
+          <SummaryButton label="สายชาร์จ" value={summary?.chargingCablesAvailable} unit="เส้น"
+                         icon={<Cable className="h-4 w-4" />} active={viewMode === 'accessory' && accessoryGroup === 'CHARGING_CABLE'} tone="violet"
+                         onClick={() => pickAccessory('CHARGING_CABLE')} />
+          <SummaryButton label="อุปกรณ์เสริมอื่น" value={summary?.otherAccessoriesAvailable} unit="ชิ้น"
+                         icon={<Package className="h-4 w-4" />} active={viewMode === 'accessory' && accessoryGroup === 'OTHER_ACCESSORY'} tone="slate"
+                         onClick={() => pickAccessory('OTHER_ACCESSORY')} />
+        </div>
+      </section>
+
+      {/* View toggle: เครื่องรายตัว / เครื่องรวมรุ่น / accessory */}
+      <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
           onClick={() => pickView('device')}
@@ -287,6 +304,14 @@ export function InventoryPage() {
             viewMode === 'variant' ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-slate-200 hover:bg-slate-50'
           }`}>
           📦 รวมรุ่น (สรุปสต็อก)
+        </button>
+        <button
+          type="button"
+          onClick={() => pickAccessory('ACCESSORY')}
+          className={`rounded-md border px-4 py-1.5 text-sm font-medium ${
+            viewMode === 'accessory' ? 'border-sky-500 bg-sky-50 text-sky-700' : 'border-slate-200 hover:bg-slate-50'
+          }`}>
+          🔌 อุปกรณ์เสริม
         </button>
       </div>
 
@@ -394,13 +419,21 @@ export function InventoryPage() {
       </div>
       )}
 
-      {/* Table — รวมรุ่น (variant aggregate) */}
-      {viewMode === 'variant' && (
+      {/* Table — เครื่องรวมรุ่น หรือ accessory แยกประเภท */}
+      {(viewMode === 'variant' || viewMode === 'accessory') && (
       <div className="card">
-        {condition && (
+        {viewMode === 'variant' && condition && (
           <div className="flex items-center justify-between border-b border-slate-100 px-5 py-2 text-sm text-slate-600">
             <span>กรองเฉพาะ <span className="font-semibold">{condition === 'NEW' ? 'มือ 1 (ใหม่)' : 'มือ 2 (มือสอง)'}</span> · นับเฉพาะเครื่องพร้อมขาย</span>
             <button onClick={() => pickCondition('')} className="text-brand-600 hover:underline">ดูทั้งหมด</button>
+          </div>
+        )}
+        {viewMode === 'accessory' && (
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-5 py-2 text-sm text-slate-600">
+            <span>แสดง <strong>{accessoryGroupLabel(accessoryGroup)}</strong> แยกจากยอดเครื่อง</span>
+            {accessoryGroup !== 'ACCESSORY' && (
+              <button onClick={() => setAccessoryGroup('ACCESSORY')} className="text-brand-600 hover:underline">ดู Accessory ทั้งหมด</button>
+            )}
           </div>
         )}
         <div className="overflow-x-auto">
@@ -413,7 +446,7 @@ export function InventoryPage() {
                 <th className="px-5 py-2.5 text-right">จอง</th>
                 <th className="px-5 py-2.5 text-right">พร้อมขาย</th>
                 <th className="px-5 py-2.5">สถานะ</th>
-                <th className="px-5 py-2.5 text-right">เครื่อง</th>
+                <th className="px-5 py-2.5 text-right">{viewMode === 'accessory' ? 'Serial' : 'เครื่อง'}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -445,10 +478,10 @@ export function InventoryPage() {
                         {g.lowStock ? <span className="badge-amber">ของน้อย</span> : <span className="badge-green">OK</span>}
                       </td>
                       <td className="px-5 py-3 text-right">
-                        {single && (
+                        {single && g.rows[0].serialized && (
                           <button
                             className="rounded p-1.5 text-brand-600 hover:bg-brand-50"
-                            title="ดูเครื่องทีละชิ้น (IMEI) + ส่งซ่อม/เคลม"
+                            title={viewMode === 'accessory' ? 'ดูอุปกรณ์ที่มี Serial' : 'ดูเครื่องทีละชิ้น (IMEI) + ส่งซ่อม/เคลม'}
                             onClick={(e) => { e.stopPropagation(); setSerialsFor({ variantId: g.rows[0].variantId, productName: g.rows[0].productName, sku: g.rows[0].sku }); }}>
                             <Smartphone className="h-4 w-4" />
                           </button>
@@ -467,12 +500,12 @@ export function InventoryPage() {
                           {row.lowStock ? <span className="badge-amber">ของน้อย</span> : <span className="badge-green">OK</span>}
                         </td>
                         <td className="px-5 py-2 text-right">
-                          <button
+                          {row.serialized && <button
                             className="rounded p-1.5 text-brand-600 hover:bg-brand-50"
-                            title="ดูเครื่องทีละชิ้น (IMEI) + ส่งซ่อม/เคลม"
+                            title={viewMode === 'accessory' ? 'ดูอุปกรณ์ที่มี Serial' : 'ดูเครื่องทีละชิ้น (IMEI) + ส่งซ่อม/เคลม'}
                             onClick={() => setSerialsFor({ variantId: row.variantId, productName: row.productName, sku: row.sku })}>
                             <Smartphone className="h-4 w-4" />
-                          </button>
+                          </button>}
                         </td>
                       </tr>
                     ))}
@@ -499,4 +532,43 @@ export function InventoryPage() {
       )}
     </div>
   );
+}
+
+function SummaryButton({ label, value, unit, active, tone, onClick, icon }: {
+  label: string;
+  value?: number;
+  unit: string;
+  active: boolean;
+  tone: 'brand' | 'emerald' | 'amber' | 'sky' | 'violet' | 'slate';
+  onClick: () => void;
+  icon?: React.ReactNode;
+}) {
+  const colors = {
+    brand: ['border-brand-400 bg-brand-50 ring-brand-300', 'text-slate-800'],
+    emerald: ['border-emerald-400 bg-emerald-50 ring-emerald-300', 'text-emerald-700'],
+    amber: ['border-amber-400 bg-amber-50 ring-amber-300', 'text-amber-700'],
+    sky: ['border-sky-400 bg-sky-50 ring-sky-300', 'text-sky-700'],
+    violet: ['border-violet-400 bg-violet-50 ring-violet-300', 'text-violet-700'],
+    slate: ['border-slate-400 bg-slate-50 ring-slate-300', 'text-slate-700'],
+  }[tone];
+  return (
+    <button type="button" onClick={onClick}
+            className={`rounded-lg border p-3 text-left transition-colors ${active
+              ? `${colors[0]} ring-1`
+              : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
+      <div className="flex items-center gap-1.5 text-xs text-slate-500">{icon}{label}</div>
+      <div className={`mt-0.5 text-2xl font-bold ${colors[1]}`}>
+        {value == null ? '—' : formatNumber(value)} <span className="text-sm font-normal text-slate-400">{unit}</span>
+      </div>
+    </button>
+  );
+}
+
+function accessoryGroupLabel(group: AccessoryGroup) {
+  return {
+    ACCESSORY: 'Accessory ทั้งหมด',
+    CHARGER_HEAD: 'หัวชาร์จ',
+    CHARGING_CABLE: 'สายชาร์จ',
+    OTHER_ACCESSORY: 'อุปกรณ์เสริมอื่น',
+  }[group];
 }

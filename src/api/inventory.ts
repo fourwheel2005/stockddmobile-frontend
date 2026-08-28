@@ -18,11 +18,11 @@ import type {
 } from '@/types/api';
 
 export const inventoryApi = {
-  list: (params: { page?: number; size?: number; lowStockOnly?: boolean; condition?: 'NEW' | 'SECOND_HAND' } = {}) =>
+  list: (params: { page?: number; size?: number; lowStockOnly?: boolean; condition?: 'NEW' | 'SECOND_HAND'; stockGroup?: InventoryStockGroup; branchId?: string } = {}) =>
     api.get<PageResponse<InventoryResponse>>('/inventory', { params }).then((r) => r.data),
 
-  summary: () =>
-    api.get<StockSummaryResponse>('/inventory/summary').then((r) => r.data),
+  summary: (branchId?: string) =>
+    api.get<StockSummaryResponse>('/inventory/summary', { params: { branchId } }).then((r) => r.data),
 
   // F-12 (FIX-135): reconciliation — serialized SKU ที่ยอด inventory ไม่ตรงจำนวน IMEI พร้อมขายจริง
   reconciliation: () =>
@@ -35,7 +35,7 @@ export const inventoryApi = {
     api.get<PageResponse<SerializedItemResponse>>(`/inventory/${variantId}/serials`, { params }).then((r) => r.data),
 
   /** มุมมองรายเครื่อง (flat ทุกรุ่น) สำหรับหน้า Stock · productId = เฉพาะเครื่องของรุ่นนั้นทุก SKU */
-  listSerials: (params: { status?: string; condition?: 'NEW' | 'SECOND_HAND'; branchId?: string; productId?: string; q?: string; page?: number; size?: number } = {}) =>
+  listSerials: (params: { status?: string; condition?: 'NEW' | 'SECOND_HAND'; branchId?: string; productId?: string; stockGroup?: InventoryStockGroup; q?: string; page?: number; size?: number } = {}) =>
     api.get<PageResponse<SerializedItemResponse>>('/inventory/serials', { params }).then((r) => r.data),
 
   /** suggestion เลขรุ่น + สี (distinct ที่เคยกรอก) — autocomplete ตอนรับเครื่อง */
@@ -97,3 +97,5 @@ export const inventoryApi = {
   deleteServiceLog: (logId: string) =>
     api.delete<void>(`/inventory/service-logs/${logId}`).then((r) => r.data),
 };
+
+export type InventoryStockGroup = 'DEVICE' | 'ACCESSORY' | 'CHARGER_HEAD' | 'CHARGING_CABLE' | 'OTHER_ACCESSORY';
