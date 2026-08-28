@@ -174,7 +174,9 @@ export function SalesHistoryPage() {
       qc.invalidateQueries({ queryKey: ['sales-orders'] });
       qc.invalidateQueries({ queryKey: ['inventory'] });
       qc.invalidateQueries({ queryKey: ['transactions'] });
-      qc.invalidateQueries({ queryKey: ['cash-register'] });
+      qc.invalidateQueries({ queryKey: ['cash-session'] });
+      qc.invalidateQueries({ queryKey: ['cash-register-history'] });
+      qc.invalidateQueries({ queryKey: ['cash-register-summary'] });
       printer.printCreditNote(variables.id).catch(() => undefined);
     },
     onError: (e) => toast.error(extractErrorMessage(e)),
@@ -206,6 +208,9 @@ export function SalesHistoryPage() {
       toast.success(`แก้วันที่ขายบิล ${order.billNo} แล้ว`);
       qc.invalidateQueries({ queryKey: ['sales-orders'] });
       qc.invalidateQueries({ queryKey: ['sales-calendar'] });
+      qc.invalidateQueries({ queryKey: ['cash-session'] });
+      qc.invalidateQueries({ queryKey: ['cash-register-history'] });
+      qc.invalidateQueries({ queryKey: ['cash-register-summary'] });
     },
     onError: (error) => toast.error(extractErrorMessage(error)),
   });

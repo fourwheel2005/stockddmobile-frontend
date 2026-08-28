@@ -17,6 +17,7 @@ describe('EditSaleDateModal', () => {
 
     expect(html).toContain('แก้วันที่ขาย');
     expect(html).toContain('ไม่แก้วันที่สร้างระบบ');
+    expect(html).toContain('ย้ายยอดขายไปสรุปเก๊ะของวันนั้น');
     expect(html).toContain('เลขบิล');
     expect(html).toContain('เหตุผลที่แก้');
     expect(html).toContain('2026-08-20T15:30');

@@ -54,8 +54,8 @@ function ModalFields({ form }: { form: FormState }) {
   return (
     <div className="space-y-4 p-5">
       <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-        เปลี่ยนเฉพาะวันที่ขายที่ใช้ในประวัติและรายงาน โดยไม่แก้วันที่สร้างระบบ เลขบิล
-        และวันที่ของใบกำกับภาษีที่ออกแล้ว
+        วันที่ใหม่จะย้ายยอดขายไปสรุปเก๊ะของวันนั้น แต่รายการรับ–จ่ายเงินจริงและยอดตรวจนับเก๊ะเดิม
+        ยังคงเก็บไว้เป็น audit โดยไม่แก้วันที่สร้างระบบ เลขบิล หรือวันที่ใบกำกับภาษีที่ออกแล้ว
       </div>
       <label className="block text-sm font-medium text-slate-700">
         วันที่และเวลาขาย <span className="text-red-600">*</span>

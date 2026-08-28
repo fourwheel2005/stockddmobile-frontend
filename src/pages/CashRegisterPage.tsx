@@ -157,10 +157,13 @@ export function CashRegisterPage() {
           {/* FIX-158: บันทึกตรวจนับสต็อกของ session (เปิดร้าน/ปิดร้าน) */}
           <StockCountHistory sessionId={session.id} />
 
-          {/* Movements log */}
+          {/* Physical money audit — intentionally not rewritten when sale date changes. */}
           <div className="card">
-            <div className="card-header flex items-center gap-2">
-              <span>📋 รายการเคลื่อนไหวเงินสด ({session.movements?.length ?? 0})</span>
+            <div className="card-header flex items-start justify-between gap-3">
+              <span>📋 รายการเคลื่อนไหวเงินจริง ({session.movements?.length ?? 0})</span>
+              <span className="text-right text-xs font-normal text-slate-500">
+                Audit ตามเวลารับ–จ่ายจริง ไม่ย้ายเมื่อแก้วันที่ขาย
+              </span>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
