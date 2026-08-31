@@ -68,21 +68,24 @@ export function OpenSessionModal({ onOpened, onClose }: Props) {
   return (
     <div
       onClick={backdropCloseHandler(onClose)}
-      className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/70 p-4 pt-[10vh] backdrop-blur-sm animate-modal-fade-in">
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 p-2.5 backdrop-blur-sm animate-modal-fade-in sm:p-4">
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="open-session-title"
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-2xl rounded-xl bg-white shadow-2xl animate-modal-zoom-in">
-        <div className="flex items-center justify-between border-b px-5 py-3.5">
-          <h2 className="flex items-center gap-2 font-semibold">
+        className="flex max-h-[calc(100dvh-1.25rem)] w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl animate-modal-zoom-in sm:max-h-[calc(100dvh-2rem)]">
+        <div className="flex shrink-0 items-center justify-between border-b px-4 py-3 sm:px-5 sm:py-3.5">
+          <h2 id="open-session-title" className="flex items-center gap-2 font-semibold">
             <DoorOpen className="h-5 w-5 text-emerald-600" />
             เปิดเก๊ะ — เริ่มต้นวันใหม่
           </h2>
-          <button onClick={onClose} className="rounded p-1.5 hover:bg-slate-100" title="ปิด (Esc)">
+          <button type="button" onClick={onClose} className="rounded p-1.5 hover:bg-slate-100" title="ปิด (Esc)">
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="space-y-4 p-5">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4 sm:p-5">
           <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800">
             ✅ ตั้งค่าไว้ให้แล้ว <strong>{formatTHB(effectiveFloat)} ทุกวัน</strong> — กด "เปิดเก๊ะ" ได้เลย
             (แก้ตัวเลขได้ถ้าวันไหนใส่ไม่เท่าปกติ)
@@ -135,17 +138,18 @@ export function OpenSessionModal({ onOpened, onClose }: Props) {
           <StockCountSection phaseLabel="เปิดร้าน" onChange={setStockCount} />
         </div>
 
-        <div className="flex items-center justify-end gap-2 border-t bg-slate-50/50 px-5 py-3 rounded-b-xl">
-          <button className="btn-secondary" onClick={onClose}>ยกเลิก</button>
+        <div className="flex shrink-0 flex-col-reverse gap-2 rounded-b-xl border-t bg-slate-50/50 px-4 py-3 sm:flex-row sm:items-center sm:justify-end sm:px-5">
+          <button type="button" className="btn-secondary w-full sm:w-auto" onClick={onClose}>ยกเลิก</button>
           <button
-            className="btn-primary bg-emerald-600 hover:bg-emerald-700"
+            type="button"
+            className="btn-primary w-full justify-center bg-emerald-600 text-center hover:bg-emerald-700 sm:w-auto"
             disabled={open.isPending || !stockCount}
             title={!stockCount ? 'ต้องตรวจนับสต็อก + ติ๊กรับรอง + เลือกชื่อก่อน' : undefined}
             onClick={() => open.mutate()}>
             <DoorOpen className="h-4 w-4" />
             {open.isPending ? 'กำลังเปิด...'
               : !stockCount ? 'ตรวจนับสต็อกให้ครบก่อนเปิดเก๊ะ'
-              : `เปิดเก๊ะ ${formatTHB(openingFloat)}`}
+              : `เปิดเก๊ะ ${formatTHB(effectiveFloat)}`}
           </button>
         </div>
       </div>

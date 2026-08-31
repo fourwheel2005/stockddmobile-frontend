@@ -45,7 +45,7 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
 
-      {/* ─── STAFF เข้าได้: POS + พิมพ์ใบจัดส่ง + เก๊ะ + งานซ่อม + ประวัติบิลตัวเอง ─── */}
+      {/* ─── STAFF เข้าได้: POS + พิมพ์ใบจัดส่ง + เก๊ะ + งานซ่อม + ประวัติบิลทั้งร้าน ─── */}
       <Route element={<ProtectedRoute />}>
         <Route element={<AppShell />}>
           <Route path="/pos" element={<PosTerminalPage />} />

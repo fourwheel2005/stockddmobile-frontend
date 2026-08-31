@@ -238,7 +238,7 @@ export function SalesHistoryPage() {
           <h1 className="flex items-center gap-2 page-title">
             <Receipt className="h-6 w-6 text-brand-600" /> ประวัติการขาย (Sales History)
           </h1>
-          <p className="text-sm text-slate-500">บิลขาย + งานซ่อม (🔧) รวมในไทม์ไลน์เดียว</p>
+          <p className="text-sm text-slate-500">บิลขายทุกผู้ขายในสาขาที่เลือก + งานซ่อม (🔧) รวมในไทม์ไลน์เดียว</p>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-sm">
           {/* ค้นหาเลขบิล / ลูกค้า */}
