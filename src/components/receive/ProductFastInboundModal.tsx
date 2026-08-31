@@ -15,6 +15,8 @@ import {
 } from '@/lib/deviceOptions';
 import { ImageEditor } from '@/components/MultiImageUpload';
 import { InstallmentPlansEditor } from '@/components/products/InstallmentPlansEditor';
+import { AccessorySerialInboundModal } from './AccessorySerialInboundModal';
+import { isAccessoryProduct } from '@/lib/productKind';
 import { serializePlans, type InstallmentPlan } from '@/lib/installment';
 import type {
   AcquisitionType, ProductDetail, VariantResponse, WizardInitialItem, WizardVariantBlock,
@@ -88,13 +90,23 @@ const deviceCode = (base: string, idx: number) => {
   return 'DD' + String(parseInt(m[1], 10) + idx).padStart(5, '0');
 };
 
-export function ProductFastInboundModal({ product, initialVariant, onClose, onDone }: {
+export interface ProductFastInboundModalProps {
   product: ProductDetail;
   /** เปิดจากปุ่ม 📥 ท้ายแถว SKU — prefill สี/ความจุ/มือ ของ SKU นั้น (แก้รายแถวได้เหมือนเดิม) */
   initialVariant?: VariantResponse;
   onClose: () => void;
   onDone: () => void;
-}) {
+}
+
+/** แยก business ตั้งแต่ประตูเข้า: accessory กรอก Barcode/SN; device คงฟอร์มรายเครื่องเดิม. */
+export function ProductFastInboundModal(props: ProductFastInboundModalProps) {
+  if (isAccessoryProduct(props.product)) {
+    return <AccessorySerialInboundModal {...props} />;
+  }
+  return <DeviceFastInboundModal {...props} />;
+}
+
+function DeviceFastInboundModal({ product, initialVariant, onClose, onDone }: ProductFastInboundModalProps) {
   useModalChrome(onClose);
   const qc = useQueryClient();
 

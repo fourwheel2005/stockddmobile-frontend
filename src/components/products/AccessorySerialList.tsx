@@ -18,7 +18,7 @@ const EMPTY: AccessorySerialRow = { imei: '', serialNumber: '' };
  * Compact list สำหรับ "อุปกรณ์เสริม + Serial รายชิ้น":
  *  - Scanner mode bar ที่หัว — ยิงปุ๊บ + Enter = เพิ่มแถวทันที
  *  - Quick paste: วาง multiple lines = เพิ่มหลายตัวพร้อมกัน
- *  - Row compact: แค่ IMEI + Serial + ลบ (ไม่มี ที่มา/สภาพ/แบต/ราคา/ประกัน รายตัว)
+ *  - Row compact: แค่ Barcode/Serial + ลบ (ไม่สร้าง IMEI ปลอม · ไม่มีสี/ความจุ/แบต/ราคารายตัว)
  *  - Lot-wide defaults (ที่มา/ทุน/ประกัน) ใส่ครั้งเดียวที่ ProductRegisterPage
  *  - Duplicate detection — block ใส่ซ้ำ
  *  - Counter: "12 ชิ้น"

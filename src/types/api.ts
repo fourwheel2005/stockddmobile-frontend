@@ -649,6 +649,8 @@ export interface LotResponse {
 }
 
 export interface LotInboundRequest {
+  /** รับเข้าสาขาที่กำลังทำงาน; เว้น = MAIN */
+  branchId?: string;
   lotNo: string;
   importDate: string;
   note?: string;
@@ -666,6 +668,8 @@ export interface LotInboundRequest {
     deviceStorage?: string;
     deviceNetwork?: string;
     purchasePrice?: number;
+    /** วันหมดประกัน YYYY-MM-DD */
+    warrantyExpire?: string;
   }>;
 }
 
