@@ -1,10 +1,11 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Cable, ChevronDown, ChevronRight, Package, PlugZap, Search, Smartphone, X } from 'lucide-react';
+import { Cable, ChevronDown, ChevronRight, Eye, Package, PlugZap, Search, Smartphone, X } from 'lucide-react';
 import { inventoryApi, type InventoryStockGroup } from '@/api/inventory';
 import { useBranchStore } from '@/stores/branchStore';
 import { useAuthStore } from '@/stores/authStore';
 import { SerialsModal } from '@/components/SerialsModal';
+import { StockDeviceListModal, type StockCheckCondition } from '@/components/inventory/StockDeviceListModal';
 import { formatNumber, formatDateTime } from '@/lib/format';
 import type { SerializedItemResponse } from '@/types/api';
 
@@ -38,6 +39,7 @@ export function InventoryPage() {
   const [foundDevice, setFoundDevice] = useState<SerializedItemResponse | null>(null);
   const [notFound, setNotFound] = useState<string | null>(null);
   const [serialsFor, setSerialsFor] = useState<{ variantId: string; productName: string; sku: string; highlightId?: string } | null>(null);
+  const [stockView, setStockView] = useState<StockCheckCondition | null>(null);
   const activeBranchId = useBranchStore((s) => s.activeBranchId);
 
   // มุมมองรวมรุ่น — ดึงมาทั้งหมด (ร้านมี variant ไม่กี่สิบ) แล้ว group ตามชื่อรุ่นฝั่ง client
@@ -88,6 +90,7 @@ export function InventoryPage() {
   const pickCondition = (c: ConditionFilter) => {
     setCondition(c); setPage(0);
     if (viewMode === 'accessory') setViewMode('device');
+    if (viewMode === 'device' || viewMode === 'accessory') setDeviceStatus('IN_STOCK');
   };
   const pickAccessory = (group: AccessoryGroup) => {
     setAccessoryGroup(group); setCondition(''); setPage(0); setViewMode('accessory');
@@ -258,10 +261,10 @@ export function InventoryPage() {
                          onClick={() => pickCondition('')} />
           <SummaryButton label="มือ 1 (ใหม่)" value={summary?.newAvailable} unit="เครื่อง"
                          active={viewMode !== 'accessory' && condition === 'NEW'} tone="emerald"
-                         onClick={() => pickCondition('NEW')} />
+                         onClick={() => pickCondition('NEW')} onView={() => setStockView('NEW')} />
           <SummaryButton label="มือ 2 (มือสอง)" value={summary?.secondHandAvailable} unit="เครื่อง"
                          active={viewMode !== 'accessory' && condition === 'SECOND_HAND'} tone="amber"
-                         onClick={() => pickCondition('SECOND_HAND')} />
+                         onClick={() => pickCondition('SECOND_HAND')} onView={() => setStockView('SECOND_HAND')} />
         </div>
       </section>
 
@@ -530,17 +533,27 @@ export function InventoryPage() {
           onClose={() => setSerialsFor(null)}
         />
       )}
+      {stockView && (
+        <StockDeviceListModal
+          condition={stockView}
+          scope="READY"
+          branchId={activeBranchId ?? undefined}
+          expectedTotal={stockView === 'NEW' ? summary?.newAvailable : summary?.secondHandAvailable}
+          onClose={() => setStockView(null)}
+        />
+      )}
     </div>
   );
 }
 
-function SummaryButton({ label, value, unit, active, tone, onClick, icon }: {
+function SummaryButton({ label, value, unit, active, tone, onClick, onView, icon }: {
   label: string;
   value?: number;
   unit: string;
   active: boolean;
   tone: 'brand' | 'emerald' | 'amber' | 'sky' | 'violet' | 'slate';
   onClick: () => void;
+  onView?: () => void;
   icon?: React.ReactNode;
 }) {
   const colors = {
@@ -552,15 +565,22 @@ function SummaryButton({ label, value, unit, active, tone, onClick, icon }: {
     slate: ['border-slate-400 bg-slate-50 ring-slate-300', 'text-slate-700'],
   }[tone];
   return (
-    <button type="button" onClick={onClick}
-            className={`rounded-lg border p-3 text-left transition-colors ${active
-              ? `${colors[0]} ring-1`
-              : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
-      <div className="flex items-center gap-1.5 text-xs text-slate-500">{icon}{label}</div>
-      <div className={`mt-0.5 text-2xl font-bold ${colors[1]}`}>
-        {value == null ? '—' : formatNumber(value)} <span className="text-sm font-normal text-slate-400">{unit}</span>
-      </div>
-    </button>
+    <div className={`overflow-hidden rounded-lg border transition-colors ${active
+      ? `${colors[0]} ring-1`
+      : 'border-slate-200 bg-white'}`}>
+      <button type="button" onClick={onClick} className="w-full p-3 text-left hover:bg-slate-50/70">
+        <div className="flex items-center gap-1.5 text-xs text-slate-500">{icon}{label}</div>
+        <div className={`mt-0.5 text-2xl font-bold ${colors[1]}`}>
+          {value == null ? '—' : formatNumber(value)} <span className="text-sm font-normal text-slate-400">{unit}</span>
+        </div>
+      </button>
+      {onView && (
+        <button type="button" onClick={onView}
+                className="flex w-full items-center justify-center gap-1.5 border-t border-current/10 bg-white/60 px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-white">
+          <Eye className="h-3.5 w-3.5" /> ดูว่าเหลือเครื่องไหนบ้าง
+        </button>
+      )}
+    </div>
   );
 }
 

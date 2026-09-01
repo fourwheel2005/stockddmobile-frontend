@@ -38,6 +38,10 @@ export const inventoryApi = {
   listSerials: (params: { status?: string; condition?: 'NEW' | 'SECOND_HAND'; branchId?: string; productId?: string; stockGroup?: InventoryStockGroup; q?: string; page?: number; size?: number } = {}) =>
     api.get<PageResponse<SerializedItemResponse>>('/inventory/serials', { params }).then((r) => r.data),
 
+  /** รายเครื่องที่ต้องตรงกับยอดบนการ์ดตรวจนับ: includeHeld=false พร้อมขาย, true ทุกเครื่องที่ยังอยู่จริงในร้าน */
+  stockCheckDevices: (params: { condition: 'NEW' | 'SECOND_HAND'; branchId?: string; includeHeld?: boolean; q?: string; page?: number; size?: number }) =>
+    api.get<PageResponse<SerializedItemResponse>>('/inventory/serials/stock-check', { params }).then((r) => r.data),
+
   /** suggestion เลขรุ่น + สี (distinct ที่เคยกรอก) — autocomplete ตอนรับเครื่อง */
   serialSuggestions: () =>
     api.get<{ modelNumbers: string[]; colors: string[] }>('/inventory/serials/suggestions').then((r) => r.data),

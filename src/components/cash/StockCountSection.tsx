@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Cable, ClipboardCheck, Package, PlugZap, Smartphone } from 'lucide-react';
+import { Cable, ClipboardCheck, Eye, Package, PlugZap, Smartphone } from 'lucide-react';
 import { posApi } from '@/api/pos';
 import { useBranchStore } from '@/stores/branchStore';
+import { StockDeviceListModal, type StockCheckCondition } from '@/components/inventory/StockDeviceListModal';
 
 export interface StockCountPayload {
   countedNew: number;
@@ -72,6 +73,7 @@ export function StockCountSection({ phaseLabel, onChange }: {
   const [counts, setCounts] = useState<StockCountTexts>(EMPTY_COUNTS);
   const [certified, setCertified] = useState(false);
   const [certifiedName, setCertifiedName] = useState('');
+  const [stockView, setStockView] = useState<StockCheckCondition | null>(null);
 
   const expected: ExpectedCounts = {
     newDevices: balance.data?.newDevices.onHand.expectedPhysical ?? null,
@@ -91,6 +93,7 @@ export function StockCountSection({ phaseLabel, onChange }: {
   };
 
   return (
+    <>
     <div className="rounded-lg border-2 border-sky-200 bg-sky-50/50 p-3">
       <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-sky-900">
         <ClipboardCheck className="h-4 w-4" />
@@ -100,9 +103,11 @@ export function StockCountSection({ phaseLabel, onChange }: {
       <CountGroup title="เครื่อง — ไม่นับรวมอุปกรณ์เสริม" icon={<Smartphone className="h-4 w-4" />}
                   columns="sm:grid-cols-2">
         <CountInput label="เครื่องมือ 1" value={counts.newDevices} expected={expected.newDevices}
-                    unit="เครื่อง" onChange={(value) => updateCount('newDevices', value)} />
+                    unit="เครื่อง" onChange={(value) => updateCount('newDevices', value)}
+                    onView={() => setStockView('NEW')} />
         <CountInput label="เครื่องมือ 2" value={counts.secondHandDevices} expected={expected.secondHandDevices}
-                    unit="เครื่อง" onChange={(value) => updateCount('secondHandDevices', value)} />
+                    unit="เครื่อง" onChange={(value) => updateCount('secondHandDevices', value)}
+                    onView={() => setStockView('SECOND_HAND')} />
       </CountGroup>
 
       <CountGroup title="อุปกรณ์เสริม — แยกนับจากเครื่อง" icon={<PlugZap className="h-4 w-4" />}
@@ -149,6 +154,16 @@ export function StockCountSection({ phaseLabel, onChange }: {
         </div>
       </div>
     </div>
+    {stockView && (
+      <StockDeviceListModal
+        condition={stockView}
+        scope="PHYSICAL"
+        branchId={branchId ?? undefined}
+        expectedTotal={stockView === 'NEW' ? expected.newDevices : expected.secondHandDevices}
+        onClose={() => setStockView(null)}
+      />
+    )}
+    </>
   );
 }
 
@@ -163,9 +178,9 @@ function CountGroup({ title, icon, columns, children }: {
   );
 }
 
-function CountInput({ label, value, expected, unit, onChange, icon }: {
+function CountInput({ label, value, expected, unit, onChange, onView, icon }: {
   label: string; value: string; expected: number | null; unit: string;
-  onChange: (value: string) => void; icon?: React.ReactNode;
+  onChange: (value: string) => void; onView?: () => void; icon?: React.ReactNode;
 }) {
   const difference = value.trim() === '' || expected == null ? null : Number(value) - expected;
   return (
@@ -174,11 +189,22 @@ function CountInput({ label, value, expected, unit, onChange, icon }: {
         <span className="flex items-start gap-1">
           {icon}<span>{label}<br />ระบบคาด <strong>{expected ?? '...'} {unit}</strong></span>
         </span>
-        {difference === 0 && <span className="shrink-0 font-semibold text-emerald-600">✓ ตรง</span>}
-        {difference != null && difference !== 0 && (
+        {onView && (
+          <button type="button" onClick={onView}
+                  className="inline-flex shrink-0 items-center gap-1 font-semibold text-brand-700 hover:underline">
+            <Eye className="h-3.5 w-3.5" /> View
+          </button>
+        )}
+        {!onView && difference === 0 && <span className="shrink-0 font-semibold text-emerald-600">✓ ตรง</span>}
+        {!onView && difference != null && difference !== 0 && (
           <span className="shrink-0 font-semibold text-red-600">{difference > 0 ? `เกิน +${difference}` : `ขาด ${difference}`}</span>
         )}
       </div>
+      {onView && difference != null && (
+        <div className={`mb-1 text-right text-[11px] font-semibold ${difference === 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+          {difference === 0 ? '✓ ตรง' : difference > 0 ? `เกิน +${difference}` : `ขาด ${difference}`}
+        </div>
+      )}
       <input type="number" min={0} step={1} inputMode="numeric"
              aria-label={`จำนวนนับจริง ${label}`}
              className="input w-full text-center text-lg font-semibold tabular-nums"

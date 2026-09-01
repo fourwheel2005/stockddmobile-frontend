@@ -63,6 +63,7 @@ describe('DailyStockBalanceCard', () => {
     expect(html).toContain('21/08/2569');
     expect(html).toContain('เครื่องใหม่ (มือ 1)');
     expect(html).toContain('เครื่องมือสอง');
+    expect(html.match(/ดูว่าเป็นเครื่องไหนบ้าง/g)).toHaveLength(2);
     expect(html).toContain('รอลงสต๊อก 2');
     expect(html).toContain('รวมเครื่องที่ควรพบจริง <strong class="text-slate-900">13 เครื่อง');
     expect(html).toContain('ขายวันนี้ 3 เครื่อง');

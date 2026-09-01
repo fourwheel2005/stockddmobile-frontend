@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Boxes, Cable, Package, PlugZap, RefreshCw } from 'lucide-react';
+import { Boxes, Cable, Eye, Package, PlugZap, RefreshCw } from 'lucide-react';
 import { posApi } from '@/api/pos';
+import { StockDeviceListModal, type StockCheckCondition } from '@/components/inventory/StockDeviceListModal';
 import type { DailyStockBalance, DailyStockGroup } from '@/types/api';
 
 const REFRESH_INTERVAL_MS = 60_000;
@@ -14,16 +16,31 @@ export function dailyStockBalanceKey(branchId?: string) {
 }
 
 export function DailyStockBalanceCard({ branchId }: Props) {
+  const [stockView, setStockView] = useState<StockCheckCondition | null>(null);
   const query = useQuery({
     queryKey: dailyStockBalanceKey(branchId),
     queryFn: () => posApi.dailyStockBalance(branchId),
     refetchInterval: REFRESH_INTERVAL_MS,
   });
   return (
+    <>
     <section className="card overflow-hidden" aria-label="รายงานตรวจนับสต็อกวันนี้">
       <ReportHeader data={query.data} fetching={query.isFetching} onRefresh={() => query.refetch()} />
-      <ReportContent data={query.data} loading={query.isLoading} error={query.isError} />
+      <ReportContent data={query.data} loading={query.isLoading} error={query.isError}
+                     onView={setStockView} />
     </section>
+    {stockView && (
+      <StockDeviceListModal
+        condition={stockView}
+        scope="PHYSICAL"
+        branchId={branchId}
+        expectedTotal={stockView === 'NEW'
+          ? query.data?.newDevices.onHand.expectedPhysical
+          : query.data?.secondHandDevices.onHand.expectedPhysical}
+        onClose={() => setStockView(null)}
+      />
+    )}
+    </>
   );
 }
 
@@ -45,16 +62,17 @@ function ReportHeader({ data, fetching, onRefresh }: {
   );
 }
 
-function ReportContent({ data, loading, error }: {
+function ReportContent({ data, loading, error, onView }: {
   data?: DailyStockBalance; loading: boolean; error: boolean;
+  onView: (condition: StockCheckCondition) => void;
 }) {
   if (loading) return <div className="p-5 text-sm text-slate-500">กำลังสรุปยอดสต๊อก...</div>;
   if (error || !data) return <div className="p-5 text-sm text-red-600">โหลดรายงานสต๊อกไม่สำเร็จ กรุณากดอัปเดตยอดอีกครั้ง</div>;
   return (
     <div className="p-4">
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        <StockGroupCard group={data.newDevices} tone="emerald" />
-        <StockGroupCard group={data.secondHandDevices} tone="amber" />
+        <StockGroupCard group={data.newDevices} tone="emerald" onView={() => onView('NEW')} />
+        <StockGroupCard group={data.secondHandDevices} tone="amber" onView={() => onView('SECOND_HAND')} />
       </div>
       <AccessorySection data={data} />
       <ReportFooter data={data} />
@@ -62,13 +80,24 @@ function ReportContent({ data, loading, error }: {
   );
 }
 
-function StockGroupCard({ group, tone }: { group: DailyStockGroup; tone: 'emerald' | 'amber' }) {
+function StockGroupCard({ group, tone, onView }: {
+  group: DailyStockGroup;
+  tone: 'emerald' | 'amber';
+  onView: () => void;
+}) {
   const held = heldTotal(group);
   const color = tone === 'emerald' ? 'border-emerald-200 bg-emerald-50/60' : 'border-amber-200 bg-amber-50/60';
   return (
     <div className={`rounded-lg border p-4 ${color}`}>
       <div className="flex items-end justify-between gap-3">
-        <div><p className="text-sm font-semibold text-slate-700">{group.label}</p><p className="text-xs text-slate-500">ยอดที่ควรพบจริงในร้าน</p></div>
+        <div>
+          <p className="text-sm font-semibold text-slate-700">{group.label}</p>
+          <p className="text-xs text-slate-500">ยอดที่ควรพบจริงในร้าน</p>
+          <button type="button" onClick={onView}
+                  className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-brand-700 hover:underline">
+            <Eye className="h-3.5 w-3.5" /> ดูว่าเป็นเครื่องไหนบ้าง
+          </button>
+        </div>
         <p className="text-3xl font-bold text-slate-900">{group.onHand.expectedPhysical}<span className="ml-1 text-sm font-medium">เครื่อง</span></p>
       </div>
       <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs">

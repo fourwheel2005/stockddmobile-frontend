@@ -34,6 +34,7 @@ describe('InventoryPage stock separation', () => {
     expect(html).toContain('พร้อมขายทั้งหมด');
     expect(html).toContain('มือ 1 (ใหม่)');
     expect(html).toContain('มือ 2 (มือสอง)');
+    expect(html.match(/ดูว่าเหลือเครื่องไหนบ้าง/g)).toHaveLength(2);
     expect(html).toContain('อุปกรณ์เสริม — รวม 23 ชิ้น');
     expect(html).toContain('หัวชาร์จ');
     expect(html).toContain('สายชาร์จ');
