@@ -1,13 +1,13 @@
 import { useState } from 'react';
-import { X, PackageOpen, Banknote } from 'lucide-react';
+import { X, PackageOpen, Banknote, ArrowLeftRight } from 'lucide-react';
 import { formatTHB } from '@/lib/format';
 import { useModalChrome, backdropCloseHandler } from '@/hooks/useModalChrome';
-import type { SalesOrderResponse } from '@/types/api';
+import type { RefundMethod, SalesOrderResponse } from '@/types/api';
 
 interface Props {
   order: SalesOrderResponse;
   onClose: () => void;
-  onConfirm: (refundAmount: number, reason: string) => void;
+  onConfirm: (refundAmount: number, reason: string, refundMethod: RefundMethod) => void;
   loading?: boolean;
 }
 
@@ -20,6 +20,7 @@ interface Props {
 export function ReturnDeviceModal({ order, onClose, onConfirm, loading }: Props) {
   const [refundText, setRefundText] = useState('0');
   const [reason, setReason] = useState('');
+  const [refundMethod, setRefundMethod] = useState<RefundMethod>('CASH');   // FIX-194
   useModalChrome(onClose);
 
   const paid = order.paidAmount ?? 0;
@@ -85,7 +86,7 @@ export function ReturnDeviceModal({ order, onClose, onConfirm, loading }: Props)
             </div>
             <p className="mt-1 text-xs text-slate-500">
               💡 ปกติ <strong>0</strong> = ร้านเก็บงวดที่จ่ายมาแล้ว · ใส่จำนวนถ้าตกลงคืนบางส่วน
-              {refund > 0 && <> · คืนเป็นเงินสดจากลิ้นชัก {formatTHB(refund)}</>}
+              {refund > 0 && <> · คืน {formatTHB(refund)} {refundMethod === 'CASH' ? 'เป็นเงินสดจากลิ้นชัก' : 'โดยโอนเข้าบัญชีลูกค้า'}</>}
             </p>
             {!refundValid && (
               <p className="mt-1 text-xs font-medium text-red-600">
@@ -93,6 +94,27 @@ export function ReturnDeviceModal({ order, onClose, onConfirm, loading }: Props)
               </p>
             )}
           </div>
+
+          {/* FIX-194: วิธีคืนเงินจริง — เก๊ะลดเฉพาะเมื่อคืนสด */}
+          {refund > 0 && (
+            <div>
+              <div className="mb-1 text-sm font-medium">คืนเงินให้ลูกค้าทางไหน</div>
+              <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="วิธีคืนเงิน">
+                <button type="button" role="radio" aria-checked={refundMethod === 'CASH'}
+                  onClick={() => setRefundMethod('CASH')}
+                  className={`flex items-center gap-2 rounded-md border px-3 py-2 text-left text-sm ${
+                    refundMethod === 'CASH' ? 'border-brand-500 bg-brand-50 font-semibold text-brand-700' : 'border-slate-200 hover:bg-slate-50'}`}>
+                  <Banknote className="h-4 w-4" /> เงินสดจากเก๊ะ
+                </button>
+                <button type="button" role="radio" aria-checked={refundMethod === 'TRANSFER'}
+                  onClick={() => setRefundMethod('TRANSFER')}
+                  className={`flex items-center gap-2 rounded-md border px-3 py-2 text-left text-sm ${
+                    refundMethod === 'TRANSFER' ? 'border-brand-500 bg-brand-50 font-semibold text-brand-700' : 'border-slate-200 hover:bg-slate-50'}`}>
+                  <ArrowLeftRight className="h-4 w-4" /> โอนคืนเข้าบัญชี
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* เหตุผล */}
           <div>
@@ -113,7 +135,7 @@ export function ReturnDeviceModal({ order, onClose, onConfirm, loading }: Props)
           <button
             className="btn-primary bg-amber-600 hover:bg-amber-700"
             disabled={!canConfirm}
-            onClick={() => onConfirm(refund, reason.trim())}>
+            onClick={() => onConfirm(refund, reason.trim(), refundMethod)}>
             <PackageOpen className="h-4 w-4" />
             {loading ? 'กำลังรับคืน...' : 'ยืนยันรับเครื่องคืน'}
           </button>

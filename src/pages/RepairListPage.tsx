@@ -76,6 +76,9 @@ export function RepairListPage() {
     onSuccess: () => {
       toast.success('อัปเดตสถานะแล้ว');
       qc.invalidateQueries({ queryKey: ['repair-tickets'] });
+      // FIX-194: เงินค่าซ่อมลงเก๊ะแล้ว → รีเฟรชยอดเก๊ะ/สรุปที่เปิดค้างอยู่
+      qc.invalidateQueries({ queryKey: ['cash-session'] });
+      qc.invalidateQueries({ queryKey: ['cash-register-summary'] });
       setDoneTarget(null);
       setPickupTarget(null);
     },
@@ -340,6 +343,11 @@ function PickupDialog({ ticket, pending, onClose, onConfirm }: {
                   }`}>{o.label}</button>
         ))}
       </div>
+      <p className="mt-2 text-[11px] text-slate-500">
+        {method === 'CASH'
+          ? `เงินสด ${formatTHB(ticket.balanceDue)} จะเข้าเก๊ะกะที่เปิดอยู่ (ต้องเปิดเก๊ะก่อน)`
+          : 'บันทึกเป็นยอดโอน/บัตรในเก๊ะ (ไม่กระทบเงินสด)'}
+      </p>
       <div className="mt-4 flex justify-end gap-2">
         <button className="btn-secondary" onClick={onClose}>ยกเลิก</button>
         <button className="btn-primary" disabled={pending} onClick={() => onConfirm(method)}>

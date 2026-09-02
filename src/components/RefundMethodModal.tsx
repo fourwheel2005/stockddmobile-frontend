@@ -2,26 +2,23 @@ import { useState } from 'react';
 import { X, Undo2, Banknote, ArrowLeftRight } from 'lucide-react';
 import { formatTHB } from '@/lib/format';
 import { useModalChrome, backdropCloseHandler } from '@/hooks/useModalChrome';
-import type { SalesOrderResponse } from '@/types/api';
+import type { RefundMethod, SalesOrderResponse } from '@/types/api';
 
 interface Props {
   order: SalesOrderResponse;
   onClose: () => void;
-  onConfirm: (reason: string) => void;
+  onConfirm: (reason: string, refundMethod: RefundMethod) => void;
   loading?: boolean;
   creditNote?: boolean;
 }
 
 /**
- * V31 — Q3: ให้พนักงานเลือกวิธีคืนเงินสำหรับบิลที่จ่ายแบบผสม / โอน
+ * V31 — Q3 / FIX-194: พนักงานเลือก "วิธีคืนเงินจริง" ได้เอง
  *
- *  - บิลที่จ่ายสด 100% → คืนสด เท่านั้น (UI lock — ไม่ confuse)
- *  - บิลที่จ่ายโอน 100% → คืนผ่านโอน (default)
- *  - บิลผสม → แสดงสัดส่วนเดิม + ให้เลือก override
- *
- *  หมายเหตุ: backend ใช้ cashAmount และรวม transfer/card/QR เป็น external refund audit
- *  ไม่ต้องส่งฟิลด์เพิ่ม — modal นี้ทำหน้าที่ "ยืนยันความเข้าใจ"
- *  ก่อนกด refund (UX confirm)
+ *  - default = เงินสดถ้าบิลจ่ายสดทั้งบิล, ไม่งั้น = โอน (ตามช่องทางเดิม)
+ *  - เลือก "เงินสด" → ทั้งยอดออกจากเก๊ะปัจจุบัน (ลดเงินที่ควรมี)
+ *  - เลือก "โอนคืน" → ทั้งยอดเป็น audit ไม่แตะเงินสด — ใช้เมื่อโอนคืนบิลที่จ่ายสด
+ *    (root cause A ของเก๊ะไม่ตรง: เดิมระบบหักเงินสดทั้งที่โอนคืนจริง)
  */
 export function RefundMethodModal({ order, onClose, onConfirm, loading, creditNote = false }: Props) {
   const [reason, setReason] = useState('');
@@ -32,6 +29,8 @@ export function RefundMethodModal({ order, onClose, onConfirm, loading, creditNo
   const card = order.cardAmount ?? 0;
   const qr = order.qrAmount ?? 0;
   const total = cash + transfer + card + qr;
+  const [refundMethod, setRefundMethod] = useState<RefundMethod>(defaultRefundMethod(order));
+  const refundTotal = total > 0 ? total : order.paidAmount;
 
   return (
     <div
@@ -94,6 +93,24 @@ export function RefundMethodModal({ order, onClose, onConfirm, loading, creditNo
             </div>
           </div>
 
+          {/* FIX-194: วิธีคืนเงินจริง — เก๊ะจะบันทึกตามที่เลือก ไม่ใช่ตามวิธีจ่ายเดิม */}
+          <div>
+            <div className="mb-1 text-sm font-medium">คืนเงินให้ลูกค้าทางไหน <span className="text-red-500">*</span></div>
+            <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="วิธีคืนเงิน">
+              <RefundMethodButton active={refundMethod === 'CASH'} onClick={() => setRefundMethod('CASH')}
+                icon={<Banknote className="h-4 w-4" />} label="เงินสดจากเก๊ะ"
+                hint={`เก๊ะลด ${formatTHB(refundTotal)}`} />
+              <RefundMethodButton active={refundMethod === 'TRANSFER'} onClick={() => setRefundMethod('TRANSFER')}
+                icon={<ArrowLeftRight className="h-4 w-4" />} label="โอนคืนเข้าบัญชีลูกค้า"
+                hint="ไม่แตะเงินสดในเก๊ะ — บันทึก audit" />
+            </div>
+            {cash > 0 && refundMethod === 'TRANSFER' && (
+              <p className="mt-1 text-[11px] text-amber-700">
+                บิลนี้ลูกค้าจ่ายสด {formatTHB(cash)} — เลือกโอนคืนเมื่อโอนเงินกลับให้ลูกค้าจริงเท่านั้น เก๊ะจะไม่ถูกหัก
+              </p>
+            )}
+          </div>
+
           {/* Stock restore notice */}
           <div className="rounded-md border border-emerald-200 bg-emerald-50 p-2.5 text-xs text-emerald-800">
             📦 สินค้า {order.items.length} รายการจะถูกคืนกลับเข้าสต็อกอัตโนมัติ
@@ -124,7 +141,7 @@ export function RefundMethodModal({ order, onClose, onConfirm, loading, creditNo
           <button
             className="btn-primary bg-amber-600 hover:bg-amber-700"
             disabled={loading || reason.trim().length === 0}
-            onClick={() => onConfirm(reason.trim())}>
+            onClick={() => onConfirm(reason.trim(), refundMethod)}>
             <Undo2 className="h-4 w-4" />
             {loading ? 'กำลังดำเนินการ...' : creditNote ? 'ออกใบลดหนี้และคืนเงิน' : 'ยืนยันคืนเงิน'}
           </button>
@@ -148,5 +165,24 @@ function RefundLine({ icon, label, amount, hint }: {
       </div>
       <span className="font-bold tabular-nums">{formatTHB(amount)}</span>
     </div>
+  );
+}
+
+/** เงินสดล้วน → คืนสด; มีโอน/บัตร/QR → โอนคืน (พนักงานเปลี่ยนได้) */
+export function defaultRefundMethod(order: Pick<SalesOrderResponse, 'cashAmount' | 'transferAmount' | 'cardAmount' | 'qrAmount'>): RefundMethod {
+  const external = (order.transferAmount ?? 0) + (order.cardAmount ?? 0) + (order.qrAmount ?? 0);
+  return external > 0 ? 'TRANSFER' : 'CASH';
+}
+
+function RefundMethodButton({ active, onClick, icon, label, hint }: {
+  active: boolean; onClick: () => void; icon: React.ReactNode; label: string; hint: string;
+}) {
+  return (
+    <button type="button" role="radio" aria-checked={active} onClick={onClick}
+      className={`rounded-md border px-3 py-2 text-left text-sm transition ${
+        active ? 'border-brand-500 bg-brand-50 font-semibold text-brand-700' : 'border-slate-200 hover:bg-slate-50'}`}>
+      <span className="flex items-center gap-2">{icon}{label}</span>
+      <span className="mt-0.5 block text-[11px] font-normal text-slate-500">{hint}</span>
+    </button>
   );
 }

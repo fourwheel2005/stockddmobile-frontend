@@ -12,6 +12,7 @@ import type {
   SavedShippingAddress,
   ShippingAddressInput,
   TradeInProductResponse,
+  RefundMethod,
 } from '@/types/api';
 
 export const posApi = {
@@ -46,7 +47,7 @@ export const posApi = {
       params: { q, page, size },
     }).then((r) => r.data),
 
-  /** รับชำระค่างวด (เงินสด) — ออกบิลโดยไม่ตัดสต็อก, ไม่ผูกตารางงวดผ่อน (FIX-085) */
+  /** รับชำระค่างวด (สด หรือ โอน — FIX-194) — ออกบิลโดยไม่ตัดสต็อก, ไม่ผูกตารางงวดผ่อน (FIX-085) */
   collectInstallment: (req: {
     amount: number;
     customerId?: string;
@@ -55,6 +56,8 @@ export const posApi = {
     note?: string;
     branchId?: string;
     cashierProfileId?: string;
+    paymentMethod?: 'CASH' | 'TRANSFER';
+    paymentReference?: string;
   }) =>
     api.post<SalesOrderResponse>('/pos/installment-collection', req).then((r) => r.data),
 
@@ -73,10 +76,10 @@ export const posApi = {
       { saleDate, reason }, { headers: { 'X-Security-Code': securityCode } }).then((r) => r.data),
 
   /** ยกเลิก/คืนเงินบิลที่ขายไปแล้ว — ต้องมีรหัสความปลอดภัยของร้านทุก role (FIX-103) */
-  refund: (id: string, securityCode: string, reason?: string) =>
+  refund: (id: string, securityCode: string, reason?: string, refundMethod?: RefundMethod) =>
     api.post<SalesOrderResponse>(`/pos/orders/${id}/refund`,
       null, {
-        params: reason ? { reason } : {},
+        params: { ...(reason ? { reason } : {}), ...(refundMethod ? { refundMethod } : {}) },
         headers: { 'X-Security-Code': securityCode },
       }).then((r) => r.data),
 
@@ -90,10 +93,10 @@ export const posApi = {
     api.get<SalesOrderResponse | null>(`/pos/orders/by-serial/${serialItemId}/installment`).then((r) => r.data),
 
   /** รับเครื่องคืนจากลูกค้าผ่อน (ผ่อนไม่ไหว) — เครื่องเข้าสต็อก + คืนเงินตามที่ระบุ (0 = ไม่คืน) */
-  returnDevice: (id: string, refundAmount: number, securityCode: string, reason?: string) =>
+  returnDevice: (id: string, refundAmount: number, securityCode: string, reason?: string, refundMethod?: RefundMethod) =>
     api.post<SalesOrderResponse>(`/pos/orders/${id}/return-device`,
       null, {
-        params: { refundAmount, ...(reason ? { reason } : {}) },
+        params: { refundAmount, ...(reason ? { reason } : {}), ...(refundMethod ? { refundMethod } : {}) },
         headers: { 'X-Security-Code': securityCode },
       }).then((r) => r.data),
 

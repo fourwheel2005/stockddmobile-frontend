@@ -1,5 +1,6 @@
 import { api } from './client';
 import type { TaxBuyerType } from './taxInvoice';
+import type { RefundMethod } from '@/types/api';
 
 export interface CreditNoteData {
   company: { legalName: string; branchLabel: string; address: string; taxId: string; phone: string };
@@ -29,9 +30,9 @@ export interface CreditNoteData {
 }
 
 export const creditNoteApi = {
-  issueAndRefund: (orderId: string, reason: string, securityCode: string) =>
+  issueAndRefund: (orderId: string, reason: string, securityCode: string, refundMethod?: RefundMethod) =>
     api.post<CreditNoteData>(`/pos/orders/${orderId}/credit-note-refund`,
-      { reason }, { headers: { 'X-Security-Code': securityCode } }).then((r) => r.data),
+      { reason, refundMethod: refundMethod ?? null }, { headers: { 'X-Security-Code': securityCode } }).then((r) => r.data),
   get: (orderId: string) =>
     api.get<CreditNoteData>(`/pos/orders/${orderId}/credit-note`).then((r) => r.data),
 };

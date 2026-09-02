@@ -677,6 +677,8 @@ export interface LotInboundRequest {
 
 export type PaymentMethod = 'CASH' | 'CARD' | 'TRANSFER' | 'QR' | 'INSTALLMENT' | 'MIXED';
 export type SalesOrderStatus = 'DRAFT' | 'PAID' | 'CANCELLED' | 'REFUNDED';
+/** วิธีคืนเงินจริงที่พนักงานเลือก (FIX-194) — ไม่ผูกกับวิธีจ่ายเดิมของบิล */
+export type RefundMethod = 'CASH' | 'TRANSFER';
 
 /** V31 — Finance partner สำหรับ INSTALLMENT ผ่านสถาบันการเงิน */
 export type FinancePartner =
@@ -1140,6 +1142,82 @@ export interface TopProductRow {
   profit: number;
 }
 
+// ─── สรุปใบเสร็จส่งบัญชี (FIX-192) ───────────────────────────────────────
+export type ReceiptType = 'DOWN_PAYMENT' | 'INSTALLMENT' | 'SALE' | 'REPAIR';
+/** ช่องทางที่กรองได้ในรายงานส่งบัญชี — null = ทั้งหมด */
+export type ReceiptMethodFilter = 'CASH' | 'TRANSFER' | 'CARD' | 'QR';
+
+export interface AccountingReceiptRow {
+  seq: number;
+  documentNo: string;
+  type: ReceiptType;
+  typeLabel: string;
+  amount: number;
+  preVat: number;
+  vat: number;
+  paidAt: string | null;
+  account: string;
+  method: PaymentMethod | null;
+  methodLabel: string;
+  counterparty: string | null;
+  note: string | null;
+  refunded: boolean;
+}
+
+export interface AccountingMethodTotal {
+  method: PaymentMethod | null;
+  label: string;
+  count: number;
+  total: number;
+}
+
+export interface AccountingTypeTotal {
+  type: ReceiptType;
+  label: string;
+  count: number;
+  total: number;
+}
+
+export interface AccountingReceiptTotals {
+  receiptCount: number;
+  receivedTotal: number;
+  preVatTotal: number;
+  vatTotal: number;
+  byMethod: AccountingMethodTotal[];
+  byType: AccountingTypeTotal[];
+}
+
+export interface AccountingExpenseSummary {
+  refundCashTotal: number;
+  refundTransferTotal: number;
+  refundCount: number;
+  shippingPayoutTotal: number;
+  ownerShippingTotal: number;
+  expensePayoutTotal: number;
+  tradeInPayoutCashTotal: number;
+  tradeInPayoutTransferTotal: number;
+  payoutCount: number;
+  total: number;
+}
+
+export interface AccountingReceiptReport {
+  fromDate: string;
+  toDate: string;
+  generatedAt: string;
+  shopName: string;
+  legalName: string;
+  scopeLabel: string;
+  methodFilter: ReceiptMethodFilter | null;
+  methodFilterLabel: string;
+  repairIncluded: boolean;
+  totals: AccountingReceiptTotals;
+  expenses: AccountingExpenseSummary;
+  netTotal: number;
+  rowCount: number;
+  rowLimit: number;
+  rows: AccountingReceiptRow[];
+}
+
 export interface PaymentMethodSummary {
   method: PaymentMethod;
   orderCount: number;
@@ -1219,6 +1297,8 @@ export interface CreateRepairRequest {
   reportedSymptom: string;
   estimatedCost?: number;
   depositAmount?: number;
+  /** วิธีรับมัดจำ (FIX-194) — ไม่ระบุ = เงินสดเข้าเก๊ะ */
+  depositPaymentMethod?: PaymentMethod;
   outsourced?: boolean;            // ส่งซ่อมช่างนอก (FIX-093)
   technicianName?: string;
   outsourceCost?: number;

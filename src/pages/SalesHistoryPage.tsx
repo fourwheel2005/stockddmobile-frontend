@@ -21,7 +21,7 @@ import { usePrinter } from '@/hooks/usePrinter';
 import { printAndConfirmReceipt } from '@/lib/printer/browserPrintConfirmation';
 import { formatTHB, formatDateTime } from '@/lib/format';
 import { shopDayKey } from '@/lib/datetime';
-import type { FinancePayoutStatus, RepairStatus, RepairTicket, SalesOrderResponse, SalesOrderStatus } from '@/types/api';
+import type { FinancePayoutStatus, RefundMethod, RepairStatus, RepairTicket, SalesOrderResponse, SalesOrderStatus } from '@/types/api';
 import { FINANCE_PARTNER_LABEL } from '@/types/api';
 
 // ─── งานซ่อม (รวมเข้าประวัติการขาย FIX-084) ────────────────────────────
@@ -107,11 +107,11 @@ export function SalesHistoryPage() {
     useState<{ order: SalesOrderResponse; saleDate: string; reason: string } | null>(null);
   // ขั้นยืนยันด้วยรหัสความปลอดภัย — เก็บสิ่งที่จะทำไว้ระหว่างรอรหัส (FIX-103)
   const [pendingRefund, setPendingRefund] =
-    useState<{ order: SalesOrderResponse; reason: string } | null>(null);
+    useState<{ order: SalesOrderResponse; reason: string; refundMethod: RefundMethod } | null>(null);
   const [pendingCreditNote, setPendingCreditNote] =
-    useState<{ order: SalesOrderResponse; reason: string } | null>(null);
+    useState<{ order: SalesOrderResponse; reason: string; refundMethod: RefundMethod } | null>(null);
   const [pendingReturn, setPendingReturn] =
-    useState<{ order: SalesOrderResponse; refundAmount: number; reason: string } | null>(null);
+    useState<{ order: SalesOrderResponse; refundAmount: number; reason: string; refundMethod: RefundMethod } | null>(null);
 
   // debounce คำค้น (เลขบิล/ลูกค้า)
   useEffect(() => {
@@ -154,8 +154,9 @@ export function SalesHistoryPage() {
   const printer = usePrinter();
 
   const refund = useMutation({
-    mutationFn: ({ id, reason, securityCode }: { id: string; reason: string; securityCode: string }) =>
-      posApi.refund(id, securityCode, reason),
+    mutationFn: ({ id, reason, securityCode, refundMethod }:
+      { id: string; reason: string; securityCode: string; refundMethod: RefundMethod }) =>
+      posApi.refund(id, securityCode, reason, refundMethod),
     onSuccess: (order) => {
       toast.success(`คืนเงินบิล ${order.billNo} สำเร็จ`);
       qc.invalidateQueries({ queryKey: ['sales-orders'] });
@@ -166,9 +167,9 @@ export function SalesHistoryPage() {
   });
 
   const creditNoteRefund = useMutation({
-    mutationFn: ({ id, reason, securityCode }:
-      { id: string; reason: string; securityCode: string }) =>
-      creditNoteApi.issueAndRefund(id, reason, securityCode),
+    mutationFn: ({ id, reason, securityCode, refundMethod }:
+      { id: string; reason: string; securityCode: string; refundMethod: RefundMethod }) =>
+      creditNoteApi.issueAndRefund(id, reason, securityCode, refundMethod),
     onSuccess: (creditNote, variables) => {
       toast.success(`ออกใบลดหนี้ ${creditNote.creditNoteNo} และคืนเงินสำเร็จ`);
       qc.invalidateQueries({ queryKey: ['sales-orders'] });
@@ -188,9 +189,9 @@ export function SalesHistoryPage() {
   };
 
   const returnDevice = useMutation({
-    mutationFn: ({ id, refundAmount, reason, securityCode }:
-                 { id: string; refundAmount: number; reason: string; securityCode: string }) =>
-      posApi.returnDevice(id, refundAmount, securityCode, reason),
+    mutationFn: ({ id, refundAmount, reason, securityCode, refundMethod }:
+                 { id: string; refundAmount: number; reason: string; securityCode: string; refundMethod: RefundMethod }) =>
+      posApi.returnDevice(id, refundAmount, securityCode, reason, refundMethod),
     onSuccess: (order) => {
       toast.success(`รับเครื่องคืนบิล ${order.billNo} สำเร็จ — เครื่องเข้าสต็อกแล้ว`);
       qc.invalidateQueries({ queryKey: ['sales-orders'] });
@@ -451,9 +452,9 @@ export function SalesHistoryPage() {
           order={refundOrder}
           loading={refund.isPending}
           onClose={() => setRefundOrder(null)}
-          onConfirm={(reason) => {
+          onConfirm={(reason, refundMethod) => {
             // ขั้นที่ 2 — ต้องผ่านรหัสความปลอดภัยของร้านก่อนเสมอ (FIX-103)
-            setPendingRefund({ order: refundOrder, reason });
+            setPendingRefund({ order: refundOrder, reason, refundMethod });
             setRefundOrder(null);
           }}
         />
@@ -467,7 +468,8 @@ export function SalesHistoryPage() {
           onClose={() => setPendingRefund(null)}
           onConfirm={(securityCode) => {
             refund.mutate(
-              { id: pendingRefund.order.id, reason: pendingRefund.reason, securityCode },
+              { id: pendingRefund.order.id, reason: pendingRefund.reason, securityCode,
+                refundMethod: pendingRefund.refundMethod },
               { onSuccess: () => setPendingRefund(null) },
             );
           }}
@@ -480,8 +482,8 @@ export function SalesHistoryPage() {
           loading={creditNoteRefund.isPending}
           creditNote
           onClose={() => setCreditNoteOrder(null)}
-          onConfirm={(reason) => {
-            setPendingCreditNote({ order: creditNoteOrder, reason });
+          onConfirm={(reason, refundMethod) => {
+            setPendingCreditNote({ order: creditNoteOrder, reason, refundMethod });
             setCreditNoteOrder(null);
           }}
         />
@@ -497,6 +499,7 @@ export function SalesHistoryPage() {
             id: pendingCreditNote.order.id,
             reason: pendingCreditNote.reason,
             securityCode,
+            refundMethod: pendingCreditNote.refundMethod,
           }, { onSuccess: () => setPendingCreditNote(null) })}
         />
       )}
@@ -541,8 +544,8 @@ export function SalesHistoryPage() {
           order={returnOrder}
           loading={returnDevice.isPending}
           onClose={() => setReturnOrder(null)}
-          onConfirm={(refundAmount, reason) => {
-            setPendingReturn({ order: returnOrder, refundAmount, reason });
+          onConfirm={(refundAmount, reason, refundMethod) => {
+            setPendingReturn({ order: returnOrder, refundAmount, reason, refundMethod });
             setReturnOrder(null);
           }}
         />
@@ -561,6 +564,7 @@ export function SalesHistoryPage() {
                 refundAmount: pendingReturn.refundAmount,
                 reason: pendingReturn.reason,
                 securityCode,
+                refundMethod: pendingReturn.refundMethod,
               },
               { onSuccess: () => setPendingReturn(null) },
             );

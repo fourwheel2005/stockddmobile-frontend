@@ -8,7 +8,7 @@ import { posApi } from '@/api/pos';
 import { extractErrorMessage } from '@/api/client';
 import { formatTHB, formatDate } from '@/lib/format';
 import { formatInShopZone } from '@/lib/datetime';
-import type { RepairStatus, SalesOrderResponse } from '@/types/api';
+import type { RefundMethod, RepairStatus, SalesOrderResponse } from '@/types/api';
 import { ReturnDeviceModal } from '@/components/ReturnDeviceModal';
 import { SecurityCodeModal } from '@/components/SecurityCodeModal';
 import { useAuthStore } from '@/stores/authStore';
@@ -85,11 +85,11 @@ export function DeviceScanDetailPanel({ device, onClose }: { device: ScannedDevi
     enabled: !!serialId && d?.status === 'SOLD',
   });
   const [returnOrder, setReturnOrder] = useState<SalesOrderResponse | null>(null);
-  const [pendingReturn, setPendingReturn] = useState<{ order: SalesOrderResponse; refundAmount: number; reason: string } | null>(null);
+  const [pendingReturn, setPendingReturn] = useState<{ order: SalesOrderResponse; refundAmount: number; reason: string; refundMethod: RefundMethod } | null>(null);
   const returnDevice = useMutation({
-    mutationFn: ({ id, refundAmount, reason, securityCode }:
-                 { id: string; refundAmount: number; reason: string; securityCode: string }) =>
-      posApi.returnDevice(id, refundAmount, securityCode, reason),
+    mutationFn: ({ id, refundAmount, reason, securityCode, refundMethod }:
+                 { id: string; refundAmount: number; reason: string; securityCode: string; refundMethod: RefundMethod }) =>
+      posApi.returnDevice(id, refundAmount, securityCode, reason, refundMethod),
     onSuccess: (order) => {
       toast.success(`รับเครื่องคืนบิล ${order.billNo} สำเร็จ — เครื่องเข้าสต็อกแล้ว`);
       qc.invalidateQueries({ queryKey: ['scan-detail'] });
@@ -250,8 +250,8 @@ export function DeviceScanDetailPanel({ device, onClose }: { device: ScannedDevi
           order={returnOrder}
           loading={returnDevice.isPending}
           onClose={() => setReturnOrder(null)}
-          onConfirm={(refundAmount, reason) => {
-            setPendingReturn({ order: returnOrder, refundAmount, reason });
+          onConfirm={(refundAmount, reason, refundMethod) => {
+            setPendingReturn({ order: returnOrder, refundAmount, reason, refundMethod });
             setReturnOrder(null);
           }}
         />
@@ -264,7 +264,8 @@ export function DeviceScanDetailPanel({ device, onClose }: { device: ScannedDevi
           onClose={() => setPendingReturn(null)}
           onConfirm={(securityCode) => {
             returnDevice.mutate(
-              { id: pendingReturn.order.id, refundAmount: pendingReturn.refundAmount, reason: pendingReturn.reason, securityCode },
+              { id: pendingReturn.order.id, refundAmount: pendingReturn.refundAmount, reason: pendingReturn.reason, securityCode,
+                refundMethod: pendingReturn.refundMethod },
               { onSuccess: () => setPendingReturn(null) },
             );
           }}

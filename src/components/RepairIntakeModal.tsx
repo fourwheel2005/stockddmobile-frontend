@@ -21,7 +21,7 @@ const EMPTY: CreateRepairRequest = {
   customerName: '', customerPhone: '', deviceBrand: '', deviceModel: '',
   deviceColor: '', imei: '', serialNumber: '', screenCode: '',
   reportedSymptom: '',
-  estimatedCost: undefined, depositAmount: undefined, note: '',
+  estimatedCost: undefined, depositAmount: undefined, depositPaymentMethod: 'CASH', note: '',
   outsourced: false, technicianName: '', outsourceCost: undefined,
 };
 
@@ -63,6 +63,8 @@ export function RepairIntakeModal({ onClose, onCreated, initial }: Props) {
         reportedSymptom: form.reportedSymptom.trim(),
         estimatedCost: form.estimatedCost || undefined,
         depositAmount: form.depositAmount || undefined,
+        // FIX-194: มัดจำเข้าเก๊ะตามวิธีที่รับจริง (ไม่มีมัดจำ = ไม่ส่ง)
+        depositPaymentMethod: form.depositAmount ? (form.depositPaymentMethod ?? 'CASH') : undefined,
         outsourced: form.outsourced,
         technicianName: form.outsourced ? (form.technicianName?.trim() || undefined) : undefined,
         outsourceCost: form.outsourced ? (form.outsourceCost || undefined) : undefined,
@@ -196,6 +198,17 @@ export function RepairIntakeModal({ onClose, onCreated, initial }: Props) {
                      onChange={(e) => set('depositAmount', e.target.value === '' ? undefined : Number(e.target.value))} />
             </div>
           </div>
+          {(form.depositAmount ?? 0) > 0 && (
+            <div>
+              <label className="mb-1 block text-sm font-medium">รับมัดจำทาง</label>
+              <select className="input" value={form.depositPaymentMethod ?? 'CASH'}
+                      onChange={(e) => set('depositPaymentMethod', e.target.value as CreateRepairRequest['depositPaymentMethod'])}>
+                <option value="CASH">เงินสด (เข้าเก๊ะ — ต้องเปิดเก๊ะก่อน)</option>
+                <option value="TRANSFER">โอน / QR (ไม่แตะเงินสด)</option>
+                <option value="CARD">บัตร</option>
+              </select>
+            </div>
+          )}
 
           {/* ส่งซ่อมช่างนอก (FIX-093) */}
           <div className="rounded-md border border-amber-200 bg-amber-50/60 p-3">

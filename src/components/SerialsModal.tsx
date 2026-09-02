@@ -15,7 +15,7 @@ import { RepairIntakeModal } from '@/components/RepairIntakeModal';
 import { ReturnDeviceModal } from '@/components/ReturnDeviceModal';
 import { SecurityCodeModal } from '@/components/SecurityCodeModal';
 import { ImageEditor } from '@/components/MultiImageUpload';
-import type { SerializedStatus, ServiceState, SerializedItemResponse, SerializedCondition, AcquisitionType, DeviceServiceType, VariantResponse, SalesOrderResponse } from '@/types/api';
+import type { SerializedStatus, ServiceState, SerializedItemResponse, SerializedCondition, AcquisitionType, DeviceServiceType, VariantResponse, SalesOrderResponse, RefundMethod } from '@/types/api';
 
 interface Props {
   variantId: string;
@@ -129,7 +129,7 @@ export function SerialsModal({ variantId, productName, sku, onClose, highlightId
   // FIX-143: รับเครื่องคืน (ผ่อนไม่ไหว) จากหน้าเครื่องในคลัง — เครื่อง SOLD ที่มีบิลผ่อน
   const canReturn = useAuthStore((s) => s.hasRole('ADMIN', 'MANAGER', 'STAFF'));
   const [returnOrder, setReturnOrder] = useState<SalesOrderResponse | null>(null);
-  const [pendingReturn, setPendingReturn] = useState<{ order: SalesOrderResponse; refundAmount: number; reason: string } | null>(null);
+  const [pendingReturn, setPendingReturn] = useState<{ order: SalesOrderResponse; refundAmount: number; reason: string; refundMethod: RefundMethod } | null>(null);
   const loadReturn = useMutation({
     mutationFn: (serialId: string) => posApi.findInstallmentBySerial(serialId),
     onSuccess: (order) => {
@@ -139,9 +139,9 @@ export function SerialsModal({ variantId, productName, sku, onClose, highlightId
     onError: (e) => toast.error(extractErrorMessage(e)),
   });
   const returnDevice = useMutation({
-    mutationFn: ({ id, refundAmount, reason, securityCode }:
-                 { id: string; refundAmount: number; reason: string; securityCode: string }) =>
-      posApi.returnDevice(id, refundAmount, securityCode, reason),
+    mutationFn: ({ id, refundAmount, reason, securityCode, refundMethod }:
+                 { id: string; refundAmount: number; reason: string; securityCode: string; refundMethod: RefundMethod }) =>
+      posApi.returnDevice(id, refundAmount, securityCode, reason, refundMethod),
     onSuccess: (order) => {
       toast.success(`รับเครื่องคืนบิล ${order.billNo} สำเร็จ — เครื่องเข้าสต็อกแล้ว`);
       qc.invalidateQueries({ queryKey: ['serials', variantId] });
@@ -414,8 +414,8 @@ export function SerialsModal({ variantId, productName, sku, onClose, highlightId
         order={returnOrder}
         loading={returnDevice.isPending}
         onClose={() => setReturnOrder(null)}
-        onConfirm={(refundAmount, reason) => {
-          setPendingReturn({ order: returnOrder, refundAmount, reason });
+        onConfirm={(refundAmount, reason, refundMethod) => {
+          setPendingReturn({ order: returnOrder, refundAmount, reason, refundMethod });
           setReturnOrder(null);
         }}
       />
@@ -428,7 +428,8 @@ export function SerialsModal({ variantId, productName, sku, onClose, highlightId
         onClose={() => setPendingReturn(null)}
         onConfirm={(securityCode) => {
           returnDevice.mutate(
-            { id: pendingReturn.order.id, refundAmount: pendingReturn.refundAmount, reason: pendingReturn.reason, securityCode },
+            { id: pendingReturn.order.id, refundAmount: pendingReturn.refundAmount, reason: pendingReturn.reason, securityCode,
+              refundMethod: pendingReturn.refundMethod },
             { onSuccess: () => setPendingReturn(null) },
           );
         }}

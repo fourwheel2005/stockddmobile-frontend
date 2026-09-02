@@ -12,6 +12,7 @@ import { useWsStore } from '@/stores/wsStore';
 import { useBranchStore } from '@/stores/branchStore';
 import { OpenSessionModal } from '@/components/OpenSessionModal';
 import { ShippingPartnerWidget } from '@/components/dashboard/ShippingPartnerWidget';
+import { AccountingReceiptsWidget } from '@/components/dashboard/AccountingReceiptsWidget';
 
 export function DashboardPage() {
   const user = useAuthStore((s) => s.user);
@@ -108,6 +109,9 @@ export function DashboardPage() {
           />
         )}
       </div>
+
+      {/* FIX-192 — สรุปรายรับ-รายจ่ายส่งบัญชี (report endpoint จำกัด ADMIN/MANAGER) */}
+      {isManagerOrAdmin && <AccountingReceiptsWidget />}
 
       {/* Q4 — Shipping partner widget */}
       <ShippingPartnerWidget />
