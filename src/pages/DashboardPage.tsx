@@ -15,8 +15,9 @@ import { ShippingPartnerWidget } from '@/components/dashboard/ShippingPartnerWid
 import { AccountingReceiptsWidget } from '@/components/dashboard/AccountingReceiptsWidget';
 
 export function DashboardPage() {
-  const user = useAuthStore((s) => s.user);
-  const isManagerOrAdmin = user?.role === 'ADMIN' || user?.role === 'MANAGER';
+  // FIX-195: ใช้ hasRole เพื่อให้ FREEDOM (เจ้าของ) เห็นการ์ดหลังร้านเหมือน ADMIN/MANAGER
+  // (backend ให้ FREEDOM ถือสิทธิ์ ADMIN+MANAGER อยู่แล้ว — FIX-159)
+  const isManagerOrAdmin = useAuthStore((s) => s.hasRole('ADMIN', 'MANAGER'));
 
   const inventory = useQuery({
     queryKey: ['inventory', { size: 5, lowStockOnly: false }],
