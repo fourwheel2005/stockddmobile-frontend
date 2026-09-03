@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Banknote, CreditCard, QrCode, ArrowLeftRight, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Banknote, CreditCard, QrCode, ArrowLeftRight, AlertTriangle, CheckCircle2, Check } from 'lucide-react';
 import { formatTHB } from '@/lib/format';
 import type { PaymentSplit } from '@/types/api';
 
@@ -109,7 +109,7 @@ export function PaymentSplitEditor({ value, onChange, grandTotal }: Props) {
           </span>
         </div>
         <div className="text-xs font-medium">
-          {matched && <span className="text-emerald-700">✓ ยอดตรง</span>}
+          {matched && <span className="text-emerald-700"><Check className="inline h-3.5 w-3.5 align-[-2px]" /> ยอดตรง</span>}
           {diff > 0 && (
             <span className="text-amber-700">ขาดอีก {formatTHB(diff)}</span>
           )}

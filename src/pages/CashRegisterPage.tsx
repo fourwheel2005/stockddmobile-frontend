@@ -1,9 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import {
-  Wallet, DoorOpen, DoorClosed, Plus, RefreshCw, ArrowDownCircle, ArrowUpCircle,
-  Users, AlertTriangle,
-} from 'lucide-react';
+import { Wallet, DoorOpen, DoorClosed, Plus, RefreshCw, ArrowDownCircle, ArrowUpCircle, Users, AlertTriangle, Calculator, Check, ClipboardList } from 'lucide-react';
 import { cashRegisterApi } from '@/api/cashRegister';
 import { formatTHB, formatDateTime } from '@/lib/format';
 import { useBranchStore } from '@/stores/branchStore';
@@ -37,10 +34,10 @@ const TYPE_TH: Record<CashMovementType, string> = {
 
 const PAID_FROM_TH: Record<PaidFrom, string> = {
   REGISTER:      'เก๊ะ',
-  OWNER_GRANDPA: '👴 ตา',
-  OWNER_GRANDMA: '👵 ยาย',
+  OWNER_GRANDPA: 'ตา',
+  OWNER_GRANDMA: 'ยาย',
   CUSTOMER:      'ลูกค้า',
-  BANK:          '🏦 บัญชีร้าน',
+  BANK:          'บัญชีร้าน',
 };
 
 export function CashRegisterPage() {
@@ -160,7 +157,7 @@ export function CashRegisterPage() {
           {/* Physical money audit — intentionally not rewritten when sale date changes. */}
           <div className="card">
             <div className="card-header flex items-start justify-between gap-3">
-              <span>📋 รายการเคลื่อนไหวเงินจริง ({session.movements?.length ?? 0})</span>
+              <span><ClipboardList className="inline h-4 w-4 align-[-2px]" /> รายการเคลื่อนไหวเงินจริง ({session.movements?.length ?? 0})</span>
               <span className="text-right text-xs font-normal text-slate-500">
                 Audit ตามเวลารับ–จ่ายจริง ไม่ย้ายเมื่อแก้วันที่ขาย
               </span>
@@ -239,8 +236,8 @@ export function CashRegisterPage() {
         </div>
         <div className="card-body">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <Stat label="👴 ตา" value={formatTHB(ledger?.totalGrandpa ?? 0)} highlight />
-            <Stat label="👵 ยาย" value={formatTHB(ledger?.totalGrandma ?? 0)} highlight />
+            <Stat label="ตา" value={formatTHB(ledger?.totalGrandpa ?? 0)} highlight />
+            <Stat label="ยาย" value={formatTHB(ledger?.totalGrandma ?? 0)} highlight />
             <Stat label="รวม" value={formatTHB(ledger?.totalAll ?? 0)} highlight />
           </div>
           {ledger && ledger.entries.length > 0 && (
@@ -328,18 +325,18 @@ function StockCountHistory({ sessionId }: { sessionId: string }) {
   if (!data || data.length === 0) return null;
   return (
     <div className="card">
-      <div className="card-header">🧮 บันทึกตรวจนับเครื่องและอุปกรณ์เสริม</div>
+      <div className="card-header"><Calculator className="inline h-4 w-4 align-[-2px]" /> บันทึกตรวจนับเครื่องและอุปกรณ์เสริม</div>
       <div className="divide-y">
         {data.map((c) => (
           <div key={c.phase} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-5 py-2.5 text-sm">
-            <span className="w-24 font-semibold">{c.phase === 'OPENING' ? '🌅 เปิดร้าน' : '🌙 ปิดร้าน'}</span>
+            <span className="w-24 font-semibold">{c.phase === 'OPENING' ? 'เปิดร้าน' : 'ปิดร้าน'}</span>
             <span className="tabular-nums">มือ1 นับได้ {c.countedNew}/{c.expectedNew}</span>
             <span className="tabular-nums">มือ2 นับได้ {c.countedSecondHand}/{c.expectedSecondHand}</span>
             <span className="tabular-nums">หัวชาร์จ {c.countedChargerHeads}/{c.expectedChargerHeads}</span>
             <span className="tabular-nums">สายชาร์จ {c.countedChargingCables}/{c.expectedChargingCables}</span>
             <span className="tabular-nums">อุปกรณ์อื่น {c.countedOtherAccessories}/{c.expectedOtherAccessories}</span>
             {c.matched
-              ? <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">✓ ตรง</span>
+              ? <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700"><Check className="inline h-3.5 w-3.5 align-[-2px]" /> ตรง</span>
               : <span className="rounded bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">
                   ผลต่าง มือ1 {signed(c.varianceNew)} · มือ2 {signed(c.varianceSecondHand)} · หัว {signed(c.varianceChargerHeads)} · สาย {signed(c.varianceChargingCables)} · อื่น {signed(c.varianceOtherAccessories)}
                 </span>}

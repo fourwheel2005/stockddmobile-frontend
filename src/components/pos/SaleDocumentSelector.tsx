@@ -1,4 +1,4 @@
-import { FileText, PackageCheck, Receipt } from 'lucide-react';
+import { FileText, PackageCheck, Receipt, Check } from 'lucide-react';
 
 export type SaleDocumentMode = 'RECEIPT' | 'TAX_INVOICE';
 
@@ -20,7 +20,7 @@ function ShippingLabelOption({ selected, recipientReady, disabled, onToggle }: {
                 ? 'border-orange-500 bg-orange-100 text-orange-800'
                 : 'border-orange-200 bg-white text-orange-700 hover:bg-orange-50'}`}>
         <span className="flex items-center justify-center gap-2">
-          <PackageCheck className="h-4 w-4" /> {selected ? '✓ ' : ''}ป้ายที่อยู่ 10×15 ซม.
+          <PackageCheck className="h-4 w-4" /> {selected && <Check className="h-3.5 w-3.5" />}ป้ายที่อยู่ 10×15 ซม.
         </span>
       </button>
       <p className={`mt-1 text-xs ${selected && !recipientReady

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { Receipt, Printer, Undo2, Landmark, CheckCircle2, Clock, XCircle, PackageOpen, PackageCheck, Search, Wrench, FileText, FileMinus2, CalendarClock } from 'lucide-react';
+import { Receipt, Printer, Undo2, Landmark, CheckCircle2, Clock, XCircle, PackageOpen, PackageCheck, Search, Wrench, FileText, FileMinus2, CalendarClock, Store } from 'lucide-react';
 import { posApi } from '@/api/pos';
 import { creditNoteApi } from '@/api/creditNote';
 import { repairApi } from '@/api/repair';
@@ -239,7 +239,7 @@ export function SalesHistoryPage() {
           <h1 className="flex items-center gap-2 page-title">
             <Receipt className="h-6 w-6 text-brand-600" /> ประวัติการขาย (Sales History)
           </h1>
-          <p className="text-sm text-slate-500">บิลขายทุกผู้ขายในสาขาที่เลือก + งานซ่อม (🔧) รวมในไทม์ไลน์เดียว</p>
+          <p className="text-sm text-slate-500">บิลขายทุกผู้ขายในสาขาที่เลือก + งานซ่อม (<Wrench className="inline h-4 w-4 align-[-2px]" />) รวมในไทม์ไลน์เดียว</p>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-sm">
           {/* ค้นหาเลขบิล / ลูกค้า */}
@@ -294,7 +294,7 @@ export function SalesHistoryPage() {
                       {row.sale.billNo}
                     </Link>
                     {row.sale.branchName && (
-                      <span className="ml-1.5 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">🏪 {row.sale.branchName}</span>
+                      <span className="ml-1.5 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500"><Store className="inline h-4 w-4 align-[-2px]" /> {row.sale.branchName}</span>
                     )}
                     {row.sale.taxInvoiceNo && (
                       <span className="ml-1.5 rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700">

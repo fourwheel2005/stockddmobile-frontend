@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { Building2, Plus, Pencil, X } from 'lucide-react';
+import { Building2, Plus, Pencil, X, Info } from 'lucide-react';
 import { branchesApi } from '@/api/branches';
 import { extractErrorMessage } from '@/api/client';
 import type { Branch, BranchRequest } from '@/types/api';
@@ -26,7 +26,7 @@ export function BranchesPage() {
       </div>
 
       <p className="rounded-md bg-blue-50 px-3 py-2 text-xs text-blue-800">
-        💡 แต่ละสาขามีสต๊อกแยกกัน · เลือก "สาขาที่ทำงาน" ที่แถบซ้ายเพื่อรับของ/ดูสต๊อกของสาขานั้น ·
+        <Info className="inline h-3.5 w-3.5 align-[-2px]" /> แต่ละสาขามีสต๊อกแยกกัน · เลือก "สาขาที่ทำงาน" ที่แถบซ้ายเพื่อรับของ/ดูสต๊อกของสาขานั้น ·
         สาขาเริ่มต้น <strong>MAIN</strong> คือที่เก็บของเดิมทั้งหมด
       </p>
 

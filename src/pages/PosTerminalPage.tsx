@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { ScanLine, Trash2, ShoppingCart, Receipt, Search, ListChecks, UserCircle2, Printer, Upload, X, Wrench, Truck, Globe, Store, Plus, ChevronDown, ChevronUp, ArrowLeftRight, FileText } from 'lucide-react';
+import { ScanLine, Trash2, ShoppingCart, Receipt, Search, ListChecks, UserCircle2, Printer, Upload, X, Wrench, Truck, Globe, Store, Plus, ChevronDown, ChevronUp, ArrowLeftRight, FileText, Banknote, Calculator, Check, CreditCard, Info, Landmark, Star, TriangleAlert, XCircle } from 'lucide-react';
 import { posApi } from '@/api/pos';
 import { filesApi } from '@/api/files';
 import { extractErrorMessage } from '@/api/client';
@@ -49,15 +49,15 @@ import { usePrinter } from '@/hooks/usePrinter';
 import { printAndConfirmReceipt } from '@/lib/printer/browserPrintConfirmation';
 import { Link } from 'react-router-dom';
 
-const SHIPPING_PARTNER_OPTIONS: { value: ShippingPartner; label: string; icon: string }[] = [
-  { value: 'ICE',        label: 'น้ำแข็ง',       icon: '🧊' },
-  { value: 'YUEM_MAI',   label: 'ยืมมั้ย',       icon: '🤝' },
-  { value: 'PEE_KEAW',   label: 'พี่เขียว',      icon: '🟢' },
-  { value: 'GREATER',    label: 'กรีทเตอร์',     icon: '⭐' },
-  { value: 'RED_HEAT',   label: 'เรด ฮีท',       icon: '🔥' },
-  { value: 'AMP_MOBILE', label: 'แอมป์ โมบาย',   icon: '📱' },
-  { value: 'PICKUP',     label: 'ลูกค้ารับเอง',  icon: '🏪' },
-  { value: 'OTHER',      label: 'อื่นๆ',          icon: '📌' },
+const SHIPPING_PARTNER_OPTIONS: { value: ShippingPartner; label: string }[] = [
+  { value: 'ICE',        label: 'น้ำแข็ง' },
+  { value: 'YUEM_MAI',   label: 'ยืมมั้ย' },
+  { value: 'PEE_KEAW',   label: 'พี่เขียว' },
+  { value: 'GREATER',    label: 'กรีทเตอร์' },
+  { value: 'RED_HEAT',   label: 'เรด ฮีท' },
+  { value: 'AMP_MOBILE', label: 'แอมป์ โมบาย' },
+  { value: 'PICKUP',     label: 'ลูกค้ารับเอง' },
+  { value: 'OTHER',      label: 'อื่นๆ' },
 ];
 
 interface CartLine {
@@ -84,16 +84,16 @@ interface CartLine {
 interface PaymentOption {
   value: PaymentMethod;
   label: string;
-  icon: string;
+  icon: LucideIcon;
   requiresRef: boolean;
   refLabel?: string;
 }
 
 const PAYMENT_OPTIONS: PaymentOption[] = [
-  { value: 'CASH',        label: 'ชำระด้วยเงินสด',           icon: '💵', requiresRef: false },
-  { value: 'TRANSFER',    label: 'โอนเงินผ่านระบบ / สแกน QR', icon: '📲', requiresRef: true,  refLabel: 'เลขสลิป / 4 หลักท้าย' },
-  { value: 'MIXED',       label: 'จ่ายแบบผสม (สด+โอน/บัตร/QR)', icon: '🧮', requiresRef: false },
-  { value: 'INSTALLMENT', label: 'ผ่อนชำระรายเดือน',         icon: '💳', requiresRef: true,  refLabel: 'เลขสัญญาผ่อน' },
+  { value: 'CASH',        label: 'ชำระด้วยเงินสด',           icon: Banknote, requiresRef: false },
+  { value: 'TRANSFER',    label: 'โอนเงินผ่านระบบ / สแกน QR', icon: ArrowLeftRight, requiresRef: true,  refLabel: 'เลขสลิป / 4 หลักท้าย' },
+  { value: 'MIXED',       label: 'จ่ายแบบผสม (สด+โอน/บัตร/QR)', icon: Calculator, requiresRef: false },
+  { value: 'INSTALLMENT', label: 'ผ่อนชำระรายเดือน',         icon: CreditCard, requiresRef: true,  refLabel: 'เลขสัญญาผ่อน' },
 ];
 
 /** UUID v4 — ใช้ crypto.randomUUID ถ้ามี (secure context) · fallback สำหรับ http บน LAN ที่ไม่มี. */
@@ -113,6 +113,8 @@ function newRequestId(): string {
  *  เช่น 2099.99−1500 = 599.9899999999998 → 400 ปิดบิลไม่ได้ (QA FIX-151) */
 const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 import { changeFromTender, round2, suggestTenders } from '@/lib/pos/tender';
+import type { LucideIcon } from 'lucide-react';
+import { InitialChip, OWNER_CHIP, SHIPPING_PARTNER_CHIP } from '@/components/ui/InitialChip';
 
 export function PosTerminalPage() {
   const qc = useQueryClient();
@@ -317,7 +319,7 @@ export function PosTerminalPage() {
             serialItemId: found.id, imei: found.imei, serialNumber: found.serialNumber, lookupOnly: true,
           });
           // บอกเหตุผลที่ไม่เข้าตะกร้าด้วย (เช่น เครื่องขายแล้ว/ติดจอง) — การ์ดโชว์ประวัติได้ตามเดิม
-          toast(extractErrorMessage(e), { icon: 'ℹ️', duration: 3000 });
+          toast(extractErrorMessage(e), { duration: 3000 });
           return;
         } catch { /* lookup พลาด → ตกไป toast ด้านล่าง */ }
       }
@@ -789,7 +791,7 @@ export function PosTerminalPage() {
       {!hasOpenSession && (
         <div className="rounded-lg border-2 border-amber-300 bg-amber-50 p-4">
           <div className="flex items-start gap-3">
-            <span className="text-2xl">⚠️</span>
+            <span className="text-2xl"><TriangleAlert className="inline h-3.5 w-3.5 align-[-2px]" /></span>
             <div className="flex-1">
               <h3 className="font-semibold text-amber-900">ยังไม่ได้เปิดเก๊ะ</h3>
               <p className="text-sm text-amber-800">
@@ -832,7 +834,7 @@ export function PosTerminalPage() {
             <UserCircle2 className="h-4 w-4" />
             {customer ? customer.name : 'เลือกลูกค้า'}
           </button>
-          {/* ⭐ Quick Reprint — always visible (สำหรับบิลเก่า / ลูกค้าใบหาย) */}
+          {/* <Star className="inline h-4 w-4 align-[-2px]" /> Quick Reprint — always visible (สำหรับบิลเก่า / ลูกค้าใบหาย) */}
           <button
             className="btn-secondary"
             onClick={() => setShowQuickReprint(true)}
@@ -908,9 +910,9 @@ export function PosTerminalPage() {
                         : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
                     }`}
                   >
-                    <span className="text-lg">{opt.icon}</span>
+                    <opt.icon className="h-5 w-5 shrink-0" />
                     <span>{opt.label}</span>
-                    {active && <span className="ml-auto text-brand-600">✓</span>}
+                    {active && <span className="ml-auto text-brand-600"><Check className="inline h-3.5 w-3.5 align-[-2px]" /></span>}
                   </button>
                 );
               })}
@@ -931,14 +933,14 @@ export function PosTerminalPage() {
                   <button type="button"
                           onClick={() => { setCollectMethod(paymentMethod === 'TRANSFER' ? 'TRANSFER' : 'CASH'); setCollectOpen(true); }}
                           className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-semibold text-emerald-800 hover:bg-emerald-100/60">
-                    <span className="text-lg">🧾</span> รับชำระค่างวด (ลูกค้าจ่ายค่างวด สด/โอน)
+                    <span className="text-lg"><Receipt className="inline h-4 w-4 align-[-2px]" /></span> รับชำระค่างวด (ลูกค้าจ่ายค่างวด สด/โอน)
                     <ChevronDown className="ml-auto h-4 w-4" />
                   </button>
                 ) : (
                   <div className="space-y-2 p-3">
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-semibold text-emerald-800">
-                        🧾 รับชำระค่างวด ({collectMethod === 'CASH' ? 'เงินสด' : 'เงินโอน'})
+                        <Receipt className="inline h-4 w-4 align-[-2px]" /> รับชำระค่างวด ({collectMethod === 'CASH' ? 'เงินสด' : 'เงินโอน'})
                       </span>
                       <button type="button" onClick={() => setCollectOpen(false)}
                               className="text-slate-400 hover:text-slate-600"><ChevronUp className="h-4 w-4" /></button>
@@ -951,13 +953,13 @@ export function PosTerminalPage() {
                               onClick={() => setCollectMethod('CASH')}
                               className={`rounded-md border px-3 py-1.5 text-sm ${collectMethod === 'CASH'
                                 ? 'border-emerald-500 bg-white font-semibold text-emerald-800' : 'border-slate-200 text-slate-600'}`}>
-                        💵 เงินสด (เข้าเก๊ะ)
+                        <Banknote className="inline h-4 w-4 align-[-2px]" /> เงินสด (เข้าเก๊ะ)
                       </button>
                       <button type="button" role="radio" aria-checked={collectMethod === 'TRANSFER'}
                               onClick={() => setCollectMethod('TRANSFER')}
                               className={`rounded-md border px-3 py-1.5 text-sm ${collectMethod === 'TRANSFER'
                                 ? 'border-sky-500 bg-white font-semibold text-sky-800' : 'border-slate-200 text-slate-600'}`}>
-                        🏦 โอน (ไม่แตะเงินสด)
+                        <Landmark className="inline h-4 w-4 align-[-2px]" /> โอน (ไม่แตะเงินสด)
                       </button>
                     </div>
                     <div>
@@ -987,7 +989,7 @@ export function PosTerminalPage() {
                     <CashierPicker selectedId={cashierProfileId} onSelect={setCashierProfileId} compact />
                     {!hasOpenSession && (
                       <div className="rounded bg-amber-100 px-2 py-1 text-[11px] text-amber-800">
-                        ⚠️ ต้องเปิดเก๊ะเงินสดก่อนถึงจะออกบิลได้ (ยอดโอนก็ต้องลง audit ของกะ)
+                        <TriangleAlert className="inline h-3.5 w-3.5 align-[-2px]" /> ต้องเปิดเก๊ะเงินสดก่อนถึงจะออกบิลได้ (ยอดโอนก็ต้องลง audit ของกะ)
                       </div>
                     )}
                     <button type="button"
@@ -1007,7 +1009,7 @@ export function PosTerminalPage() {
             {paymentMethod === 'MIXED' && (
               <div className="mt-2 rounded-md border-2 border-brand-200 bg-brand-50/40 p-3">
                 <div className="mb-2 text-xs font-semibold text-brand-800">
-                  🧮 จ่ายแบบผสม — กรอกยอดแต่ละ method ให้รวม = {formatTHB(grandTotal)}
+                  <Calculator className="inline h-4 w-4 align-[-2px]" /> จ่ายแบบผสม — กรอกยอดแต่ละ method ให้รวม = {formatTHB(grandTotal)}
                 </div>
                 <PaymentSplitEditor
                   value={mixedSplit}
@@ -1122,7 +1124,7 @@ export function PosTerminalPage() {
                   type="button"
                   className="ml-auto text-xs text-red-600 hover:underline"
                   onClick={() => setCustomer(null)}>
-                  ✕ ล้าง
+                  <X className="inline h-3.5 w-3.5 align-[-2px]" /> ล้าง
                 </button>
               </div>
             ) : (
@@ -1157,7 +1159,7 @@ export function PosTerminalPage() {
 
           {(installmentNeedsIdentity || onlineNeedsIdentity) && (
             <div className="sm:col-span-3 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">
-              ⚠️ {paymentMethod === 'INSTALLMENT' ? 'ผ่อนชำระ' : 'ออนไลน์'}: ต้องเลือกลูกค้าจากระบบ
+              <TriangleAlert className="inline h-3.5 w-3.5 align-[-2px]" /> {paymentMethod === 'INSTALLMENT' ? 'ผ่อนชำระ' : 'ออนไลน์'}: ต้องเลือกลูกค้าจากระบบ
               หรือกรอกชื่อลูกค้าก่อน
             </div>
           )}
@@ -1209,7 +1211,7 @@ export function PosTerminalPage() {
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-slate-600">
-                👴 ค่าส่งของตา (บาท)
+                <InitialChip {...OWNER_CHIP.GRANDPA} /> ค่าส่งของตา (บาท)
               </label>
               <input
                 type="number" min={0} step={1}
@@ -1223,7 +1225,7 @@ export function PosTerminalPage() {
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-slate-600">
-                👵 ค่าส่งของยาย (บาท)
+                <InitialChip {...OWNER_CHIP.GRANDMA} /> ค่าส่งของยาย (บาท)
               </label>
               <input
                 type="number" min={0} step={1}
@@ -1249,8 +1251,8 @@ export function PosTerminalPage() {
                   : 'bg-slate-50 text-slate-700 border border-slate-200'
               }`}>
                 {splitOver
-                  ? <>⚠️ ตา + ยาย รวม {formatTHB(splitSum)} เกินค่าส่งทั้งหมด {formatTHB(shippingFee)}</>
-                  : <>🏪 ส่วนที่เหลือออกจากเก๊ะ: <strong>{formatTHB(fromRegister)}</strong></>
+                  ? <><TriangleAlert className="inline h-3.5 w-3.5 align-[-2px]" /> ตา + ยาย รวม {formatTHB(splitSum)} เกินค่าส่งทั้งหมด {formatTHB(shippingFee)}</>
+                  : <><Store className="inline h-4 w-4 align-[-2px]" /> ส่วนที่เหลือออกจากเก๊ะ: <strong>{formatTHB(fromRegister)}</strong></>
                 }
               </div>
             );
@@ -1282,7 +1284,7 @@ export function PosTerminalPage() {
                         ? 'border-orange-500 bg-orange-100 font-semibold text-orange-800'
                         : 'border-slate-200 hover:border-slate-300'
                     }`}>
-                    <span className="text-base">{p.icon}</span>
+                    <InitialChip {...SHIPPING_PARTNER_CHIP[p.value]} />
                     <span className="text-xs">{p.label}</span>
                   </button>
                 );
@@ -1371,7 +1373,7 @@ export function PosTerminalPage() {
               {cart.length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-4 py-12 text-center text-slate-400">
-                    ❌ ยังไม่มีสินค้าในตะกร้า — กรุณาสแกน IMEI หรือป้อนรหัสสินค้า
+                    <XCircle className="inline h-4 w-4 align-[-2px]" /> ยังไม่มีสินค้าในตะกร้า — กรุณาสแกน IMEI หรือป้อนรหัสสินค้า
                   </td>
                 </tr>
               )}
@@ -1399,7 +1401,7 @@ export function PosTerminalPage() {
                             ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
                             : 'bg-purple-100 text-purple-800 hover:bg-purple-200'}`}
                         title="กดสลับ: ผ่อน ↔ จ่ายวันนี้">
-                        {l.payToday ? '💵 จ่ายวันนี้' : '💳 ผ่อน'}
+                        {l.payToday ? 'จ่ายวันนี้' : 'ผ่อน'}
                       </button>
                     )}
                   </td>
@@ -1469,7 +1471,7 @@ export function PosTerminalPage() {
         {tradeInEnabled && tradeInOpen && (
           <div id="trade-in-details" className="card-body space-y-3">
             <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-              <div className="font-semibold">⚠️ {TRADE_IN_INTAKE_POLICY.newIdentifierOnly}</div>
+              <div className="font-semibold"><TriangleAlert className="inline h-3.5 w-3.5 align-[-2px]" /> {TRADE_IN_INTAKE_POLICY.newIdentifierOnly}</div>
               <div className="mt-0.5">{TRADE_IN_INTAKE_POLICY.modelSource}</div>
               <div className="mt-0.5">{TRADE_IN_INTAKE_POLICY.destination}</div>
             </div>
@@ -1484,7 +1486,7 @@ export function PosTerminalPage() {
                         onClick={() => {
                           setTradeInProduct(null); setTradeInModelQuery('');
                           setTradeInSearchState('idle'); setTradeInSearchError('');
-                        }}>✕ เปลี่ยนรุ่น</button>
+                        }}><X className="inline h-3.5 w-3.5 align-[-2px]" /> เปลี่ยนรุ่น</button>
               </div>
             ) : (
               <div>
@@ -1588,7 +1590,7 @@ export function PosTerminalPage() {
                   {(['CASH', 'TRANSFER'] as PaymentMethod[]).map((m) => (
                     <button type="button" key={m} onClick={() => setTradeInPayoutMethod(m)}
                             className={`rounded-md border px-3 py-1.5 text-sm ${tradeInPayoutMethod === m ? 'border-amber-500 bg-amber-100 font-semibold text-amber-800' : 'border-slate-200 hover:border-slate-300'}`}>
-                      {m === 'CASH' ? '💵 จ่ายสด' : '📲 โอนคืน'}
+                      {m === 'CASH' ? 'จ่ายสด' : 'โอนคืน'}
                     </button>
                   ))}
                 </div>
@@ -1618,7 +1620,7 @@ export function PosTerminalPage() {
                      value={discount} onChange={(e) => setDiscount(r2(Math.max(0, Number(e.target.value) || 0)))} />
             </div>
             {discountExceedsSubtotal && (
-              <div className="text-xs text-red-600">⚠️ ส่วนลดเกินยอดรวม</div>
+              <div className="text-xs text-red-600"><TriangleAlert className="inline h-3.5 w-3.5 align-[-2px]" /> ส่วนลดเกินยอดรวม</div>
             )}
             <div className="flex items-center justify-between text-sm">
               <span className="text-slate-500">VAT เพิ่มจากราคาขาย (%)</span>
@@ -1688,12 +1690,12 @@ export function PosTerminalPage() {
                     )}
                     {/* แยกเงินสด/เงินโอน ของยอดรับวันนี้ (FIX-097) */}
                     {payoutView === 0 && <div className="flex justify-between text-xs">
-                      <span className="text-slate-500">💵 รับเงินสด</span>
+                      <span className="text-slate-500"><Banknote className="inline h-4 w-4 align-[-2px]" /> รับเงินสด</span>
                       <span className="font-semibold text-slate-700">{formatTHB(cashView)}</span>
                     </div>}
                     {payoutView === 0 && transferView > 0 && (
                       <div className="flex justify-between text-xs">
-                        <span className="text-slate-500">📲 รับเงินโอน</span>
+                        <span className="text-slate-500"><ArrowLeftRight className="inline h-4 w-4 align-[-2px]" /> รับเงินโอน</span>
                         <span className="font-semibold text-slate-700">{formatTHB(transferView)}</span>
                       </div>
                     )}
@@ -1739,7 +1741,7 @@ export function PosTerminalPage() {
             {tenderCashDue > 0 && (
               <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-3">
                 <div className="mb-1.5 flex items-center justify-between text-xs">
-                  <span className="font-semibold text-emerald-800">💵 รับเงิน / ทอนเงิน</span>
+                  <span className="font-semibold text-emerald-800"><Banknote className="inline h-4 w-4 align-[-2px]" /> รับเงิน / ทอนเงิน</span>
                   <span className="text-slate-500">ยอดสด {formatTHB(tenderCashDue)}</span>
                 </div>
                 <div className="flex gap-2">
@@ -1928,7 +1930,7 @@ function InstallmentPanel({
   return (
     <div className="card border-2 border-purple-300">
       <div className="card-header flex items-center gap-2 bg-purple-50">
-        💳 รายละเอียดการผ่อนชำระ
+        <CreditCard className="inline h-4 w-4 align-[-2px]" /> รายละเอียดการผ่อนชำระ
       </div>
       <div className="card-body space-y-4">
         {/* Months */}
@@ -2041,7 +2043,7 @@ function InstallmentPanel({
             <>
               <div className="mt-3 grid grid-cols-2 gap-3">
                 <div>
-                  <label className="mb-1 block text-xs font-medium">📲 เงินโอน (บาท)</label>
+                  <label className="mb-1 block text-xs font-medium"><ArrowLeftRight className="inline h-4 w-4 align-[-2px]" /> เงินโอน (บาท)</label>
                   <input
                     type="number" min={0} max={settlement.customerPays} step="100" inputMode="numeric"
                     className="input"
@@ -2051,7 +2053,7 @@ function InstallmentPanel({
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-medium">💵 เงินสด (บาท)</label>
+                  <label className="mb-1 block text-xs font-medium"><Banknote className="inline h-4 w-4 align-[-2px]" /> เงินสด (บาท)</label>
                   <div className="input flex items-center bg-slate-50 font-semibold text-slate-700">
                     {formatTHB(cashPart)}
                   </div>
@@ -2069,11 +2071,11 @@ function InstallmentPanel({
         </div>
 
         <div className="rounded-md bg-purple-50 px-3 py-2 text-xs text-purple-800">
-          💡 ระบบจะบันทึก:
+          <Info className="inline h-3.5 w-3.5 align-[-2px]" /> ระบบจะบันทึก:
           {settlement.storePays > 0
             ? <> <strong>ร้านจ่ายลูกค้า {formatTHB(settlement.storePays)}</strong></>
             : <> <strong>รับจากลูกค้า {formatTHB(settlement.customerPays)}</strong>
-                {' '}(💵 สด {formatTHB(cashPart)}{transferPart > 0 ? ` · 📲 โอน ${formatTHB(transferPart)}` : ''})</>}
+                {' '}(<Banknote className="inline h-4 w-4 align-[-2px]" /> สด {formatTHB(cashPart)}{transferPart > 0 ? ` · โอน ${formatTHB(transferPart)}` : ''})</>}
           • <strong>{formatTHB(remaining)}</strong> ที่เหลือคือยอดผ่อน
         </div>
       </div>

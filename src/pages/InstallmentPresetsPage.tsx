@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { CreditCard, Plus, Save, Trash2 } from 'lucide-react';
+import { CreditCard, Plus, Save, Trash2, Info } from 'lucide-react';
 import {
   installmentPresetsApi, type InstallmentPresetResponse,
 } from '@/api/installmentPresets';
@@ -219,7 +219,7 @@ export function InstallmentPresetsPage() {
         </div>
         {presets.length > 0 && (
           <div className="border-t border-slate-100 px-5 py-2 text-xs text-slate-500">
-            💡 ตัวอย่าง: {presets[0].productName} {presets[0].storage}GB ดาวน์ {formatTHB(presets[0].downPayment)} ·
+            <Info className="inline h-3.5 w-3.5 align-[-2px]" /> ตัวอย่าง: {presets[0].productName} {presets[0].storage}GB ดาวน์ {formatTHB(presets[0].downPayment)} ·
             แก้ตัวเลขในแถว → แถวเป็นสีเหลือง → กดบันทึก
           </div>
         )}

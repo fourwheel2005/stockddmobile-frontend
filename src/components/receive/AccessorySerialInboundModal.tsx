@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Package, Save, X } from 'lucide-react';
+import { Package, Save, X, Inbox } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { lotsApi } from '@/api/lots';
 import { extractErrorMessage } from '@/api/client';
@@ -163,7 +163,7 @@ export function AccessorySerialInboundModal({
         className="flex max-h-[94vh] w-full max-w-4xl flex-col rounded-xl bg-white shadow-2xl animate-modal-zoom-in">
         <header className="flex shrink-0 items-start justify-between gap-3 border-b px-4 py-3.5 sm:px-6">
           <div className="min-w-0">
-            <h2 className="truncate text-base font-bold sm:text-lg">📥 รับเข้าอุปกรณ์เสริม — {product.name}</h2>
+            <h2 className="truncate text-base font-bold sm:text-lg"><Inbox className="inline h-4 w-4 align-[-2px]" /> รับเข้าอุปกรณ์เสริม — {product.name}</h2>
             <p className="mt-0.5 text-xs text-slate-500">กรอกเฉพาะ Barcode/S/N ต่อชิ้น · ที่มา ทุน และประกันใช้ร่วมกันทั้งล็อต</p>
           </div>
           <button onClick={onClose} className="rounded p-1.5 hover:bg-slate-100" title="ปิด (Esc)">

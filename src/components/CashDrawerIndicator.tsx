@@ -7,7 +7,7 @@ import { useBranchStore } from '@/stores/branchStore';
 
 /**
  * Indicator สถานะเก๊ะเงินสด — แสดงทุกหน้า (ใน Sidebar) ให้พนักงานรู้ตลอดว่า
- * เก๊ะเปิดอยู่ไหม. 🟢 เปิด = ขายได้ · 🔴 ปิด = ต้องเปิดก่อนขาย. กดเพื่อไปหน้าเก๊ะ.
+ * เก๊ะเปิดอยู่ไหม. เปิด = ขายได้ · ปิด = ต้องเปิดก่อนขาย. กดเพื่อไปหน้าเก๊ะ.
  */
 export function CashDrawerIndicator() {
   const activeBranchId = useBranchStore((s) => s.activeBranchId);

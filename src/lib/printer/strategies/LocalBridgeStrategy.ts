@@ -36,7 +36,7 @@ export class LocalBridgeStrategy implements PrinterStrategy {
   }
 
   label(): string {
-    return '🔌 Local Bridge (PC)';
+    return 'Local Bridge (PC)';
   }
 
   async isReady(): Promise<boolean> {

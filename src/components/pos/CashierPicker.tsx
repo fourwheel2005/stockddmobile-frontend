@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, UserRoundCheck, X } from 'lucide-react';
+import { Plus, UserRoundCheck, X, Check } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { extractErrorMessage } from '@/api/client';
 import { posApi } from '@/api/pos';
@@ -103,7 +103,7 @@ export function CashierPicker({ selectedId, onSelect, compact = false }: Props) 
                   onClick={() => onSelect(profile.id)}
                   className="px-3 py-1.5"
                 >
-                  {selected ? '✓ ' : ''}{profile.name}
+                  {selected && <Check className="inline h-3.5 w-3.5 align-[-2px]" />} {profile.name}
                 </button>
                 <button
                   type="button"

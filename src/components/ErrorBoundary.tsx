@@ -1,4 +1,5 @@
 import { Component, type ReactNode } from 'react';
+import { TriangleAlert } from 'lucide-react';
 
 interface Props {
   children: ReactNode;
@@ -36,7 +37,7 @@ export class ErrorBoundary extends Component<Props, State> {
     return (
       <div className="min-h-screen grid place-items-center bg-slate-50 p-4">
         <div className="max-w-md w-full rounded-lg border border-red-200 bg-white p-6 shadow-lg">
-          <div className="text-3xl">⚠️</div>
+          <div className="text-3xl"><TriangleAlert className="inline h-3.5 w-3.5 align-[-2px]" /></div>
           <h1 className="mt-2 text-xl font-bold text-red-700">เกิดข้อผิดพลาด</h1>
           <p className="mt-1 text-sm text-slate-600">
             หน้าเว็บโหลดไม่สำเร็จ — กรุณาลองใหม่ หรือกลับหน้าแรก

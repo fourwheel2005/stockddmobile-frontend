@@ -215,7 +215,7 @@ export function RepairIntakeModal({ onClose, onCreated, initial }: Props) {
             <label className="flex items-center gap-2 text-sm font-medium text-amber-900">
               <input type="checkbox" checked={form.outsourced ?? false}
                      onChange={(e) => set('outsourced', e.target.checked)} />
-              🔧 ส่งซ่อมช่างอื่น (ร้านไม่ได้ซ่อมเอง)
+              <Wrench className="inline h-4 w-4 align-[-2px]" /> ส่งซ่อมช่างอื่น (ร้านไม่ได้ซ่อมเอง)
             </label>
             {form.outsourced && (
               <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">

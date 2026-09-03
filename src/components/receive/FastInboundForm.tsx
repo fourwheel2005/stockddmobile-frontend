@@ -37,7 +37,7 @@ export function FastInboundForm({ variant, onBack, onDone }: Props) {
     if (orig === 0) return null;
     const diff = Math.abs(unitCostNum - orig) / orig;
     if (diff > 0.3) {
-      return `⚠️ ทุนต่างจากเดิม (${formatTHB(orig)}) เกิน 30% — ตรวจอีกครั้ง`;
+      return `ทุนต่างจากเดิม (${formatTHB(orig)}) เกิน 30% — ตรวจอีกครั้ง`;
     }
     return null;
   }, [unitCostNum, variant.costPrice]);

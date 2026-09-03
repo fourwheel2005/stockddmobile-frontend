@@ -1,4 +1,4 @@
-import { FileText, PackageCheck, Printer } from 'lucide-react';
+import { FileText, PackageCheck, Printer, Check } from 'lucide-react';
 import type { SalesOrderResponse } from '@/types/api';
 
 interface LatestBillActionsProps {
@@ -33,7 +33,7 @@ function BillDocumentActions(props: LatestBillActionsProps) {
 export function LatestBillActions(props: LatestBillActionsProps) {
   return (
     <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
-      <div className="mb-2 text-sm font-semibold text-emerald-800">✓ บิลล่าสุด {props.order.billNo}</div>
+      <div className="mb-2 text-sm font-semibold text-emerald-800"><Check className="inline h-3.5 w-3.5 align-[-2px]" /> บิลล่าสุด {props.order.billNo}</div>
       {props.order.taxInvoiceNo && (
         <div className="mb-2 text-xs text-emerald-700">ใบกำกับ {props.order.taxInvoiceNo} ถูกบันทึกแล้ว</div>
       )}

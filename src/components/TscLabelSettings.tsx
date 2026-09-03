@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import toast from 'react-hot-toast';
 import { printOrchestrator } from '@/lib/printer/PrintOrchestrator';
 import { encodeCp874 } from '@/lib/escpos/cp874';
+import { Tag } from 'lucide-react';
 import {
   getLabelConfig,
   parseLabelSize,
@@ -69,7 +70,7 @@ export function TscLabelSettings() {
 
   return (
     <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
-      <h3 className="mb-2 text-sm font-semibold">🏷️ ป้ายสติกเกอร์ (TSC)</h3>
+      <h3 className="mb-2 text-sm font-semibold"><Tag className="inline h-4 w-4 align-[-2px]" /> ป้ายสติกเกอร์ (TSC)</h3>
       <p className="mb-2 text-xs text-slate-500">
         วัดจากม้วนจริง: ขนาด <strong>ต่อดวง</strong> กว้าง×สูง (มม.) และมีกี่ดวงต่อแถว —
         ตั้งผิดป้ายจะพิมพ์คร่อมดวง

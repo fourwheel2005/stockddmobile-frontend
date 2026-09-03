@@ -1,7 +1,7 @@
 import { Fragment, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { Wrench, Printer, Play, CheckCircle2, HandCoins, Ban, X, Pencil, ReceiptText } from 'lucide-react';
+import { Wrench, Printer, Play, CheckCircle2, HandCoins, Ban, X, Pencil, ReceiptText, Calendar } from 'lucide-react';
 import { repairApi } from '@/api/repair';
 import { extractErrorMessage } from '@/api/client';
 import { formatTHB, formatDateTime } from '@/lib/format';
@@ -108,7 +108,7 @@ export function RepairListPage() {
           window.print();
         } },
       );
-      toast.success(strategy === 'PULL_AGENT' ? 'ส่งเข้าคิวปริ้นแล้ว ☁️' : `พิมพ์แล้ว (${strategy})`);
+      toast.success(strategy === 'PULL_AGENT' ? 'ส่งเข้าคิวปริ้นแล้ว' : `พิมพ์แล้ว (${strategy})`);
     } catch (e) {
       toast.error(extractErrorMessage(e));
     }
@@ -168,7 +168,7 @@ export function RepairListPage() {
                     <td colSpan={6} className="px-4 py-1.5">
                       <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                         <span className="font-semibold text-slate-700">
-                          📅 {formatInShopZone(g.key, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
+                          <Calendar className="inline h-3.5 w-3.5 align-[-2px]" /> {formatInShopZone(g.key, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
                         </span>
                         <span className="text-slate-500">{g.count} งาน · รวมค่าซ่อม {formatTHB(g.total)}</span>
                       </div>
@@ -186,7 +186,7 @@ export function RepairListPage() {
                       {[t.deviceBrand, t.deviceModel, t.deviceColor].filter(Boolean).join(' ')}
                     </div>
                     {t.imei && <div className="text-xs text-slate-500 font-mono">IMEI: {t.imei}</div>}
-                    <div className="text-xs text-slate-600">🔧 {t.reportedSymptom}</div>
+                    <div className="text-xs text-slate-600"><Wrench className="inline h-4 w-4 align-[-2px]" /> {t.reportedSymptom}</div>
                     {t.outsourced && (
                       <div className="mt-0.5 inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
                         ส่งช่าง{t.technicianName ? `: ${t.technicianName}` : ''}
@@ -388,7 +388,7 @@ function EditRepairDialog({ ticket, pending, onClose, onSave }: {
                       onChange={(e) => set({ reportedSymptom: e.target.value })} />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-amber-700">🔧 อาการที่ช่างเจอเพิ่ม / งานที่ซ่อม</label>
+            <label className="mb-1 block text-sm font-medium text-amber-700"><Wrench className="inline h-4 w-4 align-[-2px]" /> อาการที่ช่างเจอเพิ่ม / งานที่ซ่อม</label>
             <textarea className="input" rows={3} placeholder="เช่น เจอบอร์ดช็อตเพิ่ม, เปลี่ยนจอ+แบต"
                       value={f.workDescription} onChange={(e) => set({ workDescription: e.target.value })} />
           </div>
@@ -423,7 +423,7 @@ function EditRepairDialog({ ticket, pending, onClose, onSave }: {
             <label className="flex items-center gap-2 text-sm font-medium text-amber-900">
               <input type="checkbox" checked={f.outsourced}
                      onChange={(e) => set({ outsourced: e.target.checked })} />
-              🔧 ส่งซ่อมช่างอื่น
+              <Wrench className="inline h-4 w-4 align-[-2px]" /> ส่งซ่อมช่างอื่น
             </label>
             {f.outsourced && (
               <div className="mt-2 grid grid-cols-2 gap-2">

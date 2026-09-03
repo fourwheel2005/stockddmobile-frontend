@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { X, DoorOpen, Banknote } from 'lucide-react';
+import { X, DoorOpen, Banknote, CheckCircle2, Info } from 'lucide-react';
 import { cashRegisterApi } from '@/api/cashRegister';
 import { extractErrorMessage } from '@/api/client';
 import { formatTHB } from '@/lib/format';
@@ -54,7 +54,7 @@ export function OpenSessionModal({ onOpened, onClose }: Props) {
       const isRecovered = !!openedAt && Date.now() - openedAt.getTime() > 60_000;
       if (isRecovered) {
         toast.success(`พบ session เดิมที่เปิดอยู่ — ${s.sessionNo} (กู้คืนแล้ว)`,
-                      { duration: 4000, icon: '🔄' });
+                      { duration: 4000 });
       } else {
         toast.success(`เปิดเก๊ะแล้ว — ${s.sessionNo}`);
       }
@@ -87,11 +87,11 @@ export function OpenSessionModal({ onOpened, onClose }: Props) {
 
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4 sm:p-5">
           <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800">
-            ✅ ตั้งค่าไว้ให้แล้ว <strong>{formatTHB(effectiveFloat)} ทุกวัน</strong> — กด "เปิดเก๊ะ" ได้เลย
+            <CheckCircle2 className="inline h-4 w-4 align-[-2px]" /> ตั้งค่าไว้ให้แล้ว <strong>{formatTHB(effectiveFloat)} ทุกวัน</strong> — กด "เปิดเก๊ะ" ได้เลย
             (แก้ตัวเลขได้ถ้าวันไหนใส่ไม่เท่าปกติ)
           </div>
           <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-            💡 <strong>เงินทอนตั้งต้น</strong> = เงินสดที่ใส่ในเก๊ะตอนเช้าเพื่อทอน
+            <Info className="inline h-3.5 w-3.5 align-[-2px]" /> <strong>เงินทอนตั้งต้น</strong> = เงินสดที่ใส่ในเก๊ะตอนเช้าเพื่อทอน
             ระบบจะใช้คำนวณ "เงินที่ควรเป็น" ตอนปิดเก๊ะ
           </div>
 

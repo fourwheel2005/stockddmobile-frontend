@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { X, Plus, ScanLine, Save, AlertTriangle, Package, ChevronDown, ChevronRight } from 'lucide-react';
+import { X, Plus, ScanLine, Save, AlertTriangle, Package, ChevronDown, ChevronRight, BatteryFull, CreditCard, Inbox, Plug } from 'lucide-react';
 import { productsApi } from '@/api/products';
 import { inventoryApi } from '@/api/inventory';
 import { extractErrorMessage } from '@/api/client';
@@ -92,7 +92,7 @@ const deviceCode = (base: string, idx: number) => {
 
 export interface ProductFastInboundModalProps {
   product: ProductDetail;
-  /** เปิดจากปุ่ม 📥 ท้ายแถว SKU — prefill สี/ความจุ/มือ ของ SKU นั้น (แก้รายแถวได้เหมือนเดิม) */
+  /** เปิดจากปุ่ม ท้ายแถว SKU — prefill สี/ความจุ/มือ ของ SKU นั้น (แก้รายแถวได้เหมือนเดิม) */
   initialVariant?: VariantResponse;
   onClose: () => void;
   onDone: () => void;
@@ -138,7 +138,7 @@ function DeviceFastInboundModal({ product, initialVariant, onClose, onDone }: Pr
   const [plansOpen, setPlansOpen] = useState(false);
 
   // ─── เครื่องรายตัว ──────────────────────────────────────────────────
-  // แถวแรก prefill จาก SKU ที่กดมา (📥 ท้ายแถว) หรือความจุเดียวที่รุ่นมี
+  // แถวแรก prefill จาก SKU ที่กดมา (ท้ายแถว) หรือความจุเดียวที่รุ่นมี
   const [rows, setRows] = useState<DeviceRow[]>([{
     ...EMPTY_ROW,
     color: initialVariant?.color ?? '',
@@ -195,7 +195,7 @@ function DeviceFastInboundModal({ product, initialVariant, onClose, onDone }: Pr
     if (refs.length === 0) return null;
     const nearest = refs.reduce((a, b) => (Math.abs(b - unitCostNum) < Math.abs(a - unitCostNum) ? b : a));
     return Math.abs(unitCostNum - nearest) / nearest > 0.3
-      ? `⚠️ ทุนต่างจาก SKU เดิมที่ใกล้สุด (${formatTHB(nearest)}) เกิน 30% — ตรวจอีกครั้ง`
+      ? `ทุนต่างจาก SKU เดิมที่ใกล้สุด (${formatTHB(nearest)}) เกิน 30% — ตรวจอีกครั้ง`
       : null;
   }, [unitCostNum, activeVariants]);
 
@@ -319,7 +319,7 @@ function DeviceFastInboundModal({ product, initialVariant, onClose, onDone }: Pr
       toast.success(`รับ ${filled.length} เครื่อง (${groups.length} กลุ่มสี/มือ) เข้าคลังแล้ว — lot เดียว`);
       // ชื่อรุ่นชนกับรุ่นซ้ำที่ยังไม่ได้รวม → backend อาจเลือกอีก record (FIX-100 dedup ยังไม่ล้าง)
       if (detail.id !== product.id) {
-        toast('⚠️ เครื่องถูกรวมเข้ารุ่นชื่อเดียวกันอีกรายการ — ตรวจที่หน้าสินค้า / รวมรุ่นซ้ำ', { duration: 6000 });
+        toast('เครื่องถูกรวมเข้ารุ่นชื่อเดียวกันอีกรายการ — ตรวจที่หน้าสินค้า / รวมรุ่นซ้ำ', { duration: 6000 });
       }
       qc.invalidateQueries({ queryKey: ['product'] });
       qc.invalidateQueries({ queryKey: ['inventory'] });
@@ -342,7 +342,7 @@ function DeviceFastInboundModal({ product, initialVariant, onClose, onDone }: Pr
 
         <div className="flex shrink-0 items-center justify-between border-b px-5 py-3.5">
           <div>
-            <h2 className="text-base font-semibold">📥 รับเข้าเครื่อง — {product.name}</h2>
+            <h2 className="text-base font-semibold"><Inbox className="inline h-4 w-4 align-[-2px]" /> รับเข้าเครื่อง — {product.name}</h2>
             <p className="text-xs text-slate-500">หลายสี/หลายมือ ในครั้งเดียว · ระบบจับเข้า SKU เดิมให้ตาม สภาพ+สี+ความจุ</p>
           </div>
           <button onClick={onClose} className="rounded p-1.5 hover:bg-slate-100" title="ปิด (Esc)">
@@ -483,7 +483,7 @@ function DeviceFastInboundModal({ product, initialVariant, onClose, onDone }: Pr
                       <input type="number" min={0} max={100} className="input text-xs" placeholder="แบต %"
                              value={r.batteryHealth} onChange={(ev) => patchRow(idx, { batteryHealth: ev.target.value })} />
                     ) : (
-                      <div className="rounded-md bg-emerald-50 px-2 py-1.5 text-center text-xs text-emerald-700">🔋 100%</div>
+                      <div className="rounded-md bg-emerald-50 px-2 py-1.5 text-center text-xs text-emerald-700"><BatteryFull className="inline h-3.5 w-3.5 align-[-2px]" /> 100%</div>
                     )}
                     <input type="number" step="0.01" min={0} className="input text-xs" placeholder="ทุน (default)"
                            value={r.purchasePrice} onChange={(ev) => patchRow(idx, { purchasePrice: ev.target.value })} />
@@ -551,18 +551,18 @@ function DeviceFastInboundModal({ product, initialVariant, onClose, onDone }: Pr
                           <span className="font-semibold text-slate-600">อุปกรณ์ที่มากับเครื่อง:</span>
                           <label className="inline-flex items-center gap-1">
                             <input type="checkbox" checked={r.hasBox}
-                                   onChange={(ev) => patchRow(idx, { hasBox: ev.target.checked })} /> 📦 กล่อง
+                                   onChange={(ev) => patchRow(idx, { hasBox: ev.target.checked })} /> <Package className="inline h-4 w-4 align-[-2px]" /> กล่อง
                           </label>
                           <label className="inline-flex items-center gap-1">
                             <input type="checkbox" checked={r.hasCharger}
-                                   onChange={(ev) => patchRow(idx, { hasCharger: ev.target.checked })} /> 🔌 สายชาร์จ
+                                   onChange={(ev) => patchRow(idx, { hasCharger: ev.target.checked })} /> <Plug className="inline h-4 w-4 align-[-2px]" /> สายชาร์จ
                           </label>
                         </div>
                       )}
                       {isSecond && (
                         <div className="space-y-1.5 rounded-md border border-amber-200 bg-amber-50/60 p-2">
                           <div className="text-[11px] font-semibold text-amber-900">
-                            💳 ผ่อนเครื่องนี้ (มือ 2) <span className="font-normal text-amber-700">— โชว์บนเว็บ · เว้นว่าง = ใช้ "ตารางผ่อนมือ 2" ของรุ่นอัตโนมัติ (FIX-123)</span>
+                            <CreditCard className="inline h-4 w-4 align-[-2px]" /> ผ่อนเครื่องนี้ (มือ 2) <span className="font-normal text-amber-700">— โชว์บนเว็บ · เว้นว่าง = ใช้ "ตารางผ่อนมือ 2" ของรุ่นอัตโนมัติ (FIX-123)</span>
                           </div>
                           <div className="grid grid-cols-2 gap-2">
                             <input type="number" min={0} className="input text-xs" placeholder="เงินดาวน์ (บาท)"
@@ -586,7 +586,7 @@ function DeviceFastInboundModal({ product, initialVariant, onClose, onDone }: Pr
                                      value={t.down}
                                      onChange={(ev) => patchRow(idx, { instTerms: r.instTerms.map((x, j) => j === ti ? { ...x, down: ev.target.value } : x) })} />
                               <button type="button" className="rounded p-0.5 text-red-500 hover:bg-red-50"
-                                      onClick={() => patchRow(idx, { instTerms: r.instTerms.filter((_, j) => j !== ti) })}>✕</button>
+                                      onClick={() => patchRow(idx, { instTerms: r.instTerms.filter((_, j) => j !== ti) })}><X className="inline h-3.5 w-3.5 align-[-2px]" /></button>
                             </div>
                           ))}
                           <button type="button"
@@ -626,7 +626,7 @@ function DeviceFastInboundModal({ product, initialVariant, onClose, onDone }: Pr
                         className={`rounded-full px-2 py-0.5 font-medium ${
                           g.matched ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800'}`}>
                     {g.color || '?'} {g.storage || '?'} · {g.condition === 'NEW' ? 'มือ 1' : 'มือ 2'} × {g.count}
-                    {!g.matched && ' · ⚠️ SKU ใหม่'}
+                    {!g.matched && ' · SKU ใหม่'}
                   </span>
                 ))}
               </div>

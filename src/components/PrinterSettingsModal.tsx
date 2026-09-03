@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import toast from 'react-hot-toast';
-import { X, Printer, RefreshCw, Key, Usb, TestTube, AlertTriangle } from 'lucide-react';
+import { X, Printer, RefreshCw, Key, Usb, TestTube, AlertTriangle, Cloud, FileText, Globe, Info, TriangleAlert, Wallet, Download } from 'lucide-react';
 import { useModalChrome, backdropCloseHandler } from '@/hooks/useModalChrome';
 import type { PrinterStatus } from '@/hooks/usePrinter';
 import { printOrchestrator } from '@/lib/printer/PrintOrchestrator';
@@ -129,10 +129,10 @@ export function PrinterSettingsModal({
                 <RefreshCw className="h-3.5 w-3.5" /> รีเฟรช
               </button>
             </div>
-            <StatusRow label="🔌 Local Bridge (PC daemon)" ok={status.bridge} hint="เครื่องเดียวกับปริ้นเตอร์ — silent + cash drawer" />
-            <StatusRow label="☁️ คิวปริ้นสาขา (Pull-Agent)" ok={status.agent} hint="iPad/มือถือทุกสาขา · ไม่ต้อง tunnel — ตั้ง Printer ID ด้านล่าง" />
-            <StatusRow label="🔗 WebUSB (Chrome direct)" ok={status.webUsb} hint="Chrome · ❌ ไม่ทำงานบน Mac ถ้าเครื่องอยู่ใน System Printers" />
-            <StatusRow label="🖨 Browser Print (fallback)" ok={status.browser} hint="ใช้ได้ทุก browser · ช้า" />
+            <StatusRow label="Local Bridge (PC daemon)" ok={status.bridge} hint="เครื่องเดียวกับปริ้นเตอร์ — silent + cash drawer" />
+            <StatusRow label="คิวปริ้นสาขา (Pull-Agent)" ok={status.agent} hint="iPad/มือถือทุกสาขา · ไม่ต้อง tunnel — ตั้ง Printer ID ด้านล่าง" />
+            <StatusRow label="WebUSB (Chrome direct)" ok={status.webUsb} hint="Chrome · ไม่ทำงานบน Mac ถ้าเครื่องอยู่ใน System Printers" />
+            <StatusRow label="Browser Print (fallback)" ok={status.browser} hint="ใช้ได้ทุก browser · ช้า" />
           </div>
 
           {/* macOS CUPS warning */}
@@ -142,7 +142,7 @@ export function PrinterSettingsModal({
                 <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
                 <div className="text-sm">
                   <div className="font-semibold text-blue-900">
-                    💡 ถ้าทดสอบพิมพ์ออกเป็นกระดาษเปล่า
+                    <Info className="inline h-3.5 w-3.5 align-[-2px]" /> ถ้าทดสอบพิมพ์ออกเป็นกระดาษเปล่า
                   </div>
                   <p className="mt-1 text-xs text-blue-800">
                     macOS CUPS driver อาจ "claim" USB ของ printer ทำให้ text bytes ถูก drop —
@@ -167,7 +167,7 @@ export function PrinterSettingsModal({
           {onSetAgentMode && (
           <div className="rounded-md border-2 border-brand-200 bg-brand-50/40 p-3">
             <h3 className="mb-1 flex items-center gap-2 text-sm font-semibold">
-              ☁️ คิวปริ้นสาขา (Pull-Agent) <span className="rounded bg-brand-100 px-1.5 text-[10px] text-brand-700">แนะนำ iPad/มือถือ</span>
+              <Cloud className="inline h-4 w-4 align-[-2px]" /> คิวปริ้นสาขา (Pull-Agent) <span className="rounded bg-brand-100 px-1.5 text-[10px] text-brand-700">แนะนำ iPad/มือถือ</span>
             </h3>
             <p className="mb-2 text-xs text-slate-500">
               ส่งงานพิมพ์ผ่านเซิร์ฟเวอร์ → กล่อง agent ที่สาขาดึงไปพิมพ์เอง · <strong>ไม่ต้อง tunnel/ngrok</strong> ·
@@ -203,7 +203,7 @@ export function PrinterSettingsModal({
           {/* Bridge URL */}
           <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
             <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold">
-              🌐 Bridge URL (เปลี่ยนถ้าใช้ผ่าน LAN)
+              <Globe className="inline h-4 w-4 align-[-2px]" /> Bridge URL (เปลี่ยนถ้าใช้ผ่าน LAN)
             </h3>
             <p className="mb-2 text-xs text-slate-500">
               <code className="rounded bg-white px-1">http://localhost:8765</code> = Bridge บนเครื่องเดียวกัน ·
@@ -265,7 +265,7 @@ export function PrinterSettingsModal({
                 <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
                 <div className="text-sm">
                   <div className="font-semibold text-amber-900">
-                    ⚠️ {getBrowserName()} ไม่รองรับ WebUSB
+                    <TriangleAlert className="inline h-3.5 w-3.5 align-[-2px]" /> {getBrowserName()} ไม่รองรับ WebUSB
                   </div>
                   <p className="mt-1 text-xs text-amber-800">
                     Safari + Firefox ไม่รองรับการเชื่อมต่อ USB โดยตรง — ต้องเลือกอย่างใดอย่างหนึ่ง:
@@ -280,7 +280,7 @@ export function PrinterSettingsModal({
                       target="_blank"
                       rel="noopener noreferrer"
                       className="rounded bg-amber-600 px-2 py-1 text-xs font-medium text-white hover:bg-amber-700">
-                      ⬇ ดาวน์โหลด Chrome
+                      <Download className="inline h-3.5 w-3.5 align-[-2px]" /> ดาวน์โหลด Chrome
                     </a>
                   </div>
                 </div>
@@ -312,7 +312,7 @@ export function PrinterSettingsModal({
             </p>
 
             <button onClick={testAscii} className="btn-secondary w-full justify-center mb-2">
-              📄 1) ทดสอบ ASCII (ไม่มีไทย) — ดู printer ทำงานไหม
+              <FileText className="inline h-4 w-4 align-[-2px]" /> 1) ทดสอบ ASCII (ไม่มีไทย) — ดู printer ทำงานไหม
             </button>
 
             <div className="mb-2">
@@ -340,7 +340,7 @@ export function PrinterSettingsModal({
             </div>
 
             <button onClick={testThai} className="btn-secondary w-full justify-center">
-              🇹🇭 2) ทดสอบ Thai (Code Page {testCodepage})
+              TH 2) ทดสอบ Thai (Code Page {testCodepage})
             </button>
 
             <button
@@ -348,7 +348,7 @@ export function PrinterSettingsModal({
               disabled={!status.bridge}
               className="btn-secondary w-full justify-center mt-2 disabled:opacity-50"
               title={!status.bridge ? 'ต้องใช้ Local Bridge' : ''}>
-              💰 ทดสอบเปิดลิ้นชัก
+              <Wallet className="inline h-4 w-4 align-[-2px]" /> ทดสอบเปิดลิ้นชัก
             </button>
           </div>
         </div>
@@ -379,7 +379,7 @@ function StatusRow({ label, ok, hint }: { label: string; ok: boolean; hint: stri
         <div className="text-[11px] text-slate-500">{hint}</div>
       </div>
       <span className="text-[11px] font-medium">
-        {ok ? '✓ พร้อมใช้' : '— offline'}
+        {ok ? 'พร้อมใช้' : '— offline'}
       </span>
     </div>
   );

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ScanLine, Plus, Trash2, AlertTriangle } from 'lucide-react';
+import { ScanLine, Plus, Trash2, AlertTriangle, Info, Package } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export interface AccessorySerialRow {
@@ -123,7 +123,7 @@ export function AccessorySerialList({ items, onChange }: Props) {
       {/* Header — counter + scanner toggle */}
       <div className="flex items-center justify-between">
         <span className="text-sm font-semibold text-slate-700">
-          📦 {validCount} ชิ้นในระบบ
+          <Package className="inline h-4 w-4 align-[-2px]" /> {validCount} ชิ้นในระบบ
         </span>
         <button
           type="button"
@@ -156,7 +156,7 @@ export function AccessorySerialList({ items, onChange }: Props) {
             className="input font-mono text-base border-emerald-400 focus:border-emerald-500"
           />
           <p className="mt-1 text-[11px] text-emerald-700">
-            💡 ที่มา · ราคา · ประกัน ใช้ค่า Lot-wide ด้านบน (ไม่ต้องกรอกรายชิ้น)
+            <Info className="inline h-3.5 w-3.5 align-[-2px]" /> ที่มา · ราคา · ประกัน ใช้ค่า Lot-wide ด้านบน (ไม่ต้องกรอกรายชิ้น)
           </p>
         </div>
       )}

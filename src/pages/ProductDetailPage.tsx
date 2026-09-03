@@ -3,7 +3,7 @@ import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Plus, X, ArrowDownToLine, Copy, FolderOpen, PackageOpen, Pencil, Trash2, Smartphone, BatteryMedium } from 'lucide-react';
+import { ArrowLeft, Plus, X, ArrowDownToLine, Copy, FolderOpen, PackageOpen, Pencil, Trash2, Smartphone, BatteryMedium, Info, Store, TriangleAlert, Wallet } from 'lucide-react';
 import { productsApi, categoriesApi } from '@/api/products';
 import { inventoryApi } from '@/api/inventory';
 import { extractErrorMessage } from '@/api/client';
@@ -141,7 +141,7 @@ export function ProductDetailPage() {
     if (product.variants.length === 0) { setShowAddVariant(true); return; }
     if (product.variants.length === 1) { setReceiveVariant(product.variants[0]); return; }
     document.getElementById('sku-table')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    toast('เลือกสีที่จะรับเข้า — กดปุ่ม 📥 ท้ายแถว', { icon: '👇', duration: 3000 });
+    toast('เลือกสีที่จะรับเข้า — กดปุ่ม "รับเข้า" ท้ายแถว', { duration: 3000 });
   };
   const onReceiveDone = () => {
     qc.invalidateQueries({ queryKey: ['product', id] });
@@ -322,7 +322,7 @@ export function ProductDetailPage() {
                         <span className="mx-0.5 h-4 w-px bg-slate-200" aria-hidden />
                         <Link to={`/products/new?cloneProduct=${product.id}&cloneFrom=${v.id}`}
                               className="rounded-md border border-slate-200 p-1.5 text-brand-700 hover:bg-brand-50"
-                              title="สร้าง 'รุ่นใหม่แยกต่างหาก' โดยคัดลอกข้อมูล SKU นี้เป็นต้นแบบ — ไม่ใช่การรับของเข้า (รับเข้าใช้ปุ่ม 📥)">
+                              title="สร้าง 'รุ่นใหม่แยกต่างหาก' โดยคัดลอกข้อมูล SKU นี้เป็นต้นแบบ — ไม่ใช่การรับของเข้า (รับเข้าใช้ปุ่ม)">
                           <Copy className="h-3.5 w-3.5" />
                         </Link>
                         <button type="button" onClick={() => setReceiveVariant(v)}
@@ -497,7 +497,7 @@ function ProductSerialsSection({ product }: { product: ProductDetail }) {
                       {s.stockCode ?? '—'}
                     </span>
                     {s.branchName && (
-                      <div className="mt-0.5 text-[10px] text-slate-500">🏪 {s.branchName}</div>
+                      <div className="mt-0.5 text-[10px] text-slate-500"><Store className="inline h-4 w-4 align-[-2px]" /> {s.branchName}</div>
                     )}
                   </td>
                   <td className="px-5 py-3">
@@ -716,7 +716,7 @@ function AddVariantModal({ productId, editVariant, onClose }: {
             </label>
             <input className="input" placeholder="เว้นว่างได้ถ้าไม่มี" {...register('barcode')} />
             <div className="mt-1 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              💡 <strong>ไม่มีเครื่องยิงบาร์โค้ด / กล่องไม่มีบาร์โค้ด?</strong> เว้นว่างได้
+              <Info className="inline h-3.5 w-3.5 align-[-2px]" /> <strong>ไม่มีเครื่องยิงบาร์โค้ด / กล่องไม่มีบาร์โค้ด?</strong> เว้นว่างได้
               <ul className="mt-1 list-disc space-y-0.5 pl-4">
                 <li><strong>มือถือ (IMEI):</strong> ใช้เลข IMEI เป็นบาร์โค้ดในตัว — พิมพ์ Label จากเมนู “พิมพ์ Label” ได้เลย</li>
                 <li><strong>อุปกรณ์เสริม:</strong> ที่ POS พิมพ์ <strong>SKU</strong> มือแทนการยิงได้ (ระบบค้นเจอทั้ง SKU และบาร์โค้ด)</li>
@@ -753,9 +753,9 @@ function AddVariantModal({ productId, editVariant, onClose }: {
                 : profit < 0 ? 'border-red-200 bg-red-50 text-red-800'
                 : 'border-slate-200 bg-slate-50 text-slate-700'
             }`}>
-              💰 กำไรคาดการณ์ต่อชิ้น: <strong>{profit.toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท</strong>
+              <Wallet className="inline h-4 w-4 align-[-2px]" /> กำไรคาดการณ์ต่อชิ้น: <strong>{profit.toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท</strong>
               {profit > 0 && <> ({margin.toFixed(1)}% margin)</>}
-              {profit < 0 && <> ⚠️ ราคาขายต่ำกว่าทุน!</>}
+              {profit < 0 && <> <TriangleAlert className="inline h-3.5 w-3.5 align-[-2px]" /> ราคาขายต่ำกว่าทุน!</>}
             </div>
           )}
 
@@ -772,7 +772,7 @@ function AddVariantModal({ productId, editVariant, onClose }: {
           )}
 
           <div className="rounded-md bg-blue-50 px-3 py-2 text-xs text-blue-800">
-            💡 <strong>จุดสั่งใหม่ (Reorder Point):</strong> ถ้าสต็อกเหลือ ≤ จำนวนนี้ ระบบจะแจ้งเตือน Manager
+            <Info className="inline h-3.5 w-3.5 align-[-2px]" /> <strong>จุดสั่งใหม่ (Reorder Point):</strong> ถ้าสต็อกเหลือ ≤ จำนวนนี้ ระบบจะแจ้งเตือน Manager
             ตัวอย่าง: ตั้ง 3 = พอเหลือ 3 ชิ้น จะมี toast แดง "Low Stock"
           </div>
 
@@ -783,7 +783,7 @@ function AddVariantModal({ productId, editVariant, onClose }: {
                       className="rounded-md px-3 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
                       disabled={remove.isPending}
                       onClick={handleDelete}>
-                {remove.isPending ? 'กำลังลบ...' : '🗑 ลบรุ่นย่อยนี้'}
+                {remove.isPending ? 'กำลังลบ...' : 'ลบรุ่นย่อยนี้'}
               </button>
             ) : <span />}
             <div className="flex gap-2">

@@ -37,7 +37,7 @@ function buildTransferSlip(t: Transfer): Uint8Array {
 async function printTransferSlip(t: Transfer) {
   try {
     const { strategy } = await printOrchestrator.print(buildTransferSlip(t), { billNo: t.transferNo });
-    toast.success(strategy === 'PULL_AGENT' ? 'ส่งใบโอนเข้าคิวปริ้นแล้ว ☁️' : `พิมพ์ใบโอนแล้ว (${strategy})`);
+    toast.success(strategy === 'PULL_AGENT' ? 'ส่งใบโอนเข้าคิวปริ้นแล้ว' : `พิมพ์ใบโอนแล้ว (${strategy})`);
   } catch (e) {
     toast.error(e instanceof Error ? e.message : 'พิมพ์ใบโอนไม่สำเร็จ');
   }

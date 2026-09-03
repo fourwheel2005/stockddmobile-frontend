@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Cable, ClipboardCheck, Eye, Package, PlugZap, Smartphone } from 'lucide-react';
+import { Cable, ClipboardCheck, Eye, Package, PlugZap, Smartphone, Check, TriangleAlert } from 'lucide-react';
 import { posApi } from '@/api/pos';
 import { useBranchStore } from '@/stores/branchStore';
 import { StockDeviceListModal, type StockCheckCondition } from '@/components/inventory/StockDeviceListModal';
@@ -127,7 +127,7 @@ export function StockCountSection({ phaseLabel, onChange }: {
 
       {payload && Object.values(expected).every((value) => value != null) && hasMismatch(payload, expected) && (
         <div className="mt-2 rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">
-          ⚠️ ยอดไม่ตรงกับระบบ — บันทึกได้ แต่ผลต่างของแต่ละกลุ่มจะถูกเก็บเป็นหลักฐาน
+          <TriangleAlert className="inline h-3.5 w-3.5 align-[-2px]" /> ยอดไม่ตรงกับระบบ — บันทึกได้ แต่ผลต่างของแต่ละกลุ่มจะถูกเก็บเป็นหลักฐาน
         </div>
       )}
 
@@ -145,7 +145,7 @@ export function StockCountSection({ phaseLabel, onChange }: {
                     className={`rounded-full border px-3 py-1 text-sm ${certifiedName === cashier.name
                       ? 'border-sky-600 bg-sky-600 font-semibold text-white'
                       : 'border-slate-300 bg-white text-slate-700 hover:border-sky-400'}`}>
-              {certifiedName === cashier.name ? '✓ ' : ''}{cashier.name}
+              {certifiedName === cashier.name && <Check className="inline h-3.5 w-3.5 align-[-2px]" />} {cashier.name}
             </button>
           ))}
           {cashiers.data?.length === 0 && (
@@ -195,14 +195,14 @@ function CountInput({ label, value, expected, unit, onChange, onView, icon }: {
             <Eye className="h-3.5 w-3.5" /> View
           </button>
         )}
-        {!onView && difference === 0 && <span className="shrink-0 font-semibold text-emerald-600">✓ ตรง</span>}
+        {!onView && difference === 0 && <span className="shrink-0 font-semibold text-emerald-600"><Check className="inline h-3.5 w-3.5 align-[-2px]" /> ตรง</span>}
         {!onView && difference != null && difference !== 0 && (
           <span className="shrink-0 font-semibold text-red-600">{difference > 0 ? `เกิน +${difference}` : `ขาด ${difference}`}</span>
         )}
       </div>
       {onView && difference != null && (
         <div className={`mb-1 text-right text-[11px] font-semibold ${difference === 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-          {difference === 0 ? '✓ ตรง' : difference > 0 ? `เกิน +${difference}` : `ขาด ${difference}`}
+          {difference === 0 ? 'ตรง' : difference > 0 ? `เกิน +${difference}` : `ขาด ${difference}`}
         </div>
       )}
       <input type="number" min={0} step={1} inputMode="numeric"

@@ -19,7 +19,8 @@ describe('CashierPicker', () => {
 
     expect(html).toContain('ผู้รับเงินบนใบเสร็จ');
     expect(html).toContain('ปัณณพัฒน์');
-    expect(html).toContain('✓ อุดมพร');
+    expect(html).toContain('อุดมพร');
+    expect(html).toContain('lucide-check');
     expect(html).toContain('เพิ่มชื่อ');
     expect(html).toContain('aria-checked="true"');
   });

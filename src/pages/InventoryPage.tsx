@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Cable, ChevronDown, ChevronRight, Eye, Package, PlugZap, Search, Smartphone, X } from 'lucide-react';
+import { Cable, ChevronDown, ChevronRight, Eye, Package, PlugZap, Search, Smartphone, X, Plug, Store, TriangleAlert } from 'lucide-react';
 import { inventoryApi, type InventoryStockGroup } from '@/api/inventory';
 import { useBranchStore } from '@/stores/branchStore';
 import { useAuthStore } from '@/stores/authStore';
@@ -143,7 +143,7 @@ export function InventoryPage() {
       {drift && drift.length > 0 && (
         <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm">
           <div className="font-semibold text-amber-800">
-            ⚠️ พบสต็อกไม่ตรงจำนวนเครื่องจริง {drift.length} SKU
+            <TriangleAlert className="inline h-3.5 w-3.5 align-[-2px]" /> พบสต็อกไม่ตรงจำนวนเครื่องจริง {drift.length} SKU
           </div>
           <p className="mt-0.5 text-xs text-amber-700">
             ยอดในระบบไม่เท่ากับจำนวน IMEI ที่พร้อมขายจริง — ตรวจและแก้ผ่านการรับเข้า/ลบเครื่อง/ส่งซ่อม (ระบบไม่แก้อัตโนมัติ)
@@ -298,7 +298,7 @@ export function InventoryPage() {
           className={`rounded-md border px-4 py-1.5 text-sm font-medium ${
             viewMode === 'device' ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-slate-200 hover:bg-slate-50'
           }`}>
-          📱 รายเครื่อง (ทีละตัว)
+          <Smartphone className="inline h-4 w-4 align-[-2px]" /> รายเครื่อง (ทีละตัว)
         </button>
         <button
           type="button"
@@ -306,7 +306,7 @@ export function InventoryPage() {
           className={`rounded-md border px-4 py-1.5 text-sm font-medium ${
             viewMode === 'variant' ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-slate-200 hover:bg-slate-50'
           }`}>
-          📦 รวมรุ่น (สรุปสต็อก)
+          <Package className="inline h-4 w-4 align-[-2px]" /> รวมรุ่น (สรุปสต็อก)
         </button>
         <button
           type="button"
@@ -314,7 +314,7 @@ export function InventoryPage() {
           className={`rounded-md border px-4 py-1.5 text-sm font-medium ${
             viewMode === 'accessory' ? 'border-sky-500 bg-sky-50 text-sky-700' : 'border-slate-200 hover:bg-slate-50'
           }`}>
-          🔌 อุปกรณ์เสริม
+          <Plug className="inline h-4 w-4 align-[-2px]" /> อุปกรณ์เสริม
         </button>
       </div>
 
@@ -377,7 +377,7 @@ export function InventoryPage() {
                       {s.productName ?? s.sku}
                       {s.branchName && (
                         <span className="ml-1.5 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-normal text-slate-500">
-                          🏪 {s.branchName}
+                          <Store className="inline h-4 w-4 align-[-2px]" /> {s.branchName}
                         </span>
                       )}
                     </td>

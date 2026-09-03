@@ -39,6 +39,6 @@ describe('InventoryPage stock separation', () => {
     expect(html).toContain('หัวชาร์จ');
     expect(html).toContain('สายชาร์จ');
     expect(html).toContain('อุปกรณ์เสริมอื่น');
-    expect(html).toContain('🔌 อุปกรณ์เสริม');
+    expect(html).toContain('อุปกรณ์เสริม');
   });
 });

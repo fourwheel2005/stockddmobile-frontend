@@ -69,12 +69,12 @@ export function useStockSocket() {
       // debug: (str) => console.log('[STOMP]', str),  // uncomment for verbose STOMP frame logging
 
       onConnect: () => {
-        devLog('[WS] ✅ connected, subscribing to topics');
+        devLog('[WS] connected, subscribing to topics');
         setStatus('connected');
 
         client.subscribe('/topic/stock-updates', (msg: IMessage) => {
           const payload: StockUpdatedMessage = JSON.parse(msg.body);
-          devLog('[WS] 📡 stock-update', payload);
+          devLog('[WS] stock-update', payload);
           recordEvent();
           // อัปเดตสดทุกหน้าที่อาจได้รับผลจากการเปลี่ยนสต็อก
           STOCK_INVALIDATION_KEYS.forEach((key) =>
@@ -84,25 +84,25 @@ export function useStockSocket() {
 
           toast(
             `${payload.type} · ${payload.sku} · ${payload.qtyBefore} → ${payload.qtyAfter}`,
-            { icon: payload.qtyAfter > payload.qtyBefore ? '📈' : '📉', duration: 2500 }
+            { duration: 2500 }
           );
         });
 
         client.subscribe('/topic/alerts', (msg: IMessage) => {
           const payload: LowStockAlertMessage = JSON.parse(msg.body);
-          devLog('[WS] 🔔 alert', payload);
+          devLog('[WS] alert', payload);
           recordEvent();
           queryClient.invalidateQueries({ queryKey: ['alerts'] });
           queryClient.invalidateQueries({ queryKey: ['inventory'] });
           toast.error(
-            `⚠️ Low Stock: ${payload.productName} (${payload.sku}) เหลือ ${payload.currentQty}/${payload.thresholdQty}`,
+            `Low Stock: ${payload.productName} (${payload.sku}) เหลือ ${payload.currentQty}/${payload.thresholdQty}`,
             { duration: 6000 }
           );
         });
       },
 
       onDisconnect: () => {
-        devLog('[WS] 🔌 disconnected');
+        devLog('[WS] disconnected');
         setStatus('disconnected');
       },
 

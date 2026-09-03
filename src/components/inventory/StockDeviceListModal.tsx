@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Search, Smartphone, X } from 'lucide-react';
+import { Search, Smartphone, X, TriangleAlert } from 'lucide-react';
 import { inventoryApi } from '@/api/inventory';
 import { backdropCloseHandler, useModalChrome } from '@/hooks/useModalChrome';
 import { formatDateTime, formatNumber } from '@/lib/format';
@@ -106,7 +106,7 @@ export function StockDeviceListModal({ condition, scope, branchId, expectedTotal
 
         {totalChanged && (
           <div className="shrink-0 border-b border-amber-200 bg-amber-50 px-5 py-2 text-xs text-amber-800">
-            ⚠️ จำนวนเปลี่ยนหลังเปิดรายการ อาจมีการขาย/รับเข้า/เปลี่ยนสถานะล่าสุด — ใช้รายการปัจจุบันเป็นข้อมูลล่าสุด
+            <TriangleAlert className="inline h-3.5 w-3.5 align-[-2px]" /> จำนวนเปลี่ยนหลังเปิดรายการ อาจมีการขาย/รับเข้า/เปลี่ยนสถานะล่าสุด — ใช้รายการปัจจุบันเป็นข้อมูลล่าสุด
           </div>
         )}
 

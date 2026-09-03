@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { CreditCard, Plus, Save } from 'lucide-react';
+import { CreditCard, Plus, Save, Info } from 'lucide-react';
 import {
   firstHandInstallmentApi,
 } from '@/api/firstHandInstallment';
@@ -169,7 +169,7 @@ export function FirstHandInstallmentPage() {
           </button>
         </div>
         <div className="border-t border-slate-100 px-5 py-2 text-xs text-slate-500">
-          ℹ️ รุ่นมือ 1 จะโผล่ในตารางเองเมื่อมีสต็อก · ฟอร์มนี้ใช้ตั้ง/ทับราคาของรุ่น×ความจุที่มี SKU มือ 1 อยู่แล้ว
+          <Info className="inline h-3.5 w-3.5 align-[-2px]" /> รุ่นมือ 1 จะโผล่ในตารางเองเมื่อมีสต็อก · ฟอร์มนี้ใช้ตั้ง/ทับราคาของรุ่น×ความจุที่มี SKU มือ 1 อยู่แล้ว
           (ถ้ายังไม่มีสต็อกจะแจ้งเตือน)
         </div>
       </div>
@@ -230,7 +230,7 @@ export function FirstHandInstallmentPage() {
         </div>
         {rows.length > 0 && (
           <div className="border-t border-slate-100 px-5 py-2 text-xs text-slate-500">
-            💡 แก้ตัวเลขในแถว → แถวเป็นสีเหลือง → กดบันทึก · เว้นดาวน์+ค่างวดทั้งหมดแล้วบันทึก = ล้างค่าผ่อนของกลุ่มนั้น
+            <Info className="inline h-3.5 w-3.5 align-[-2px]" /> แก้ตัวเลขในแถว → แถวเป็นสีเหลือง → กดบันทึก · เว้นดาวน์+ค่างวดทั้งหมดแล้วบันทึก = ล้างค่าผ่อนของกลุ่มนั้น
             {rows[0].downPayment != null && (
               <> · ตัวอย่าง: {rows[0].productName} {rows[0].storage}GB ดาวน์ {formatTHB(rows[0].downPayment)}</>
             )}

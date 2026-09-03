@@ -41,7 +41,7 @@ export function OutboundPage() {
     onSuccess: (data) => {
       toast.success(`จ่ายสินค้าสำเร็จ — qty ${data.qtyBefore} → ${data.qtyAfter} (TX: ${data.transactionNo})`);
       if (data.lowStockAlertCreated) {
-        toast(`⚠️ Low Stock Alert ถูกสร้าง`, { duration: 5000 });
+        toast(`Low Stock Alert ถูกสร้าง`, { duration: 5000 });
       }
       qc.invalidateQueries({ queryKey: ['inventory'] });
       qc.invalidateQueries({ queryKey: ['alerts'] });

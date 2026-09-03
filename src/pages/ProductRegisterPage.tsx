@@ -6,10 +6,7 @@ import {
   useFieldArray, useForm, useWatch,
 } from 'react-hook-form';
 import toast from 'react-hot-toast';
-import {
-  ArrowLeft, ScanLine, Boxes, Plus, Trash2, Save, Loader2, Check,
-  CircleAlert, Upload, ImageIcon, X, BatteryFull, Zap, Sparkles, Copy, PackageOpen,
-} from 'lucide-react';
+import { ArrowLeft, ScanLine, Boxes, Plus, Trash2, Save, Loader2, Check, CircleAlert, Upload, ImageIcon, X, BatteryFull, Zap, Sparkles, Copy, PackageOpen, CreditCard, Info, TriangleAlert, NotebookPen, Image } from 'lucide-react';
 import { categoriesApi, productsApi } from '@/api/products';
 import { inventoryApi } from '@/api/inventory';
 import { compressImage } from '@/lib/imageCompress';
@@ -805,7 +802,7 @@ export function ProductRegisterPage() {
       {draft && !isClone && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border-2 border-sky-300 bg-sky-50 p-3">
           <div className="text-sm text-sky-900">
-            📝 <strong>มีร่างที่พิมพ์ค้างไว้</strong>
+            <NotebookPen className="inline h-4 w-4 align-[-2px]" /> <strong>มีร่างที่พิมพ์ค้างไว้</strong>
             {(draft.values?.name ?? '').trim() && <> — {draft.values.name}</>}
             {(() => {
               const n = (draft.values?.items ?? []).filter(
@@ -904,7 +901,7 @@ export function ProductRegisterPage() {
                 {/* FIX-119: ชื่อคล้ายรุ่นที่มีอยู่ → กดชิปเพื่อใช้ชื่อตรงแล้วเพิ่มเข้ารุ่นเดิม (กันรุ่นซ้ำจาก typo) */}
                 {similarProducts.length > 0 && (
                   <div className="mt-1.5 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900">
-                    ⚠️ มีรุ่นชื่อคล้ายกันอยู่แล้ว — ถ้าตั้งใจเพิ่มเครื่องเข้า <strong>รุ่นเดิม</strong> กดเลือกเลย (กันสร้างรุ่นซ้ำ):
+                    <TriangleAlert className="inline h-3.5 w-3.5 align-[-2px]" /> มีรุ่นชื่อคล้ายกันอยู่แล้ว — ถ้าตั้งใจเพิ่มเครื่องเข้า <strong>รุ่นเดิม</strong> กดเลือกเลย (กันสร้างรุ่นซ้ำ):
                     <div className="mt-1 flex flex-wrap gap-1.5">
                       {similarProducts.map((p) => (
                         <button key={p.id} type="button"
@@ -968,7 +965,7 @@ export function ProductRegisterPage() {
                     profit > 0 ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
                       : profit < 0 ? 'border-red-200 bg-red-50 text-red-800'
                       : 'border-slate-200 bg-slate-50'}`}>
-                    {profit > 0 && '💰'}{profit < 0 && '⚠️'}
+                    {profit > 0 && ''}{profit < 0 && ''}
                     <strong>{formatTHB(profit)}</strong>
                     {profit !== 0 && <span>({margin.toFixed(1)}%)</span>}
                     {profit < 0 && <span>ขายต่ำกว่าทุน</span>}
@@ -1065,7 +1062,7 @@ export function ProductRegisterPage() {
                 )}
 
                 {productKind === 'accessory' ? (
-                  /* ⚡ Bulk Quick-Add — อุปกรณ์เสริมใช้ Lot-wide defaults
+                  /* Bulk Quick-Add — อุปกรณ์เสริมใช้ Lot-wide defaults
                      กรอกแค่ IMEI/Serial รายตัว — ที่มา/ทุน/ประกัน ใช้ที่ตั้งใน "Lot info" ด้านบน */
                   <FieldRow
                     label="รายการ Serial (Quick-Add)"
@@ -1112,7 +1109,7 @@ export function ProductRegisterPage() {
                         <Plus className="h-5 w-5" /> เพิ่มเครื่องอีกตัว
                       </button>
                       <p className="text-center text-xs text-slate-500">
-                        💡 ใส่ทุกเครื่องให้ครบก่อน แล้วกด “บันทึก” <strong>ครั้งเดียว</strong> (ไม่ต้องบันทึกทีละเครื่อง)
+                        <Info className="inline h-3.5 w-3.5 align-[-2px]" /> ใส่ทุกเครื่องให้ครบก่อน แล้วกด “บันทึก” <strong>ครั้งเดียว</strong> (ไม่ต้องบันทึกทีละเครื่อง)
                       </p>
                     </div>
                   </FieldRow>
@@ -1277,7 +1274,7 @@ function FieldRow({
       </label>
       <div className="min-w-0">
         {children}
-        {hint && <p className="mt-1 text-xs text-slate-500">💡 {hint}</p>}
+        {hint && <p className="mt-1 text-xs text-slate-500"><Info className="inline h-3.5 w-3.5 align-[-2px]" /> {hint}</p>}
       </div>
     </div>
   );
@@ -1548,7 +1545,7 @@ function ItemCard({
             <button type="button" onClick={applyPriceToAll}
                     className="mt-1 text-[11px] text-emerald-700 underline decoration-dotted underline-offset-2 hover:text-emerald-800"
                     title="เอาทุน/ขายของแถวนี้ ไปใส่ให้ทุกเครื่อง">
-              ⚡ ใช้ราคานี้กับทุกเครื่อง
+              <Zap className="inline h-4 w-4 align-[-2px]" /> ใช้ราคานี้กับทุกเครื่อง
             </button>
           )}
         </div>
@@ -1582,7 +1579,7 @@ function ItemCard({
       <div className="mt-2">
         {autoShared && !forceOwnImages ? (
           <div className="flex flex-wrap items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50/60 px-2.5 py-2 text-xs text-emerald-800">
-            <span>🖼 <strong>ใช้รูปร่วมกับ{unitLabel}ที่ {sharedFromIdx + 1} อัตโนมัติ</strong> (มือ1 สี/ความจุเดียวกัน — เว็บโชว์รูปเดียวกัน ไม่ต้องอัปซ้ำ)</span>
+            <span><Image className="inline h-3.5 w-3.5 align-[-2px]" /> <strong>ใช้รูปร่วมกับ{unitLabel}ที่ {sharedFromIdx + 1} อัตโนมัติ</strong> (มือ1 สี/ความจุเดียวกัน — เว็บโชว์รูปเดียวกัน ไม่ต้องอัปซ้ำ)</span>
             <button type="button" onClick={() => setForceOwnImages(true)}
                     className="rounded border border-emerald-300 bg-white px-2 py-0.5 text-[11px] text-emerald-700 hover:bg-emerald-100">
               อัปรูปแยกเฉพาะเครื่องนี้
@@ -1614,7 +1611,7 @@ function ItemCard({
           เครื่องมือ1 ถัดไปกลุ่มเดียวกัน → ยุบเป็นโน้ต (ระบบใช้ของเครื่องแรกเท่านั้น — กันกรอกแล้วถูกทิ้ง) (FIX-088) */}
       {instFirstIdx >= 0 ? (
         <div className="mt-2 rounded-md border border-amber-200 bg-amber-50/60 px-2.5 py-2 text-xs text-amber-800">
-          💳 <strong>ผ่อนดาวน์: ใช้ตาม{unitLabel}ที่ {instFirstIdx + 1} อัตโนมัติ</strong> (มือ1 สี/ความจุเดียวกัน ตั้งครั้งเดียวที่เครื่องแรก)
+          <CreditCard className="inline h-4 w-4 align-[-2px]" /> <strong>ผ่อนดาวน์: ใช้ตาม{unitLabel}ที่ {instFirstIdx + 1} อัตโนมัติ</strong> (มือ1 สี/ความจุเดียวกัน ตั้งครั้งเดียวที่เครื่องแรก)
         </div>
       ) : condition === 'NEW' ? (
         /* มือ1 · แผนหลายแบบ (ปุ่มเลือก) ต่อรุ่น — ตั้งครั้งเดียวใช้ทั้งสี/ความจุนี้ */
@@ -1624,7 +1621,7 @@ function ItemCard({
       ) : (
       <div className="mt-2 space-y-2 rounded-md border border-amber-200 bg-amber-50/60 p-2.5">
         <div className="flex items-center gap-2 text-xs font-semibold text-amber-900">
-          💳 ผ่อนดาวน์ <span className="font-normal text-amber-700">(มือ2 · รายเครื่องนี้) — เว้นว่างได้</span>
+          <CreditCard className="inline h-4 w-4 align-[-2px]" /> ผ่อนดาวน์ <span className="font-normal text-amber-700">(มือ2 · รายเครื่องนี้) — เว้นว่างได้</span>
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div>
@@ -1656,7 +1653,7 @@ function ItemCard({
                        title="เงินดาวน์เฉพาะงวดนี้ · เว้นว่าง = ใช้ดาวน์เริ่มต้นด้านบน"
                        onChange={(e) => setInstTerms(instTerms.map((x, k) => (k === i ? { ...x, down: e.target.value } : x)))} />
                 <button type="button" className="rounded p-1 text-red-500 hover:bg-red-50"
-                        onClick={() => setInstTerms(instTerms.filter((_, k) => k !== i))} title="ลบช่วงนี้">✕</button>
+                        onClick={() => setInstTerms(instTerms.filter((_, k) => k !== i))} title="ลบช่วงนี้"><X className="inline h-3.5 w-3.5 align-[-2px]" /></button>
               </div>
             ))}
             <button type="button" onClick={() => setInstTerms([...instTerms, { months: '', monthly: '', down: '' }])}

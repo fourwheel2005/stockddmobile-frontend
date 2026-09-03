@@ -5,20 +5,21 @@ import { posApi } from '@/api/pos';
 import { formatTHB } from '@/lib/format';
 import { shopDayKey } from '@/lib/datetime';
 import type { ShippingPartner } from '@/types/api';
+import { InitialChip, OWNER_CHIP, SHIPPING_PARTNER_CHIP } from '@/components/ui/InitialChip';
 
 interface Props {
   className?: string;
 }
 
-const PARTNER_LABEL: Record<ShippingPartner, { label: string; icon: string }> = {
-  ICE:        { label: 'น้ำแข็ง',  icon: '🧊' },
-  YUEM_MAI:   { label: 'ยืมมั้ย',  icon: '🤝' },
-  PEE_KEAW:   { label: 'พี่เขียว', icon: '🟢' },
-  GREATER:    { label: 'กรีทเตอร์', icon: '⭐' },
-  RED_HEAT:   { label: 'เรด ฮีท',  icon: '🔥' },
-  AMP_MOBILE: { label: 'แอมป์ โมบาย', icon: '📱' },
-  PICKUP:     { label: 'มารับเอง', icon: '🏪' },
-  OTHER:      { label: 'อื่นๆ',    icon: '📦' },
+const PARTNER_LABEL: Record<ShippingPartner, { label: string }> = {
+  ICE:        { label: 'น้ำแข็ง' },
+  YUEM_MAI:   { label: 'ยืมมั้ย' },
+  PEE_KEAW:   { label: 'พี่เขียว' },
+  GREATER:    { label: 'กรีทเตอร์' },
+  RED_HEAT:   { label: 'เรด ฮีท' },
+  AMP_MOBILE: { label: 'แอมป์ โมบาย' },
+  PICKUP:     { label: 'มารับเอง' },
+  OTHER:      { label: 'อื่นๆ' },
 };
 
 type Range = 'today' | '7d' | '30d';
@@ -95,7 +96,7 @@ export function ShippingPartnerWidget({ className = '' }: Props) {
                 <li key={r.partner} className="text-sm">
                   <div className="mb-0.5 flex items-center justify-between">
                     <span className="flex items-center gap-1.5">
-                      <span>{meta.icon}</span>
+                      <InitialChip {...SHIPPING_PARTNER_CHIP[r.partner]} />
                       <span className="font-medium">{meta.label}</span>
                       <span className="text-xs text-slate-400">· {r.orderCount} บิล</span>
                     </span>
@@ -103,7 +104,7 @@ export function ShippingPartnerWidget({ className = '' }: Props) {
                       <span className="font-bold">{formatTHB(r.totalFee)}</span>
                       {(r.grandpaFee + r.grandmaFee) > 0 && (
                         <span className="ml-1 text-[10px] text-slate-500">
-                          (👴 {formatTHB(r.grandpaFee)} · 👵 {formatTHB(r.grandmaFee)})
+                          (<InitialChip {...OWNER_CHIP.GRANDPA} /> {formatTHB(r.grandpaFee)} · <InitialChip {...OWNER_CHIP.GRANDMA} /> {formatTHB(r.grandmaFee)})
                         </span>
                       )}
                     </span>
@@ -123,9 +124,9 @@ export function ShippingPartnerWidget({ className = '' }: Props) {
         {/* Owner totals footer */}
         {data && (data.totalGrandpa + data.totalGrandma) > 0 && (
           <div className="mt-3 rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600">
-            👴 ตา ออกค่าส่ง <strong>{formatTHB(data.totalGrandpa)}</strong>
+            <InitialChip {...OWNER_CHIP.GRANDPA} /> ตา ออกค่าส่ง <strong>{formatTHB(data.totalGrandpa)}</strong>
             {' · '}
-            👵 ยาย ออกค่าส่ง <strong>{formatTHB(data.totalGrandma)}</strong>
+            <InitialChip {...OWNER_CHIP.GRANDMA} /> ยาย ออกค่าส่ง <strong>{formatTHB(data.totalGrandma)}</strong>
           </div>
         )}
       </div>

@@ -2,7 +2,7 @@ import { StockCountSection, type StockCountPayload } from '@/components/cash/Sto
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { X, DoorClosed, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { X, DoorClosed, AlertTriangle, CheckCircle2, Banknote, TriangleAlert } from 'lucide-react';
 import { cashRegisterApi } from '@/api/cashRegister';
 import { extractErrorMessage } from '@/api/client';
 import { formatTHB } from '@/lib/format';
@@ -105,7 +105,7 @@ export function CloseSessionModal({ session, onClose, onClosed }: Props) {
 
           <div>
             <label className="mb-1 block text-sm font-medium">
-              💵 นับเงินสดจริงในเก๊ะ แล้วกรอกตัวเลขเดียว (บาท)
+              <Banknote className="inline h-4 w-4 align-[-2px]" /> นับเงินสดจริงในเก๊ะ แล้วกรอกตัวเลขเดียว (บาท)
             </label>
             <input
               type="number" min={0} step={1}
@@ -119,7 +119,7 @@ export function CloseSessionModal({ session, onClose, onClosed }: Props) {
               type="button"
               className="mt-2 w-full rounded border border-emerald-300 bg-emerald-50 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-100"
               onClick={() => setActual(expected)}>
-              ✅ ตรงตามระบบ — {formatTHB(expected)}
+              <CheckCircle2 className="inline h-4 w-4 align-[-2px]" /> ตรงตามระบบ — {formatTHB(expected)}
             </button>
           </div>
 
@@ -142,7 +142,7 @@ export function CloseSessionModal({ session, onClose, onClosed }: Props) {
               </div>
               {willAlert && (
                 <div className="mt-2 text-xs">
-                  ⚠️ เกิน ±{formatTHB(VARIANCE_THRESHOLD)} — ระบบจะแจ้ง LINE
+                  <TriangleAlert className="inline h-3.5 w-3.5 align-[-2px]" /> เกิน ±{formatTHB(VARIANCE_THRESHOLD)} — ระบบจะแจ้ง LINE
                 </div>
               )}
             </div>

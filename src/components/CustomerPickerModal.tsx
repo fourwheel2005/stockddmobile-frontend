@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
-import { Search, Plus, X, UserCircle2, UserPlus, Users } from 'lucide-react';
+import { Search, Plus, X, UserCircle2, UserPlus, Users, Phone, User } from 'lucide-react';
 import { customersApi } from '@/api/customers';
 import { extractErrorMessage } from '@/api/client';
 import { useModalChrome, backdropCloseHandler } from '@/hooks/useModalChrome';
@@ -83,7 +83,7 @@ export function CustomerPickerModal({ onSelect, onClose }: Props) {
           <button
             onClick={() => { onSelect(null); onClose(); }}
             className="flex w-full items-center gap-2 rounded-md border border-dashed border-slate-300 bg-slate-50/50 px-3 py-2.5 text-left text-sm transition hover:border-brand-400 hover:bg-brand-50/40">
-            <span className="text-base">👤</span>
+            <span className="text-base"><User className="inline h-4 w-4 align-[-2px]" /></span>
             <span className="font-medium text-slate-700">ลูกค้า Walk-in</span>
             <span className="text-xs text-slate-500">(ไม่ระบุชื่อ — ใช้ได้สำหรับซื้อหน้าร้านสด)</span>
           </button>
@@ -125,7 +125,7 @@ export function CustomerPickerModal({ onSelect, onClose }: Props) {
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-sm font-medium text-slate-800">{c.name}</div>
                         <div className="truncate text-xs text-slate-500">
-                          📞 {c.phone ?? '-'}{c.email && ` · ✉️ ${c.email}`}
+                          <Phone className="inline h-3.5 w-3.5 align-[-2px]" /> {c.phone ?? '-'}{c.email && ` · ${c.email}`}
                         </div>
                       </div>
                     </button>

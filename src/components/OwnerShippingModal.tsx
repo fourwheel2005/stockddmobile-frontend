@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { X, Truck } from 'lucide-react';
+import { X, Truck, Info } from 'lucide-react';
 import { cashRegisterApi } from '@/api/cashRegister';
 import { extractErrorMessage } from '@/api/client';
 import { formatTHB } from '@/lib/format';
+import { InitialChip, OWNER_CHIP } from '@/components/ui/InitialChip';
 
 /**
  * บันทึก "ค่าส่งที่ตา/ยายสำรองจ่าย" แบบไม่ต้องมีการขาย
@@ -51,21 +52,21 @@ export function OwnerShippingModal({ onClose }: { onClose: () => void }) {
 
         <div className="space-y-3 px-5 py-4">
           <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-            💡 ใช้ตอน <strong>ตา/ยายออกไปจ่ายค่าส่งเองข้างนอก</strong> (ไม่เกี่ยวกับการขายบิลไหน) ·
+            <Info className="inline h-3.5 w-3.5 align-[-2px]" /> ใช้ตอน <strong>ตา/ยายออกไปจ่ายค่าส่งเองข้างนอก</strong> (ไม่เกี่ยวกับการขายบิลไหน) ·
             ระบบจะ <strong>ไม่หักเงินจากเก๊ะ</strong> แต่บันทึกว่า <strong>ร้านติดหนี้ตา/ยาย</strong> +
             นับเป็น <strong>รายจ่ายค่าส่ง</strong> ในรายงานกำไร
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">👴 ค่าส่งของตา (บาท)</label>
+              <label className="mb-1 block text-xs font-medium text-slate-600"><InitialChip {...OWNER_CHIP.GRANDPA} /> ค่าส่งของตา (บาท)</label>
               <input type="number" min={0} step={1} className="input text-right"
                      value={grandpa || ''} placeholder="0"
                      onChange={(e) => setGrandpa(Math.max(0, Number(e.target.value) || 0))}
                      onFocus={(e) => e.target.select()} autoFocus />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">👵 ค่าส่งของยาย (บาท)</label>
+              <label className="mb-1 block text-xs font-medium text-slate-600"><InitialChip {...OWNER_CHIP.GRANDMA} /> ค่าส่งของยาย (บาท)</label>
               <input type="number" min={0} step={1} className="input text-right"
                      value={grandma || ''} placeholder="0"
                      onChange={(e) => setGrandma(Math.max(0, Number(e.target.value) || 0))}

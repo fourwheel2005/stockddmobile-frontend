@@ -22,7 +22,7 @@ export class WebUsbStrategy implements PrinterStrategy {
   private endpointOut: number | null = null;
 
   label(): string {
-    return '🔗 WebUSB (Chrome)';
+    return 'WebUSB (Chrome)';
   }
 
   async isReady(): Promise<boolean> {

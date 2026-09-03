@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { PackagePlus, Plus } from 'lucide-react';
+import { PackagePlus, Plus, Lock } from 'lucide-react';
 import { formatTHB } from '@/lib/format';
 
 export interface CustomItemDraft {
@@ -101,7 +101,7 @@ export function CustomItemForm({ onAdd }: Props) {
 
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-xs text-slate-500">
-            🔒 ทุนกรอกเป็น <strong>รหัสตัวอักษร</strong> ชุดเดียวกับที่ใช้ดูทุนในระบบ · เว้นว่างได้ถ้ายังไม่รู้ทุน
+            <Lock className="inline h-4 w-4 align-[-2px]" /> ทุนกรอกเป็น <strong>รหัสตัวอักษร</strong> ชุดเดียวกับที่ใช้ดูทุนในระบบ · เว้นว่างได้ถ้ายังไม่รู้ทุน
             {!codeValid && <span className="ml-1 text-red-600">— ใส่ได้เฉพาะตัวอักษร</span>}
           </p>
           <div className="flex items-center gap-3">

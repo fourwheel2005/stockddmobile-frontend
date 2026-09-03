@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, PackageOpen, Banknote, ArrowLeftRight } from 'lucide-react';
+import { X, PackageOpen, Banknote, ArrowLeftRight, Info, Package } from 'lucide-react';
 import { formatTHB } from '@/lib/format';
 import { useModalChrome, backdropCloseHandler } from '@/hooks/useModalChrome';
 import type { RefundMethod, SalesOrderResponse } from '@/types/api';
@@ -62,7 +62,7 @@ export function ReturnDeviceModal({ order, onClose, onConfirm, loading }: Props)
 
           {/* FIX-140: รับคืนเฉพาะเครื่อง → กลับเข้าสต็อกขายได้ทันที (ไม่ต้องกดรับเข้าสต็อกอีก) */}
           <div className="rounded-md border border-emerald-200 bg-emerald-50 p-2.5 text-xs text-emerald-800">
-            📦 เฉพาะ <strong>เครื่อง {deviceCount} รายการ</strong> จะกลับเข้าสต็อก <strong>ขายได้ทันที</strong> ·
+            <Package className="inline h-4 w-4 align-[-2px]" /> เฉพาะ <strong>เครื่อง {deviceCount} รายการ</strong> จะกลับเข้าสต็อก <strong>ขายได้ทันที</strong> ·
             อุปกรณ์เสริมที่จ่ายแล้วไม่ถูกดึงกลับ
           </div>
 
@@ -85,7 +85,7 @@ export function ReturnDeviceModal({ order, onClose, onConfirm, loading }: Props)
               />
             </div>
             <p className="mt-1 text-xs text-slate-500">
-              💡 ปกติ <strong>0</strong> = ร้านเก็บงวดที่จ่ายมาแล้ว · ใส่จำนวนถ้าตกลงคืนบางส่วน
+              <Info className="inline h-3.5 w-3.5 align-[-2px]" /> ปกติ <strong>0</strong> = ร้านเก็บงวดที่จ่ายมาแล้ว · ใส่จำนวนถ้าตกลงคืนบางส่วน
               {refund > 0 && <> · คืน {formatTHB(refund)} {refundMethod === 'CASH' ? 'เป็นเงินสดจากลิ้นชัก' : 'โดยโอนเข้าบัญชีลูกค้า'}</>}
             </p>
             {!refundValid && (

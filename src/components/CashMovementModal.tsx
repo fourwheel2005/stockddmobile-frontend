@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { X, ArrowDownCircle, ArrowUpCircle } from 'lucide-react';
+import { X, ArrowDownCircle, ArrowUpCircle, Banknote, HandCoins, Receipt, Lock, Scale } from 'lucide-react';
 import { cashRegisterApi } from '@/api/cashRegister';
 import { extractErrorMessage } from '@/api/client';
 import { useModalChrome, backdropCloseHandler } from '@/hooks/useModalChrome';
 import type { CashMovementType, PaidFrom } from '@/types/api';
+import type { LucideIcon } from 'lucide-react';
 
 interface Props {
   sessionId: string;
@@ -15,12 +16,12 @@ interface Props {
 
 type MoveKind = 'CASH_IN' | 'EXPENSE' | 'SAFE_DROP' | 'PETTY_FROM_OWNER' | 'ADJUSTMENT';
 
-const KINDS: { key: MoveKind; label: string; type: CashMovementType; sign: '+' | '-' | '±'; icon: string }[] = [
-  { key: 'CASH_IN',         label: 'เติมเงินสด',           type: 'CASH_IN',               sign: '+', icon: '💵' },
-  { key: 'PETTY_FROM_OWNER',label: 'ตา/ยายใส่เงินเพิ่ม', type: 'PETTY_CASH_FROM_OWNER', sign: '+', icon: '👵' },
-  { key: 'EXPENSE',         label: 'จ่ายค่าใช้จ่าย',       type: 'PAYOUT_EXPENSE',        sign: '-', icon: '🧾' },
-  { key: 'SAFE_DROP',       label: 'เก็บเข้าตู้นิรภัย',     type: 'SAFE_DROP',             sign: '-', icon: '🔒' },
-  { key: 'ADJUSTMENT',      label: 'ปรับปรุง',              type: 'ADJUSTMENT',            sign: '±', icon: '⚖️' },
+const KINDS: { key: MoveKind; label: string; type: CashMovementType; sign: '+' | '-' | '±'; icon: LucideIcon }[] = [
+  { key: 'CASH_IN',         label: 'เติมเงินสด',           type: 'CASH_IN',               sign: '+', icon: Banknote },
+  { key: 'PETTY_FROM_OWNER',label: 'ตา/ยายใส่เงินเพิ่ม', type: 'PETTY_CASH_FROM_OWNER', sign: '+', icon: HandCoins },
+  { key: 'EXPENSE',         label: 'จ่ายค่าใช้จ่าย',       type: 'PAYOUT_EXPENSE',        sign: '-', icon: Receipt },
+  { key: 'SAFE_DROP',       label: 'เก็บเข้าตู้นิรภัย',     type: 'SAFE_DROP',             sign: '-', icon: Lock },
+  { key: 'ADJUSTMENT',      label: 'ปรับปรุง',              type: 'ADJUSTMENT',            sign: '±', icon: Scale },
 ];
 
 export function CashMovementModal({ sessionId, onClose, onDone }: Props) {
@@ -91,7 +92,7 @@ export function CashMovementModal({ sessionId, onClose, onDone }: Props) {
                       ? 'border-brand-500 bg-brand-50 font-semibold text-brand-700'
                       : 'border-slate-200 hover:border-slate-300'
                   }`}>
-                  <span className="text-base">{k.icon}</span>
+                  <k.icon className="h-4 w-4 shrink-0" />
                   <span className="text-xs">{k.label}</span>
                 </button>
               ))}
@@ -126,7 +127,7 @@ export function CashMovementModal({ sessionId, onClose, onDone }: Props) {
                         ? 'border-brand-500 bg-brand-50 font-semibold text-brand-700'
                         : 'border-slate-200 hover:border-slate-300'
                     }`}>
-                    {p === 'OWNER_GRANDPA' ? '👴 ตา' : '👵 ยาย'}
+                    {p === 'OWNER_GRANDPA' ? 'ตา' : 'ยาย'}
                   </button>
                 ))}
               </div>

@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import toast from 'react-hot-toast';
+import { RefreshCw } from 'lucide-react';
 
 /**
  * ตรวจจับว่ามีเวอร์ชัน frontend ใหม่ deploy แล้วหรือยัง (FIX-095).
@@ -30,7 +31,7 @@ export function useVersionCheck() {
           toast(
             (t) => (
               <span className="flex items-center gap-3">
-                <span>🔄 มีเวอร์ชันใหม่ของระบบแล้ว</span>
+                <span><RefreshCw className="inline h-4 w-4 align-[-2px]" /> มีเวอร์ชันใหม่ของระบบแล้ว</span>
                 <button
                   onClick={() => window.location.reload()}
                   className="rounded-md bg-brand-600 px-3 py-1 text-sm font-semibold text-white hover:bg-brand-700"

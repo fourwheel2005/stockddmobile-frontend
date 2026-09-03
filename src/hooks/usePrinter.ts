@@ -189,7 +189,7 @@ export function usePrinter() {
 
       const documentLabel = duplicate ? 'สำเนาใบเสร็จ' : 'ใบเสร็จต้นฉบับ';
       toast.success(queued
-        ? `ส่ง${documentLabel}เข้าคิวปริ้นสาขาแล้ว ☁️`
+        ? `ส่ง${documentLabel}เข้าคิวปริ้นสาขาแล้ว`
         : `พิมพ์${documentLabel}แล้ว (${result.strategy})`);
       return { ...result, jobType: job.jobType };
     } catch (e) {
@@ -257,7 +257,7 @@ export function usePrinter() {
           .catch(() => undefined);
       }
       toast.success(queued
-        ? 'ส่งใบเสร็จ/ใบกำกับภาษีเข้าคิวปริ้นสาขาแล้ว ☁️'
+        ? 'ส่งใบเสร็จ/ใบกำกับภาษีเข้าคิวปริ้นสาขาแล้ว'
         : `พิมพ์ใบเสร็จ/ใบกำกับภาษี${copy ? ' (สำเนา)' : ' (ต้นฉบับ)'}แล้ว`);
       return result;
     } catch (e) {
@@ -308,7 +308,7 @@ export function usePrinter() {
         });
       }
       toast.success(result.strategy === 'PULL_AGENT'
-        ? 'ส่งใบลดหนี้เข้าคิวปริ้นสาขาแล้ว ☁️'
+        ? 'ส่งใบลดหนี้เข้าคิวปริ้นสาขาแล้ว'
         : `พิมพ์ใบลดหนี้${copy ? ' (สำเนา)' : ' (ต้นฉบับ)'}แล้ว`);
       return result;
     } catch (e) {

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { X, Search, Printer, ScanLine } from 'lucide-react';
+import { X, Search, Printer, ScanLine, CheckCircle2, Info } from 'lucide-react';
 import { useModalChrome, backdropCloseHandler } from '@/hooks/useModalChrome';
 import { posApi } from '@/api/pos';
 import { extractErrorMessage } from '@/api/client';
@@ -95,7 +95,7 @@ export function QuickReprintModal({ onClose, onPrint, printing }: Props) {
 
           {/* Hint */}
           <div className="rounded-md bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800">
-            💡 <strong>ยิง QR code</strong> บนใบเสร็จเก่า (เลข bill จะ paste อัตโนมัติ)
+            <Info className="inline h-3.5 w-3.5 align-[-2px]" /> <strong>ยิง QR code</strong> บนใบเสร็จเก่า (เลข bill จะ paste อัตโนมัติ)
             <br />
             หรือพิมพ์เลขบิลเอง เช่น <code className="font-mono bg-white px-1 rounded">INV-20260603-3F768549</code>
           </div>
@@ -128,7 +128,7 @@ export function QuickReprintModal({ onClose, onPrint, printing }: Props) {
           {order && (
             <div className="rounded-lg border-2 border-emerald-300 bg-emerald-50/30 p-4 space-y-2">
               <div className="flex items-center gap-2 text-emerald-700">
-                <span className="text-sm font-semibold">✅ พบบิล</span>
+                <span className="text-sm font-semibold"><CheckCircle2 className="inline h-4 w-4 align-[-2px]" /> พบบิล</span>
               </div>
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <div>

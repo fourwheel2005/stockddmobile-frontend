@@ -24,7 +24,7 @@ const STATUS_TH: Record<string, { text: string; cls: string }> = {
 
 /**
  * เช็ครายละเอียดเครื่องด้วยการยิง IMEI — โชว์ข้อมูลครบเพื่อตอบลูกค้า.
- * ⚠️ ไม่โชว์ต้นทุน (purchasePrice/purchasePriceCode) · ไม่เพิ่มลงตะกร้า.
+ * ไม่โชว์ต้นทุน (purchasePrice/purchasePriceCode) · ไม่เพิ่มลงตะกร้า.
  */
 export function DeviceLookupModal({ onClose }: { onClose: () => void }) {
   const [q, setQ] = useState('');

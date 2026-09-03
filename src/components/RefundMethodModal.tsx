@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Undo2, Banknote, ArrowLeftRight } from 'lucide-react';
+import { X, Undo2, Banknote, ArrowLeftRight, CreditCard, Package, Receipt, Smartphone } from 'lucide-react';
 import { formatTHB } from '@/lib/format';
 import { useModalChrome, backdropCloseHandler } from '@/hooks/useModalChrome';
 import type { RefundMethod, SalesOrderResponse } from '@/types/api';
@@ -70,13 +70,13 @@ export function RefundMethodModal({ order, onClose, onConfirm, loading, creditNo
               )}
               {card > 0 && (
                 <RefundLine
-                  icon={<span className="text-violet-600">💳</span>}
+                  icon={<span className="text-violet-600"><CreditCard className="inline h-4 w-4 align-[-2px]" /></span>}
                   label="ยกเลิกบัตร" amount={card}
                   hint="ติดต่อธนาคารยกเลิก — ระบบบันทึก audit" />
               )}
               {qr > 0 && (
                 <RefundLine
-                  icon={<span className="text-orange-600">📱</span>}
+                  icon={<span className="text-orange-600"><Smartphone className="inline h-4 w-4 align-[-2px]" /></span>}
                   label="คืนผ่าน QR" amount={qr}
                   hint="โอนกลับเข้าบัญชี/พร้อมเพย์ลูกค้า" />
               )}
@@ -113,12 +113,12 @@ export function RefundMethodModal({ order, onClose, onConfirm, loading, creditNo
 
           {/* Stock restore notice */}
           <div className="rounded-md border border-emerald-200 bg-emerald-50 p-2.5 text-xs text-emerald-800">
-            📦 สินค้า {order.items.length} รายการจะถูกคืนกลับเข้าสต็อกอัตโนมัติ
+            <Package className="inline h-4 w-4 align-[-2px]" /> สินค้า {order.items.length} รายการจะถูกคืนกลับเข้าสต็อกอัตโนมัติ
           </div>
 
           {creditNote && (
             <div className="rounded-md border border-sky-200 bg-sky-50 p-2.5 text-xs text-sky-800">
-              🧾 ระบบจะเก็บใบกำกับเดิมไว้ ออกเลขใบลดหนี้ใหม่ และลดมูลค่าทั้งบิลเป็น 0.00 บาท
+              <Receipt className="inline h-4 w-4 align-[-2px]" /> ระบบจะเก็บใบกำกับเดิมไว้ ออกเลขใบลดหนี้ใหม่ และลดมูลค่าทั้งบิลเป็น 0.00 บาท
             </div>
           )}
 

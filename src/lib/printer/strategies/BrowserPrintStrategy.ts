@@ -13,7 +13,7 @@ export class BrowserPrintStrategy implements PrinterStrategy {
   constructor(private readonly printCallback?: () => Promise<void>) {}
 
   label(): string {
-    return '🖨 Browser Print (Fallback)';
+    return 'Browser Print (Fallback)';
   }
 
   async isReady(): Promise<boolean> {

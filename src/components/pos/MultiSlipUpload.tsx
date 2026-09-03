@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Upload, X, Image as ImageIcon, Plus } from 'lucide-react';
+import { Upload, X, Image as ImageIcon, Plus, Info, Paperclip } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { filesApi } from '@/api/files';
 import { extractErrorMessage } from '@/api/client';
@@ -106,7 +106,7 @@ export function MultiSlipUpload({ slips, onChange, required, maxFiles = DEFAULT_
     }`}>
       <div className="mb-1.5 flex items-center justify-between text-xs font-semibold">
         <span>
-          📎 สลิปโอนเงิน ({slips.length}/{maxFiles})
+          <Paperclip className="inline h-4 w-4 align-[-2px]" /> สลิปโอนเงิน ({slips.length}/{maxFiles})
           {showEmptyError && <span className="ml-1 text-red-600">* จำเป็น</span>}
         </span>
       </div>
@@ -162,7 +162,7 @@ export function MultiSlipUpload({ slips, onChange, required, maxFiles = DEFAULT_
       )}
 
       <p className="mt-1 text-[10px] text-slate-500">
-        💡 รองรับ JPG / PNG / PDF — อัปโหลดได้สูงสุด {maxFiles} ใบ
+        <Info className="inline h-3.5 w-3.5 align-[-2px]" /> รองรับ JPG / PNG / PDF — อัปโหลดได้สูงสุด {maxFiles} ใบ
       </p>
     </div>
   );

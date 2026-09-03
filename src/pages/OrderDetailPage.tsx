@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Receipt, Smartphone, Pencil } from 'lucide-react';
+import { ArrowLeft, Receipt, Smartphone, Pencil, CreditCard, Package, User } from 'lucide-react';
 import { posApi } from '@/api/pos';
 import { extractErrorMessage } from '@/api/client';
 import { useAuthStore } from '@/stores/authStore';
@@ -105,7 +105,7 @@ export function OrderDetailPage() {
         {/* ลูกค้า + การชำระ */}
         <div className="space-y-4 lg:col-span-1">
           <div className="card">
-            <div className="card-header">👤 ลูกค้า</div>
+            <div className="card-header"><User className="inline h-4 w-4 align-[-2px]" /> ลูกค้า</div>
             <div className="card-body">
               <div className="font-medium">{o.customerName ?? 'ลูกค้าหน้าร้าน (Walk-in)'}</div>
               {o.customerPhone && <div className="text-sm text-slate-500">{o.customerPhone}</div>}
@@ -113,7 +113,7 @@ export function OrderDetailPage() {
           </div>
 
           <div className="card">
-            <div className="card-header">💳 การชำระเงิน</div>
+            <div className="card-header"><CreditCard className="inline h-4 w-4 align-[-2px]" /> การชำระเงิน</div>
             <div className="card-body">
               <Row label="วิธีชำระ" value={o.paymentMethod ?? '-'} />
               {o.cashAmount > 0 && <Row label="เงินสด" value={formatTHB(o.cashAmount)} />}
@@ -144,7 +144,7 @@ export function OrderDetailPage() {
         {/* รายการสินค้า + ยอดรวม */}
         <div className="space-y-4 lg:col-span-2">
           <div className="card">
-            <div className="card-header">📦 รายการสินค้า ({o.items.length})</div>
+            <div className="card-header"><Package className="inline h-4 w-4 align-[-2px]" /> รายการสินค้า ({o.items.length})</div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">

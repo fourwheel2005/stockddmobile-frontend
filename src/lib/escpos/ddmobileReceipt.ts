@@ -112,7 +112,7 @@ export function buildDDMobileReceipt(
     .size(2, 2).bold(true).textln(data.shop.name).bold(false).size(1, 1);
 
   if (data.shop.address) b.textln(data.shop.address);
-  if (data.shop.phone) b.textln(`📞 ${data.shop.phone}`);
+  if (data.shop.phone) b.textln(`โทร. ${data.shop.phone}`);
   if (data.shop.taxId) b.textln(`Tax ID: ${data.shop.taxId}`);
 
   b.separator('=', W);
@@ -286,7 +286,7 @@ export function buildDDMobileReceipt(
   // ─── Shipping detail ────────────────────────────
   if (data.shippingTrackingNo || data.shippingAddress) {
     b.separator('-', W);
-    b.bold(true).textln('📦 ข้อมูลจัดส่ง').bold(false);
+    b.bold(true).textln('ข้อมูลจัดส่ง').bold(false);
     if (data.shippingTrackingNo) b.textln(`เลขพัสดุ: ${data.shippingTrackingNo}`);
     if (data.shippingAddress) {
       // ตัดบรรทัดที่ 42 ตัวอักษร (กัน Thai มี zero-width)

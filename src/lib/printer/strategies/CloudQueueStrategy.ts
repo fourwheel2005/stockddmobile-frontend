@@ -43,7 +43,7 @@ export class CloudQueueStrategy implements PrinterStrategy {
 
   label(): string {
     const id = getAgentPrinterId();
-    return `☁️ คิวปริ้นสาขา${id ? ` (${id})` : ''}`;
+    return `คิวปริ้นสาขา${id ? ` (${id})` : ''}`;
   }
 
   async isReady(): Promise<boolean> {

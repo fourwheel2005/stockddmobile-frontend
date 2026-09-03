@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ShieldCheck, Search, CheckCircle2, XCircle, Calendar, Package, Printer } from 'lucide-react';
+import { ShieldCheck, Search, CheckCircle2, XCircle, Calendar, Package, Printer, Info } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { warrantyApi } from '@/api/warranty';
 import { extractErrorMessage } from '@/api/client';
@@ -147,7 +147,7 @@ export function WarrantyPage() {
       {!result && !loading && (
         <div className="card">
           <div className="card-body text-center text-sm text-slate-500">
-            💡 พิมพ์หรือสแกน IMEI/SN แล้วกด "ค้นหา" เพื่อดูข้อมูลประกัน
+            <Info className="inline h-3.5 w-3.5 align-[-2px]" /> พิมพ์หรือสแกน IMEI/SN แล้วกด "ค้นหา" เพื่อดูข้อมูลประกัน
           </div>
         </div>
       )}

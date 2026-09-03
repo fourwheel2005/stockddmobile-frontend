@@ -39,7 +39,7 @@ const ASCII_OVERRIDE: Record<number, number> = {
  *
  * Critical: ต้องเรียก codepage() ของ ESC/POS ก่อน text() ทุกครั้ง
  *   - TM-T82III/V    → 21
- *   - TM-T82X-II     → 26 ⭐
+ *   - TM-T82X-II     → 26
  *   - บางรุ่น (TM-U) → 17 หรือ 18
  */
 export function encodeCp874(text: string): Uint8Array {
@@ -74,7 +74,7 @@ export function encodeCp874(text: string): Uint8Array {
     }
 
     // emoji / กว่าง → strip (ส่วนใหญ่ font printer ไม่มี)
-    // ✅ ตรวจ surrogate pair (emoji = high+low 2 chars)
+    // ตรวจ surrogate pair (emoji = high+low 2 chars)
     if (code >= 0xd800 && code <= 0xdbff) {
       i++; // skip low surrogate
       continue;

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { X, Wrench, ShieldAlert, Undo2, BatteryMedium, Pencil, Save, Plus, Trash2, ArrowLeftRight, QrCode, PackageOpen, Printer } from 'lucide-react';
+import { X, Wrench, ShieldAlert, Undo2, BatteryMedium, Pencil, Save, Plus, Trash2, ArrowLeftRight, QrCode, PackageOpen, Printer, CheckCircle2, CreditCard, Package, ShieldCheck } from 'lucide-react';
 import { inventoryApi } from '@/api/inventory';
 import { posApi } from '@/api/pos';
 import { productsApi } from '@/api/products';
@@ -276,7 +276,7 @@ export function SerialsModal({ variantId, productName, sku, onClose, highlightId
                     )}
                     {s.defectNote && (
                       <div className="mt-0.5 text-xs text-slate-500" title={s.defectNote}>
-                        🔧 {s.defectNote.length > 24 ? s.defectNote.slice(0, 24) + '…' : s.defectNote}
+                        <Wrench className="inline h-4 w-4 align-[-2px]" /> {s.defectNote.length > 24 ? s.defectNote.slice(0, 24) + '…' : s.defectNote}
                       </div>
                     )}
                   </td>
@@ -353,11 +353,11 @@ export function SerialsModal({ variantId, productName, sku, onClose, highlightId
         </div>
 
         <div className="flex shrink-0 flex-wrap gap-x-3 gap-y-1 border-t px-5 py-2 text-xs text-slate-500">
-          <span>✏️ แก้ไข</span>
-          <span>🔧 ส่งซ่อม</span>
-          <span>🛡️ ส่งเคลม</span>
+          <span><Pencil className="inline h-3.5 w-3.5 align-[-2px]" /> แก้ไข</span>
+          <span><Wrench className="inline h-4 w-4 align-[-2px]" /> ส่งซ่อม</span>
+          <span><ShieldCheck className="inline h-4 w-4 align-[-2px]" /> ส่งเคลม</span>
           <span>↩️ คืนเข้าสต็อกหลังตรวจผ่าน</span>
-          <span>📦 เครื่องขายแล้ว (ผ่อน) = รับเครื่องคืน · 🔧 เปิดใบรับซ่อมลูกค้า</span>
+          <span><Package className="inline h-4 w-4 align-[-2px]" /> เครื่องขายแล้ว (ผ่อน) = รับเครื่องคืน · <Wrench className="inline h-4 w-4 align-[-2px]" /> เปิดใบรับซ่อมลูกค้า</span>
         </div>
       </div>
     </div>
@@ -536,7 +536,7 @@ function MoveVariantModal({ item, targets, onClose, onMoved }: {
             )}
             {targetProduct && (
               <div className="mt-1.5 rounded-md border border-emerald-300 bg-emerald-50 px-2.5 py-1.5 text-xs text-emerald-900">
-                ✅ ปลายทาง: <strong>{targetProduct.name}</strong> — ระบบจะจับ SKU ตาม
+                <CheckCircle2 className="inline h-4 w-4 align-[-2px]" /> ปลายทาง: <strong>{targetProduct.name}</strong> — ระบบจะจับ SKU ตาม
                 <strong> มือ+สี+ความจุ</strong> ของเครื่อง ({item.deviceColor ?? '?'} / {item.deviceStorage ?? '?'})
                 ให้อัตโนมัติ · ไม่มี SKU ตรง = สร้างใหม่ให้พร้อมประทับมือ
                 <button type="button" onClick={() => { setTargetProductId(''); setProdSearch(''); }}
@@ -546,7 +546,7 @@ function MoveVariantModal({ item, targets, onClose, onMoved }: {
           </div>
 
           <p className="text-[11px] text-slate-500">
-            ระบบจะย้ายสต๊อกเครื่องนี้ + บันทึกประวัติ · ราคา/สภาพรายเครื่องคงเดิม (แก้เพิ่มได้ที่ ✏️)
+            ระบบจะย้ายสต๊อกเครื่องนี้ + บันทึกประวัติ · ราคา/สภาพรายเครื่องคงเดิม (แก้เพิ่มได้ที่ <Pencil className="inline h-3.5 w-3.5 align-[-2px]" />)
           </p>
         </div>
         <div className="flex justify-end gap-2 border-t px-5 py-3">
@@ -655,7 +655,7 @@ export function EditSerialModal({ item, variantCondition, onClose, onSaved, onCo
       // มือของเครื่องหลังแก้ ไม่ตรงกับมือของ SKU → ชวนย้าย SKU ทันที (กันตกค้างเป็น "ผสม 1+2" — FIX-115)
       const group = condition === 'NEW' ? 'NEW' : 'SECOND_HAND';
       if (variantCondition && group !== variantCondition) {
-        toast(`⚠️ เครื่องนี้ตอนนี้เป็น${group === 'NEW' ? 'มือ 1' : 'มือ 2'} แต่ SKU เป็น${variantCondition === 'NEW' ? 'มือ 1' : 'มือ 2'} — เลือก SKU ปลายทางเพื่อย้าย`,
+        toast(`เครื่องนี้ตอนนี้เป็น${group === 'NEW' ? 'มือ 1' : 'มือ 2'} แต่ SKU เป็น${variantCondition === 'NEW' ? 'มือ 1' : 'มือ 2'} — เลือก SKU ปลายทางเพื่อย้าย`,
               { duration: 6000 });
         onConditionMismatch?.({ ...item, condition });
       }
@@ -789,7 +789,7 @@ export function EditSerialModal({ item, variantCondition, onClose, onSaved, onCo
           {/* ตารางผ่อน มือ 2 (รายเครื่อง) — กรอกที่นี่ เว็บหน้าร้านดึงไปแสดง */}
           <div className="space-y-2 rounded-md border border-amber-200 bg-amber-50/60 p-3">
             <div className="flex items-center gap-2 text-sm font-semibold text-amber-900">
-              💳 ผ่อนเครื่องนี้ (มือ 2) <span className="text-xs font-normal text-amber-700">— โชว์บนเว็บ · เว้นว่าง = ไม่ผ่อน</span>
+              <CreditCard className="inline h-4 w-4 align-[-2px]" /> ผ่อนเครื่องนี้ (มือ 2) <span className="text-xs font-normal text-amber-700">— โชว์บนเว็บ · เว้นว่าง = ไม่ผ่อน</span>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -818,7 +818,7 @@ export function EditSerialModal({ item, variantCondition, onClose, onSaved, onCo
                            value={t.down} onChange={(e) => patchTerm(i, { down: e.target.value })}
                            title="เงินดาวน์เฉพาะงวดนี้ · เว้นว่าง = ใช้ดาวน์เริ่มต้นด้านบน" />
                     <button type="button" className="rounded p-1 text-red-500 hover:bg-red-50"
-                            onClick={() => removeTerm(i)} title="ลบช่วงนี้">✕</button>
+                            onClick={() => removeTerm(i)} title="ลบช่วงนี้"><X className="inline h-3.5 w-3.5 align-[-2px]" /></button>
                   </div>
                 ))}
                 <button type="button" onClick={addTerm}
@@ -900,7 +900,7 @@ function DeviceServiceLogSection({ serialItemId, canSeeCost }: { serialItemId: s
     <div className="rounded-md border border-indigo-200 bg-indigo-50/50 p-3">
       <div className="mb-2 flex items-center justify-between">
         <span className="text-xs font-semibold text-indigo-800">
-          🔧 ประวัติซ่อม/อะไหล่ (เครื่องมือสอง)
+          <Wrench className="inline h-4 w-4 align-[-2px]" /> ประวัติซ่อม/อะไหล่ (เครื่องมือสอง)
           {canSeeCost && hasCost && total > 0 && (
             <span className="ml-1 font-normal text-indigo-600">· ค่าซ่อมรวม {formatTHB(total)} (บวกเข้าต้นทุน)</span>
           )}

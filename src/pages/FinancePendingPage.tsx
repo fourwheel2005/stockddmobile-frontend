@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { Landmark, CheckCircle2, XCircle, RefreshCw, Building2, Clock } from 'lucide-react';
+import { Landmark, CheckCircle2, XCircle, RefreshCw, Building2, Clock, Check, X } from 'lucide-react';
 import { posApi } from '@/api/pos';
 import { extractErrorMessage } from '@/api/client';
 import { formatTHB, formatDateTime } from '@/lib/format';
@@ -15,7 +15,7 @@ import type { SalesOrderResponse } from '@/types/api';
  *  Flow:
  *   PENDING (เพิ่งสร้างบิล)
  *      ↓ ไฟแนนซ์อนุมัติ → APPROVED (แก้มือเพิ่ม ถ้ามี webhook อนาคต)
- *      ↓ เงินเข้าบัญชีร้าน → กดยืนยัน → RECEIVED ✓
+ *      ↓ เงินเข้าบัญชีร้าน → กดยืนยัน → RECEIVED
  *      ↓ ไฟแนนซ์ปฏิเสธ   → กดปฏิเสธ → DECLINED (ต้อง refund แยก)
  */
 export function FinancePendingPage() {
@@ -176,12 +176,12 @@ export function FinancePendingPage() {
                             id: o.id,
                             referenceNo: refNo.trim() || undefined,
                           })}>
-                          ✓
+                          <Check className="inline h-3.5 w-3.5 align-[-2px]" />
                         </button>
                         <button
                           className="rounded px-1 text-slate-500 hover:bg-slate-100"
                           onClick={() => { setConfirmingId(null); setRefNo(''); }}>
-                          ✕
+                          <X className="inline h-3.5 w-3.5 align-[-2px]" />
                         </button>
                       </div>
                     ) : (

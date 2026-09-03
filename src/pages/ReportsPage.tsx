@@ -4,7 +4,7 @@ import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
-import { BarChart3, TrendingUp, Wallet, Boxes, Trophy } from 'lucide-react';
+import { BarChart3, TrendingUp, Wallet, Boxes, Trophy, Store } from 'lucide-react';
 import { reportsApi } from '@/api/reports';
 import { formatTHB, formatNumber } from '@/lib/format';
 import { shopDayKey } from '@/lib/datetime';
@@ -238,7 +238,7 @@ export function ReportsPage() {
       {/* ยอดขายแยกสาขา (Phase 2C) — โชว์เมื่อมี >1 สาขา */}
       {(byBranch.data?.length ?? 0) > 1 && (
         <div className="card overflow-hidden">
-            <div className="card-header font-semibold">🏪 ยอดขายแยกสาขา</div>
+            <div className="card-header font-semibold"><Store className="inline h-4 w-4 align-[-2px]" /> ยอดขายแยกสาขา</div>
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs text-slate-500">
                 <tr>

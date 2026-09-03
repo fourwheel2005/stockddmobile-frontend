@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { PackagePlus, Plus, Eye, Sparkles, FolderOpen, Trash2, ArrowDownToLine, Smartphone } from 'lucide-react';
+import { PackagePlus, Plus, Eye, Sparkles, FolderOpen, Trash2, ArrowDownToLine, Smartphone, Inbox, Info, Wallet, X, Barcode } from 'lucide-react';
 import { productsApi } from '@/api/products';
 import { inventoryApi } from '@/api/inventory';
 import { extractErrorMessage } from '@/api/client';
@@ -20,10 +20,10 @@ import type { VariantResponse } from '@/types/api';
  *  1. Default view: products list (browse)
  *  2. Type/scan in search bar → switches to variant search results
  *  3. Per variant row:
- *      - "📥 รับเข้า" → opens FastInboundModal (in-place, no navigate)
- *      - "👁 ดู" → navigates to /products/:id
+ *      - "รับเข้า" → opens FastInboundModal (in-place, no navigate)
+ *      - "ดู" → navigates to /products/:id
  *  4. Empty search results → CTA "ลงทะเบียนสินค้าใหม่ '<query>'" → /products/new?name=
- *  5. Header button "➕ สร้างสินค้าใหม่" — always visible
+ *  5. Header button "สร้างสินค้าใหม่" — always visible
  */
 export function ProductsPage() {
   const [searchParams] = useSearchParams();
@@ -158,13 +158,13 @@ export function ProductsPage() {
       {receiveIntent && (
         <div className="flex items-start justify-between gap-2 rounded-xl border-2 border-emerald-300 bg-emerald-50 p-3">
           <div className="text-sm text-emerald-900">
-            <span className="font-semibold">📥 โหมดรับสินค้าเข้า</span> — ยิงสแกน IMEI หรือพิมพ์ชื่อรุ่น/สี
+            <span className="font-semibold"><Inbox className="inline h-4 w-4 align-[-2px]" /> โหมดรับสินค้าเข้า</span> — ยิงสแกน IMEI หรือพิมพ์ชื่อรุ่น/สี
             แล้ว<strong>กดรายการที่ตรง</strong> ระบบจะเปิดฟอร์มรับเข้าให้ทันที
             · ไม่เจอในระบบ = มีปุ่ม "สร้างรุ่นใหม่ + รับเข้า" ให้เลย
           </div>
           <button type="button" onClick={() => setReceiveIntent(false)}
                   className="shrink-0 rounded p-1 text-emerald-700 hover:bg-emerald-100" title="ออกจากโหมดรับเข้า">
-            ✕
+            <X className="inline h-3.5 w-3.5 align-[-2px]" />
           </button>
         </div>
       )}
@@ -342,7 +342,7 @@ export function ProductsPage() {
       {/* Hint footer (only on default view) */}
       {!isSearchMode && (
         <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800">
-          💡 <strong>เคล็ดลับ:</strong> ใช้ช่องค้นหาด้านบน → ยิงสแกน IMEI / พิมพ์ชื่อสินค้า เพื่อรับของเข้าด่วน
+          <Info className="inline h-3.5 w-3.5 align-[-2px]" /> <strong>เคล็ดลับ:</strong> ใช้ช่องค้นหาด้านบน → ยิงสแกน IMEI / พิมพ์ชื่อสินค้า เพื่อรับของเข้าด่วน
         </div>
       )}
 
@@ -394,10 +394,10 @@ function VariantRow({ variant, onReceive, rowOpensReceive }: {
         </div>
         <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs">
           <span className="font-mono text-slate-500">{variant.sku}</span>
-          {variant.barcode && <span className="text-slate-400">· 📊 {variant.barcode}</span>}
+          {variant.barcode && <span className="text-slate-400">· <Barcode className="inline h-3.5 w-3.5 align-[-2px]" /> {variant.barcode}</span>}
         </div>
         <div className="mt-1 text-xs text-emerald-700">
-          💰 {formatTHB(variant.sellingPrice)}
+          <Wallet className="inline h-4 w-4 align-[-2px]" /> {formatTHB(variant.sellingPrice)}
         </div>
       </div>
 
@@ -412,7 +412,7 @@ function VariantRow({ variant, onReceive, rowOpensReceive }: {
         <button
           onClick={(e) => { e.stopPropagation(); onReceive(); }}
           className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-100">
-          📥 รับเข้า
+          <Inbox className="inline h-4 w-4 align-[-2px]" /> รับเข้า
         </button>
       </div>
     </div>

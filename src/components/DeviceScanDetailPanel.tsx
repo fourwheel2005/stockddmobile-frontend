@@ -219,7 +219,7 @@ export function DeviceScanDetailPanel({ device, onClose }: { device: ScannedDevi
                           <span className="font-mono font-semibold text-slate-600">{t.ticketNo}</span>
                           <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${rs.cls}`}>{rs.text}</span>
                         </div>
-                        <div className="mt-0.5 text-slate-700">🔧 {t.reportedSymptom}</div>
+                        <div className="mt-0.5 text-slate-700"><Wrench className="inline h-4 w-4 align-[-2px]" /> {t.reportedSymptom}</div>
                         {t.workDescription && <div className="text-[11px] text-slate-500">{t.workDescription}</div>}
                         <div className="text-[11px] text-slate-400">
                           {formatDate(t.receivedAt)} · ค่าซ่อม {formatTHB(t.repairCost)}

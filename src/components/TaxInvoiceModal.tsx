@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
-import { X, FileText, Printer } from 'lucide-react';
+import { X, FileText, Printer, TriangleAlert } from 'lucide-react';
 import { isValidTaxInvoiceBuyer, taxInvoiceApi, type IssueTaxInvoiceRequest } from '@/api/taxInvoice';
 import { extractErrorMessage } from '@/api/client';
 import { useModalChrome, backdropCloseHandler } from '@/hooks/useModalChrome';
@@ -69,7 +69,7 @@ export function TaxInvoiceModal({ order, onClose, onPrint }: {
           <div className="rounded-md border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-800">
             {alreadyIssued
               ? <>ใบกำกับ <strong>{issuedNo}</strong> ออกแล้ว — ครั้งถัดไปเป็นสำเนาหลังต้นฉบับพิมพ์สำเร็จ</>
-              : <>⚠️ ตรวจชื่อ ที่อยู่ เลขผู้เสียภาษี และสาขาให้ถูกต้องก่อนออก · ออกได้ <strong>บิลละ 1 ใบ</strong> และแก้ไขไม่ได้ · VAT ถอดใน 7/107</>}
+              : <><TriangleAlert className="inline h-3.5 w-3.5 align-[-2px]" /> ตรวจชื่อ ที่อยู่ เลขผู้เสียภาษี และสาขาให้ถูกต้องก่อนออก · ออกได้ <strong>บิลละ 1 ใบ</strong> และแก้ไขไม่ได้ · VAT ถอดใน 7/107</>}
           </div>
           {!alreadyIssued && <TaxInvoiceBuyerFields value={buyer} onChange={setBuyer} />}
         </div>

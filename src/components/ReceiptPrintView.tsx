@@ -2,6 +2,7 @@ import { formatTHB, formatDateTime } from '@/lib/format';
 import { hasRealImei } from '@/lib/escpos/ddmobileReceipt';
 import { LINE_QR_IMAGE_URL } from '@/assets/lineQr';
 import type { PaymentMethod, SalesOrderResponse, ShippingPartner } from '@/types/api';
+import { ArrowLeftRight, Banknote, Check, Package } from 'lucide-react';
 
 const PAYMENT_TH: Record<PaymentMethod, string> = {
   CASH: 'เงินสด',
@@ -190,13 +191,13 @@ export function ReceiptPrintView({ order, shopName = 'Stockdd Mobile', duplicate
             {/* แยกเงินสด/เงินโอน ของยอดรับวันนี้ (FIX-097) */}
             {(order.cashAmount ?? 0) > 0 && (
               <div className="flex justify-between text-slate-500">
-                <span className="pl-3">💵 เงินสด:</span>
+                <span className="pl-3"><Banknote className="inline h-4 w-4 align-[-2px]" /> เงินสด:</span>
                 <span>{formatTHB(order.cashAmount ?? 0)}</span>
               </div>
             )}
             {(order.transferAmount ?? 0) > 0 && (
               <div className="flex justify-between text-slate-500">
-                <span className="pl-3">📲 เงินโอน:</span>
+                <span className="pl-3"><ArrowLeftRight className="inline h-4 w-4 align-[-2px]" /> เงินโอน:</span>
                 <span>{formatTHB(order.transferAmount ?? 0)}</span>
               </div>
             )}
@@ -216,7 +217,7 @@ export function ReceiptPrintView({ order, shopName = 'Stockdd Mobile', duplicate
         )}
         {(order.shippingTrackingNo || order.shippingAddress) && (
           <div className="mt-2 border-t border-dashed border-slate-300 pt-2 text-xs">
-            <div className="font-semibold">📦 ข้อมูลจัดส่ง</div>
+            <div className="font-semibold"><Package className="inline h-4 w-4 align-[-2px]" /> ข้อมูลจัดส่ง</div>
             {order.shippingTrackingNo && (
               <div>เลขพัสดุ: {order.shippingTrackingNo}</div>
             )}
@@ -232,7 +233,7 @@ export function ReceiptPrintView({ order, shopName = 'Stockdd Mobile', duplicate
       <hr className="my-3 border-dashed border-slate-400" />
 
       <p className="text-center text-xs text-slate-600">
-        ✓ ขอบคุณที่ใช้บริการ<br />
+        <Check className="inline h-3.5 w-3.5 align-[-2px]" /> ขอบคุณที่ใช้บริการ<br />
         เก็บใบเสร็จเพื่อเป็นหลักฐานการรับประกัน
       </p>
       <div className="mt-3 flex justify-center">

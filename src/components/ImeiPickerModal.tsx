@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Search, X, Smartphone, CheckCircle2 } from 'lucide-react';
+import { Search, X, Smartphone, CheckCircle2, Info } from 'lucide-react';
 import { posApi } from '@/api/pos';
 import { formatTHB, formatDate } from '@/lib/format';
 import { useModalChrome, backdropCloseHandler } from '@/hooks/useModalChrome';
@@ -67,7 +67,7 @@ export function ImeiPickerModal({ selectedIds = [], onSelect, onClose }: Props) 
           </div>
           <div className="flex items-center justify-between text-xs">
             <p className="text-slate-500">
-              💡 คลิกแถวเพื่อเพิ่มเข้าตะกร้า (เลือกได้หลายเครื่อง) · เห็นเฉพาะเครื่องที่ status = IN_STOCK
+              <Info className="inline h-3.5 w-3.5 align-[-2px]" /> คลิกแถวเพื่อเพิ่มเข้าตะกร้า (เลือกได้หลายเครื่อง) · เห็นเฉพาะเครื่องที่ status = IN_STOCK
             </p>
             <p className="font-semibold text-emerald-700">
               ในตะกร้าแล้ว: {selectedSet.size} เครื่อง

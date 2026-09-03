@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { ScanLine, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { ScanLine, CheckCircle2, AlertTriangle, Info, Package, TriangleAlert, BookOpen } from 'lucide-react';
 
 interface ScanLog {
   raw: string;
@@ -63,7 +63,7 @@ export function ScannerTestPage() {
 
       <form onSubmit={handleSubmit} className="rounded-lg bg-slate-800 p-5 shadow-sm">
         <label className="mb-2 block text-xs font-semibold uppercase text-amber-400">
-          📦 ยิงบาร์โค้ดอะไรก็ได้มาที่นี่
+          <Package className="inline h-4 w-4 align-[-2px]" /> ยิงบาร์โค้ดอะไรก็ได้มาที่นี่
         </label>
         <input
           ref={inputRef}
@@ -77,7 +77,7 @@ export function ScannerTestPage() {
           onChange={handleChange}
         />
         <p className="mt-2 text-xs text-slate-400">
-          💡 ทดสอบที่ดี: ยิงเสร็จ → ผลลัพธ์ใหม่ขึ้นในตารางด้านล่างทันที (ไม่ต้องกดปุ่มอะไร)
+          <Info className="inline h-3.5 w-3.5 align-[-2px]" /> ทดสอบที่ดี: ยิงเสร็จ → ผลลัพธ์ใหม่ขึ้นในตารางด้านล่างทันที (ไม่ต้องกดปุ่มอะไร)
         </p>
       </form>
 
@@ -101,12 +101,12 @@ export function ScannerTestPage() {
           {allGood ? (
             <p className="flex items-center gap-2 text-sm font-semibold text-emerald-800">
               <CheckCircle2 className="h-5 w-5" />
-              ✅ Scanner ทำงานถูกต้อง — พร้อมใช้กับ POS ได้เลย
+              <CheckCircle2 className="inline h-4 w-4 align-[-2px]" /> Scanner ทำงานถูกต้อง — พร้อมใช้กับ POS ได้เลย
             </p>
           ) : (
             <p className="flex items-center gap-2 text-sm font-semibold text-amber-800">
               <AlertTriangle className="h-5 w-5" />
-              ⚠️ อาจต้องตั้งค่า Scanner เพิ่ม — ดูคำแนะนำด้านล่าง
+              <TriangleAlert className="inline h-3.5 w-3.5 align-[-2px]" /> อาจต้องตั้งค่า Scanner เพิ่ม — ดูคำแนะนำด้านล่าง
             </p>
           )}
         </div>
@@ -156,7 +156,7 @@ export function ScannerTestPage() {
       </div>
 
       <div className="card">
-        <div className="card-header">📖 วิธีตีความผลลัพธ์</div>
+        <div className="card-header"><BookOpen className="inline h-4 w-4 align-[-2px]" /> วิธีตีความผลลัพธ์</div>
         <div className="card-body space-y-2 text-sm">
           <p><strong>ความยาว ≥ 8</strong> = น่าจะเป็นบาร์โค้ดจริง ไม่ใช่กดมือ</p>
           <p><strong>เวลาที่ใช้ &lt; 500ms</strong> = ยิงเร็วมาก — เป็น Scanner แน่ ไม่ใช่พิมพ์มือ</p>
