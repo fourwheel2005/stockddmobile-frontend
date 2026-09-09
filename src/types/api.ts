@@ -265,6 +265,8 @@ export interface ProductWizardRequest {
   lotNo?: string;
   importDate?: string;   // YYYY-MM-DD
   note?: string;
+  /** ซื้อมาจากไหน (ระดับล็อต) — ไม่บังคับ (FIX-197) */
+  purchasedFrom?: string;
 }
 
 /** เพิ่ม SKU ใหม่ใน Product ที่มีอยู่ + รับสต็อกล็อตแรก (Clone Flow). */
@@ -274,6 +276,7 @@ export interface AddVariantWithStockRequest {
   lotNo?: string;
   importDate?: string;
   note?: string;
+  purchasedFrom?: string;
 }
 
 // ─── Inventory ────────────────────────────────────────────────────────────
@@ -644,6 +647,8 @@ export interface LotResponse {
   totalItems: number;
   totalCost: number;
   note: string | null;
+  /** ซื้อมาจากไหน — null = ไม่ได้ระบุตอนรับเข้า (FIX-197) */
+  purchasedFrom: string | null;
   createdBy: string | null;
   createdAt: string;
 }
@@ -654,6 +659,8 @@ export interface LotInboundRequest {
   lotNo: string;
   importDate: string;
   note?: string;
+  /** ซื้อมาจากไหน — ไม่บังคับ (FIX-197) */
+  purchasedFrom?: string;
   items: Array<{
     variantId: string;
     serialNumber: string;

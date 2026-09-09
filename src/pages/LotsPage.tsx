@@ -29,6 +29,7 @@ export function LotsPage() {
                 <th className="px-5 py-2.5">วันที่นำเข้า</th>
                 <th className="px-5 py-2.5 text-right">จำนวนรวม</th>
                 <th className="px-5 py-2.5 text-right">ต้นทุนรวม</th>
+                <th className="px-5 py-2.5">ซื้อมาจาก</th>
                 <th className="px-5 py-2.5">หมายเหตุ</th>
                 <th className="px-5 py-2.5">ผู้บันทึก</th>
                 <th className="px-5 py-2.5">วันที่บันทึก</th>
@@ -36,7 +37,7 @@ export function LotsPage() {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {isLoading && (
-                <tr><td colSpan={7} className="px-5 py-8 text-center text-slate-400">กำลังโหลด...</td></tr>
+                <tr><td colSpan={8} className="px-5 py-8 text-center text-slate-400">กำลังโหลด...</td></tr>
               )}
               {data?.content.map((l) => (
                 <tr key={l.id} className="hover:bg-slate-50">
@@ -44,13 +45,14 @@ export function LotsPage() {
                   <td className="px-5 py-3">{formatDate(l.importDate)}</td>
                   <td className="px-5 py-3 text-right font-medium">{formatNumber(l.totalItems)} เครื่อง</td>
                   <td className="px-5 py-3 text-right">{formatTHB(l.totalCost)}</td>
+                  <td className="px-5 py-3 text-xs">{l.purchasedFrom ?? '-'}</td>
                   <td className="px-5 py-3 text-xs text-slate-500">{l.note ?? '-'}</td>
                   <td className="px-5 py-3 text-xs">{l.createdBy ?? '-'}</td>
                   <td className="px-5 py-3 text-xs text-slate-500">{formatDateTime(l.createdAt)}</td>
                 </tr>
               ))}
               {data && data.content.length === 0 && (
-                <tr><td colSpan={7} className="px-5 py-8 text-center text-slate-400">ยังไม่มีล็อต</td></tr>
+                <tr><td colSpan={8} className="px-5 py-8 text-center text-slate-400">ยังไม่มีล็อต</td></tr>
               )}
             </tbody>
           </table>

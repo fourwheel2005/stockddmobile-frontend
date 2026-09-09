@@ -57,7 +57,7 @@ describe('Accessory serial inbound business', () => {
       serialNumbers: [' SN-001 ', '885000000002'],
       acquisitionType: 'PURCHASE',
       purchasePrice: 590,
-      supplierRef: 'Supplier A',
+      purchasedFrom: ' Supplier A ',
       invoiceNo: 'INV-99',
       warrantyTerms: 'ประกันศูนย์ 1 ปี',
       warrantyExpire: '2027-08-31',
@@ -76,7 +76,8 @@ describe('Accessory serial inbound business', () => {
       warrantyExpire: '2027-08-31',
     });
     expect(request.items[0]).not.toHaveProperty('imei');
-    expect(request.note).toContain('Supplier A');
+    expect(request.purchasedFrom).toBe('Supplier A');
+    expect(request.note).not.toContain('Supplier A');
     expect(request.note).toContain('INV-99');
   });
 
@@ -98,5 +99,7 @@ describe('Accessory serial inbound business', () => {
     expect(html).not.toContain('รายการเครื่อง (IMEI/Serial)');
     expect(html).not.toContain('แบตเตอรี่');
     expect(html).not.toContain('แผนผ่อน');
+    expect(html).toContain('ซื้อมาจาก');
+    expect(html).toContain('+ เพิ่มแหล่งซื้อใหม่');
   });
 });

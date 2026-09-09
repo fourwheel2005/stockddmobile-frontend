@@ -16,6 +16,7 @@ import {
 import { ImageEditor } from '@/components/MultiImageUpload';
 import { InstallmentPlansEditor } from '@/components/products/InstallmentPlansEditor';
 import { AccessorySerialInboundModal } from './AccessorySerialInboundModal';
+import { PurchaseSourcePicker } from './PurchaseSourcePicker';
 import { isAccessoryProduct } from '@/lib/productKind';
 import { serializePlans, type InstallmentPlan } from '@/lib/installment';
 import type {
@@ -30,7 +31,7 @@ import type {
  * ส่งผ่าน POST /products/wizard ซึ่งฝั่ง backend:
  *  - reuse product ตามชื่อ (FIX-100 กันรุ่นซ้ำ)
  *  - จับ SKU เดิมตาม มือ+สี+ความจุ ของ SKU (FIX-113 — SKU ขายหมดก็ match, ไม่มีทางลงผิดมือ)
- *  - รวมทุกเครื่องเป็น StockLot เดียว (เก็บผู้ขาย/ใบกำกับใน note เหมือนฟอร์มเดิม)
+ *  - รวมทุกเครื่องเป็น StockLot เดียว ("ซื้อมาจาก" ลงคอลัมน์ purchasedFrom · ใบกำกับใน note)
  */
 
 type Cond = 'NEW' | 'SECOND_HAND';
@@ -130,7 +131,7 @@ function DeviceFastInboundModal({ product, initialVariant, onClose, onDone }: Pr
   const [batchNetwork, setBatchNetwork] = useState(initialVariant?.network ?? '');
   const [acquisitionType, setAcquisitionType] = useState<AcquisitionType>('PURCHASE');
   const [unitCost, setUnitCost] = useState('');
-  const [supplierRef, setSupplierRef] = useState('');
+  const [purchasedFrom, setPurchasedFrom] = useState('');   // ซื้อมาจากไหน — ไม่บังคับ (FIX-197)
   const [invoiceNo, setInvoiceNo] = useState('');
   const [note, setNote] = useState('');
   // แผนผ่อน มือ 1 — ใช้กับ SKU มือ1 ที่ "สร้างใหม่" รอบนี้ (SKU เดิมตั้งที่ปุ่มแก้ไขเหมือนเดิม)
@@ -311,8 +312,8 @@ function DeviceFastInboundModal({ product, initialVariant, onClose, onDone }: Pr
         branchId: useBranchStore.getState().activeBranchId ?? undefined,
         variants: blocks,
         importDate: shopToday(),
-        note: [note, supplierRef && `ผู้ขาย: ${supplierRef}`, invoiceNo && `INV: ${invoiceNo}`]
-          .filter(Boolean).join(' · ') || undefined,
+        note: [note, invoiceNo && `INV: ${invoiceNo}`].filter(Boolean).join(' · ') || undefined,
+        purchasedFrom: purchasedFrom.trim() || undefined,
       });
     },
     onSuccess: (detail) => {
@@ -382,9 +383,8 @@ function DeviceFastInboundModal({ product, initialVariant, onClose, onDone }: Pr
                        value={unitCost} onChange={(e) => setUnitCost(e.target.value)} />
               </div>
               <div>
-                <label className="mb-0.5 block text-xs font-semibold text-slate-600">ผู้ขาย / Supplier</label>
-                <input className="input text-sm" placeholder="ชื่อร้าน" value={supplierRef}
-                       onChange={(e) => setSupplierRef(e.target.value)} />
+                <label className="mb-0.5 block text-xs font-semibold text-slate-600">ซื้อมาจาก <span className="font-normal text-slate-400">(ไม่บังคับ)</span></label>
+                <PurchaseSourcePicker size="sm" value={purchasedFrom} onChange={setPurchasedFrom} />
               </div>
               <div>
                 <label className="mb-0.5 block text-xs font-semibold text-slate-600">เลขใบกำกับ</label>

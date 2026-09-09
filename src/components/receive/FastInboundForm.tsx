@@ -7,6 +7,7 @@ import { extractErrorMessage } from '@/api/client';
 import { AuthImage } from '@/components/AuthImage';
 import { formatTHB } from '@/lib/format';
 import { ACQ_INFO, ACQ_ORDER } from '@/lib/acquisition';
+import { PurchaseSourcePicker } from '@/components/receive/PurchaseSourcePicker';
 import type { AcquisitionType, VariantResponse } from '@/types/api';
 
 interface Props {
@@ -25,7 +26,7 @@ export function FastInboundForm({ variant, onBack, onDone }: Props) {
   const [qty, setQty] = useState<number>(0);
   const [acquisitionType, setAcquisitionType] = useState<AcquisitionType>('PURCHASE');
   const [unitCost, setUnitCost] = useState<string>('');
-  const [supplierRef, setSupplierRef] = useState('');
+  const [purchasedFrom, setPurchasedFrom] = useState('');   // ซื้อมาจากไหน — ไม่บังคับ (FIX-197)
   const [invoiceNo, setInvoiceNo] = useState('');
   const [note, setNote] = useState('');
 
@@ -51,7 +52,7 @@ export function FastInboundForm({ variant, onBack, onDone }: Props) {
         note: [
           `acq: ${acquisitionType}`,
           unitCost && `cost/unit: ${unitCost}`,
-          supplierRef && `supplier: ${supplierRef}`,
+          purchasedFrom && `supplier: ${purchasedFrom}`,
           invoiceNo && `invoice: ${invoiceNo}`,
           note,
         ].filter(Boolean).join(' · ') || undefined,
@@ -156,8 +157,8 @@ export function FastInboundForm({ variant, onBack, onDone }: Props) {
           {/* supplier + invoice */}
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-sm font-medium">ผู้ขาย / Supplier</label>
-              <input className="input" placeholder="ชื่อร้าน" value={supplierRef} onChange={(e) => setSupplierRef(e.target.value)} />
+              <label className="mb-1 block text-sm font-medium">ซื้อมาจาก <span className="font-normal text-slate-400">(ไม่บังคับ)</span></label>
+              <PurchaseSourcePicker value={purchasedFrom} onChange={setPurchasedFrom} />
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium">เลขใบกำกับ</label>

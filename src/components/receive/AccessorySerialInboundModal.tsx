@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import { lotsApi } from '@/api/lots';
 import { extractErrorMessage } from '@/api/client';
 import { AccessorySerialList, type AccessorySerialRow } from '@/components/products/AccessorySerialList';
+import { PurchaseSourcePicker } from '@/components/receive/PurchaseSourcePicker';
 import { backdropCloseHandler, useModalChrome } from '@/hooks/useModalChrome';
 import { ACQ_INFO, ACQ_ORDER } from '@/lib/acquisition';
 import { shopToday } from '@/lib/datetime';
@@ -34,7 +35,8 @@ export interface AccessoryLotValues {
   serialNumbers: string[];
   acquisitionType: AcquisitionType;
   purchasePrice?: number;
-  supplierRef?: string;
+  /** ซื้อมาจากไหน — ไม่บังคับ (FIX-197) */
+  purchasedFrom?: string;
   invoiceNo?: string;
   warrantyTerms?: string;
   warrantyExpire?: string;
@@ -47,7 +49,6 @@ const blank = (value: string | undefined) => value?.trim() || undefined;
 export function buildAccessoryLotInboundRequest(values: AccessoryLotValues): LotInboundRequest {
   const auditNote = [
     'รับเข้าอุปกรณ์เสริมแบบ Barcode/SN รายชิ้น',
-    blank(values.supplierRef) && `supplier: ${blank(values.supplierRef)}`,
     blank(values.invoiceNo) && `invoice: ${blank(values.invoiceNo)}`,
     blank(values.note),
   ].filter(Boolean).join(' · ');
@@ -57,6 +58,7 @@ export function buildAccessoryLotInboundRequest(values: AccessoryLotValues): Lot
     importDate: values.importDate,
     branchId: values.branchId,
     note: auditNote,
+    purchasedFrom: blank(values.purchasedFrom),
     items: values.serialNumbers.map((serialNumber) => ({
       variantId: values.variantId,
       serialNumber: serialNumber.trim(),
@@ -102,7 +104,7 @@ export function AccessorySerialInboundModal({
   const [serialRows, setSerialRows] = useState<AccessorySerialRow[]>([{ ...EMPTY_SERIAL }]);
   const [acquisitionType, setAcquisitionType] = useState<AcquisitionType>('PURCHASE');
   const [unitCost, setUnitCost] = useState('');
-  const [supplierRef, setSupplierRef] = useState('');
+  const [purchasedFrom, setPurchasedFrom] = useState('');
   const [invoiceNo, setInvoiceNo] = useState('');
   const [warrantyTerms, setWarrantyTerms] = useState('');
   const [warrantyExpire, setWarrantyExpire] = useState('');
@@ -135,7 +137,7 @@ export function AccessorySerialInboundModal({
         serialNumbers: validSerials,
         acquisitionType,
         purchasePrice: parsedCost,
-        supplierRef,
+        purchasedFrom,
         invoiceNo,
         warrantyTerms,
         warrantyExpire,
@@ -216,10 +218,10 @@ export function AccessorySerialInboundModal({
                     <span className="mb-1 block text-xs font-medium text-slate-600">ทุน/ชิ้น (บาท)</span>
                     <input className="input" type="number" min="0" step="0.01" value={unitCost} onChange={(event) => setUnitCost(event.target.value)} placeholder={selectedVariant?.costPrice != null ? `เดิม ${selectedVariant.costPrice}` : 'เช่น 590'} />
                   </label>
-                  <label>
-                    <span className="mb-1 block text-xs font-medium text-slate-600">ผู้ขาย / Supplier</span>
-                    <input className="input" value={supplierRef} onChange={(event) => setSupplierRef(event.target.value)} placeholder="ชื่อร้าน" />
-                  </label>
+                  <div>
+                    <span className="mb-1 block text-xs font-medium text-slate-600">ซื้อมาจาก <span className="font-normal text-slate-400">(ไม่บังคับ)</span></span>
+                    <PurchaseSourcePicker value={purchasedFrom} onChange={setPurchasedFrom} />
+                  </div>
                   <label>
                     <span className="mb-1 block text-xs font-medium text-slate-600">เลขใบกำกับ</span>
                     <input className="input font-mono" value={invoiceNo} onChange={(event) => setInvoiceNo(event.target.value)} placeholder="INV-..." />
