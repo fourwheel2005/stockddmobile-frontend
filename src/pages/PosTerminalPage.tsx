@@ -7,7 +7,6 @@ import { posApi } from '@/api/pos';
 import { filesApi } from '@/api/files';
 import { extractErrorMessage } from '@/api/client';
 import { formatTHB } from '@/lib/format';
-import { hasRealImei } from '@/lib/escpos/ddmobileReceipt';
 import { validateShippingRecipient } from '@/lib/tspl/shippingLabel';
 import { CustomerPickerModal } from '@/components/CustomerPickerModal';
 import { ImeiPickerModal } from '@/components/ImeiPickerModal';
@@ -28,6 +27,7 @@ import type {
 import {
   calculateTradeInSettlement, getTradeInBlockedReason, isTradeInActive, TRADE_IN_INTAKE_POLICY,
 } from '@/lib/pos/tradeIn';
+import { defaultPayToday } from '@/lib/pos/installmentLines';
 import { PaymentSplitEditor, validateSplit } from '@/components/pos/PaymentSplitEditor';
 import { SaleDocumentSelector, type SaleDocumentMode } from '@/components/pos/SaleDocumentSelector';
 import { CashierPicker } from '@/components/pos/CashierPicker';
@@ -347,8 +347,8 @@ export function PosTerminalPage() {
           sellPrice: item.sellPrice,
           quantity: 1,
           serialized: true,
-          // default ฉลาด (FIX-096): มี IMEI จริง = เครื่อง→ผ่อน · ไม่มี IMEI = อุปกรณ์เสริม Serial→จ่ายวันนี้
-          payToday: !hasRealImei(item.imei),
+          // default ตามหมวดสินค้า (FIX-198): เครื่อง (iPhone/iPad/Watch) → ผ่อน · อุปกรณ์เสริม Serial → จ่ายวันนี้
+          payToday: defaultPayToday({ serialized: true, accessory: item.accessory, imei: item.imei }),
         }];
       }
       // Bulk: merge if same variantId
@@ -494,8 +494,8 @@ export function PosTerminalPage() {
       sellPrice: item.sellingPrice,
       quantity: 1,
       serialized: true,
-      // default ฉลาด (FIX-096): มี IMEI จริง = เครื่อง→ผ่อน · ไม่มี IMEI = อุปกรณ์เสริม Serial→จ่ายวันนี้
-      payToday: !hasRealImei(item.imei),
+      // default ตามหมวดสินค้า (FIX-198): เครื่อง (iPhone/iPad/Watch) → ผ่อน · อุปกรณ์เสริม Serial → จ่ายวันนี้
+      payToday: defaultPayToday({ serialized: true, accessory: item.accessory, imei: item.imei }),
     }]);
     toast.success(`เพิ่มแล้ว: ${item.sku}`, { duration: 1500 });
   }

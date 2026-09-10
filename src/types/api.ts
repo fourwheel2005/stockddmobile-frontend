@@ -771,6 +771,8 @@ export interface CartScanResponse {
   imei: string | null;
   serialNumber: string | null;
   availableQty: number;
+  /** อุปกรณ์เสริมตามหมวด (backend StockCountClassifier) — บิลผ่อน default "จ่ายวันนี้" (FIX-198) */
+  accessory?: boolean;
 }
 
 export interface CheckoutLine {
@@ -1254,6 +1256,8 @@ export interface InStockItem {
   warrantyTerms: string | null;
   warrantyExpire: string | null;
   receivedAt: string;
+  /** อุปกรณ์เสริมตามหมวด — บิลผ่อน default "จ่ายวันนี้" (FIX-198) */
+  accessory?: boolean;
 }
 
 // ─── Repair Tickets (รับซ่อม/เคลมเครื่องลูกค้า) ─────────────────────────────
