@@ -13,9 +13,8 @@ export interface PlanTerm {
   months: string;
   monthly: string;
   /**
-   * ดาวน์เฉพาะงวดนี้ (override ดาวน์ระดับแผน) — คงไว้เพื่อ back-compat กับข้อมูลเดิม
-   * (ฟอร์มเดิมก่อน FIX-107 เก็บ down รายงวดใน installment_terms). editor ใหม่ไม่ได้โชว์ช่องนี้
-   * แต่ parse/serialize จะ "ส่งผ่าน" ค่าเดิมไม่ให้หาย (non-destructive).
+   * ดาวน์เฉพาะงวดนี้ (override ดาวน์ระดับแผน) — FIX-200 editor แสดงช่องนี้ให้กรอกได้
+   * (เดิมเป็นแค่ pass-through ของข้อมูลก่อน FIX-107). เว้นว่าง = ใช้ดาวน์ของแผน.
    */
   down?: string;
 }
@@ -142,4 +141,12 @@ export function serializePlans(plans: InstallmentPlan[] | null | undefined): Ser
     installmentTerms: first.terms.length ? JSON.stringify(first.terms) : null,
     installmentPromo: first.promo ?? null,
   };
+}
+
+/** เงินดาวน์ที่ใช้จริงของงวดหนึ่ง = ดาวน์เฉพาะงวด (ถ้ากรอก) ไม่งั้นดาวน์ของแผน — FIX-200 */
+export function effectiveDown(planDown: number | string | null | undefined, termDown: number | string | null | undefined): number | null {
+  const t = termDown == null || String(termDown).trim() === '' ? NaN : Number(termDown);
+  if (Number.isFinite(t) && t >= 0) return t;
+  const p = planDown == null || String(planDown).trim() === '' ? NaN : Number(planDown);
+  return Number.isFinite(p) && p >= 0 ? p : null;
 }

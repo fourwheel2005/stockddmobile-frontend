@@ -9,7 +9,7 @@ interface Props {
 
 /**
  * ตัวแก้ "แผนผ่อนหลายแบบ" ต่อรุ่นย่อย (ปุ่มเลือก) — ตั้งครั้งเดียวที่รุ่น เว็บหน้าร้านดึงไปแสดง.
- * แต่ละแผน = ดาวน์ 1 ค่า + งวดหลายช่วง (เดือน × บาท/เดือน) + โปรโม (ถ้ามี).
+ * แต่ละแผน = ดาวน์ 1 ค่า + งวดหลายช่วง (เดือน × บาท/เดือน · ดาวน์เฉพาะงวดถ้าต่างจากดาวน์แผน) + โปรโม (ถ้ามี).
  * ใช้ร่วมกันระหว่างหน้า "ลงทะเบียนสินค้า" และ modal "แก้รุ่น" (กัน drift).
  */
 export function InstallmentPlansEditor({ value, onChange }: Props) {
@@ -20,7 +20,7 @@ export function InstallmentPlansEditor({ value, onChange }: Props) {
   const duplicatePlan = (i: number) =>
     onChange([...value.slice(0, i + 1), { ...value[i], terms: value[i].terms.map((t) => ({ ...t })) }, ...value.slice(i + 1)]);
 
-  const patchTerm = (pi: number, ti: number, patch: Partial<{ months: string; monthly: string }>) =>
+  const patchTerm = (pi: number, ti: number, patch: Partial<{ months: string; monthly: string; down: string }>) =>
     patchPlan(pi, { terms: value[pi].terms.map((t, j) => (j === ti ? { ...t, ...patch } : t)) });
   const addTerm = (pi: number) =>
     patchPlan(pi, { terms: [...value[pi].terms, { months: '', monthly: '' }] });
@@ -80,7 +80,7 @@ export function InstallmentPlansEditor({ value, onChange }: Props) {
           </div>
 
           <div className="space-y-1.5">
-            <span className="text-xs font-medium text-slate-600">งวดผ่อน</span>
+            <span className="text-xs font-medium text-slate-600">งวดผ่อน <span className="font-normal text-slate-400">(กี่เดือนก็ได้ · ดาวน์ต่างกันตามงวดใส่ที่ช่อง "ดาวน์")</span></span>
             {plan.terms.map((t, ti) => (
               <div key={ti} className="flex flex-wrap items-center gap-2">
                 <input type="number" min="1" inputMode="numeric"
@@ -95,6 +95,15 @@ export function InstallmentPlansEditor({ value, onChange }: Props) {
                   placeholder="บาท/เดือน"
                   value={t.monthly ?? ''}
                   onChange={(e) => patchTerm(pi, ti, { monthly: e.target.value })}
+                />
+                {/* ดาวน์เฉพาะงวดนี้ (FIX-200) — เว้นว่าง = ใช้เงินดาวน์ของแผนด้านบน */}
+                <span className="shrink-0 text-xs text-slate-400">· ดาวน์</span>
+                <input type="number" step="0.01" min="0" inputMode="decimal"
+                  className="input w-28 min-w-0 text-sm"
+                  placeholder={plan.down.trim() !== '' ? `เว้น=${plan.down}` : 'เว้น=ดาวน์แผน'}
+                  title="เงินดาวน์เฉพาะงวดนี้ · เว้นว่าง = ใช้เงินดาวน์ของแผน"
+                  value={t.down ?? ''}
+                  onChange={(e) => patchTerm(pi, ti, { down: e.target.value })}
                 />
                 <button type="button" onClick={() => removeTerm(pi, ti)}
                   disabled={plan.terms.length === 1}
