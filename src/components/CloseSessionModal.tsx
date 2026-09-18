@@ -8,6 +8,7 @@ import { extractErrorMessage } from '@/api/client';
 import { formatTHB } from '@/lib/format';
 import { useModalChrome, backdropCloseHandler } from '@/hooks/useModalChrome';
 import { PaymentBreakdownCard } from '@/components/cash/PaymentBreakdownCard';
+import { DrawerReconciliationCard } from '@/components/cash/DrawerReconciliationCard';
 import type { CashSessionResponse } from '@/types/api';
 import { usePrinter } from '@/hooks/usePrinter';
 
@@ -97,6 +98,10 @@ export function CloseSessionModal({ session, onClose, onClosed }: Props) {
               </div>
             )}
           </div>
+
+          {/* FIX-199 — ที่มาของตัวเลข "ควรมี" ทีละบรรทัด ให้เทียบตอนนับ */}
+          <DrawerReconciliationCard movements={session.movements}
+            accountingCashTotal={session.breakdown?.cashTotal ?? null} />
 
           <div className="rounded-md bg-slate-50 p-3 text-sm">
             <div className="text-xs text-slate-500">Session</div>

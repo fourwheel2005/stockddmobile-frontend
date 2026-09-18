@@ -12,6 +12,7 @@ import { PaymentBreakdownCard } from '@/components/cash/PaymentBreakdownCard';
 import { OrphanSessionBanner } from '@/components/cash/OrphanSessionBanner';
 import { CashSummaryPanel } from '@/components/cash/CashSummaryPanel';
 import { CashHistoryPanel } from '@/components/cash/CashHistoryPanel';
+import { DrawerReconciliationCard } from '@/components/cash/DrawerReconciliationCard';
 import type { CashMovementType, PaidFrom } from '@/types/api';
 
 const TYPE_TH: Record<CashMovementType, string> = {
@@ -146,6 +147,10 @@ export function CashRegisterPage() {
               </div>
             </div>
           </div>
+
+          {/* FIX-199 — แจกแจงว่า "ยอดในเก๊ะปัจจุบัน" มาจากอะไรบ้าง ทีละบรรทัด นับตามได้ */}
+          <DrawerReconciliationCard movements={session.movements}
+            accountingCashTotal={session.breakdown?.cashTotal ?? null} />
 
           {/* V31 — สรุปสด/โอน/บัตร/QR ตอบ requirement "เย็นนี้สรุปยอด" */}
           <PaymentBreakdownCard breakdown={session.breakdown ?? null}
