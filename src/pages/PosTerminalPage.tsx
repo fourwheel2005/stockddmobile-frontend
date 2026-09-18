@@ -22,12 +22,13 @@ import { RepairBillPrintView } from '@/components/RepairBillPrintView';
 import type {
   CartScanResponse, Customer, InStockItem, OrderChannel,
   PaymentMethod, PaymentSplit, RepairTicket, SalesOrderResponse, ShippingAddressInput,
-  ShippingPartner, TradeInProductResponse,
+  ShippingPartner, TradeInProductResponse, PosInstallmentPlan,
 } from '@/types/api';
 import {
   calculateTradeInSettlement, getTradeInBlockedReason, isTradeInActive, TRADE_IN_INTAKE_POLICY,
 } from '@/lib/pos/tradeIn';
 import { defaultPayToday } from '@/lib/pos/installmentLines';
+import { monthsOfPlan, pickInstallmentDefaults, planLabel, plansForCart } from '@/lib/pos/installmentPlanPick';
 import { PaymentSplitEditor, validateSplit } from '@/components/pos/PaymentSplitEditor';
 import { SaleDocumentSelector, type SaleDocumentMode } from '@/components/pos/SaleDocumentSelector';
 import { CashierPicker } from '@/components/pos/CashierPicker';
@@ -79,6 +80,8 @@ interface CartLine {
   /** บิลผ่อน: บรรทัดนี้ "จ่ายสดวันนี้" (อุปกรณ์เสริม) แทนที่จะรวมยอดผ่อน — FIX-090/094
    *  default: อุปกรณ์เสริม (bulk) = true · เครื่อง (serialized) = false · ติ๊กสลับได้ต่อบรรทัด */
   payToday: boolean;
+  /** แผนผ่อนที่ร้านตั้ง (มือ 1 = SKU · มือ 2 = รายเครื่อง) — FIX-200 */
+  installmentPlans?: PosInstallmentPlan[] | null;
 }
 
 interface PaymentOption {
@@ -349,6 +352,7 @@ export function PosTerminalPage() {
           serialized: true,
           // default ตามหมวดสินค้า (FIX-198): เครื่อง (iPhone/iPad/Watch) → ผ่อน · อุปกรณ์เสริม Serial → จ่ายวันนี้
           payToday: defaultPayToday({ serialized: true, accessory: item.accessory, imei: item.imei }),
+          installmentPlans: item.installmentPlans ?? null,
         }];
       }
       // Bulk: merge if same variantId
@@ -496,6 +500,7 @@ export function PosTerminalPage() {
       serialized: true,
       // default ตามหมวดสินค้า (FIX-198): เครื่อง (iPhone/iPad/Watch) → ผ่อน · อุปกรณ์เสริม Serial → จ่ายวันนี้
       payToday: defaultPayToday({ serialized: true, accessory: item.accessory, imei: item.imei }),
+      installmentPlans: item.installmentPlans ?? null,
     }]);
     toast.success(`เพิ่มแล้ว: ${item.sku}`, { duration: 1500 });
   }
@@ -1344,6 +1349,7 @@ export function PosTerminalPage() {
           downAmount={downAmount} setDownAmount={setDownAmount}
           payTransfer={payTransfer} setPayTransfer={setPayTransfer}
           tradeInValue={tradeInActive ? tradeInValueNum : 0}
+          shopPlans={plansForCart(cart)}
         />
       )}
 
@@ -1901,12 +1907,29 @@ interface InstallmentPanelProps {
   /** ยอดรับวันนี้จ่ายเป็นเงินโอนเท่าไหร่ · ที่เหลือ = เงินสด (FIX-097) */
   payTransfer: number; setPayTransfer: (n: number) => void;
   tradeInValue: number;
+  /** แผนผ่อนที่ร้านตั้งของเครื่องในตะกร้า (FIX-200) — null = ไม่มี ให้พิมพ์เอง */
+  shopPlans: { line: CartLine; plans: PosInstallmentPlan[] } | null;
 }
 
 function InstallmentPanel({
   grandTotalTarget, addOnToday = 0, months, setMonths, monthly, setMonthly, monthlyTouched, setMonthlyTouched,
-  downAmount, setDownAmount, payTransfer, setPayTransfer, tradeInValue,
+  downAmount, setDownAmount, payTransfer, setPayTransfer, tradeInValue, shopPlans,
 }: InstallmentPanelProps) {
+  // FIX-200: เลือกแผน + เดือนจากตารางที่ร้านตั้ง → เติมดาวน์/ค่างวดของงวดนั้นให้ (พนักงานแก้ทับได้)
+  const [planIdx, setPlanIdx] = useState(0);
+  const plans = shopPlans?.plans ?? [];
+  const activePlan = plans[Math.min(planIdx, Math.max(0, plans.length - 1))];
+  const planMonths = monthsOfPlan(activePlan);
+  const applyShopTerm = (idx: number, m: number) => {
+    const d = pickInstallmentDefaults(plans, idx, m);
+    if (!d) return;
+    setPlanIdx(idx);
+    setMonths(d.months);
+    setDownAmount(d.down);
+    setMonthlyTouched(true);
+    setMonthly(d.monthly);
+    toast.success(`ใช้ราคาที่ร้านตั้ง: ${d.months} เดือน · ดาวน์ ${formatTHB(d.down)} · ${formatTHB(d.monthly)}/เดือน`, { duration: 2500 });
+  };
   // ยอดผ่อนคงเหลือ = ยอดบิล − ดาวน์ − อุปกรณ์เสริมที่จ่ายสดวันนี้ (หัวชาร์จ/เคส ไม่รวมยอดผ่อน) FIX-090
   const remaining = Math.max(0, grandTotalTarget - downAmount - addOnToday);
   const payToday = downAmount + addOnToday;
@@ -1933,6 +1956,42 @@ function InstallmentPanel({
         <CreditCard className="inline h-4 w-4 align-[-2px]" /> รายละเอียดการผ่อนชำระ
       </div>
       <div className="card-body space-y-4">
+        {/* FIX-200: ราคาผ่อนที่ร้านตั้งไว้ของเครื่องนี้ — กดเดือนแล้วดาวน์/ค่างวดเติมให้ตรงกับเว็บหน้าร้าน */}
+        {shopPlans ? (
+          <div className="rounded-lg border border-amber-300 bg-amber-50/70 p-3">
+            <div className="mb-2 text-sm font-semibold text-amber-900">
+              ราคาผ่อนที่ร้านตั้ง — {shopPlans.line.productName}
+              <span className="ml-1 font-normal text-amber-700">(ตรงกับเว็บหน้าร้าน · กดเดือนเพื่อเติมดาวน์และค่างวด แก้ทับได้)</span>
+            </div>
+            {plans.length > 1 && (
+              <div className="mb-2 flex flex-wrap gap-1.5">
+                {plans.map((p, i) => (
+                  <button type="button" key={i} onClick={() => { setPlanIdx(i); const first = monthsOfPlan(p)[0]; if (first) applyShopTerm(i, first); }}
+                          className={`rounded-full border px-3 py-1 text-xs font-semibold ${i === planIdx ? 'border-amber-500 bg-amber-200 text-amber-900' : 'border-amber-300 bg-white text-amber-800 hover:bg-amber-100'}`}>
+                    {planLabel(p, i)}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="flex flex-wrap gap-2">
+              {planMonths.map((m) => {
+                const d = pickInstallmentDefaults(plans, planIdx, m);
+                const active = months === m && d != null && downAmount === d.down && monthly === d.monthly;
+                return (
+                  <button type="button" key={m} onClick={() => applyShopTerm(planIdx, m)}
+                          className={`rounded-md border px-3 py-1.5 text-left text-xs ${active ? 'border-purple-500 bg-purple-100 text-purple-900' : 'border-amber-300 bg-white hover:bg-amber-100'}`}>
+                    <div className="font-semibold">{m} เดือน</div>
+                    <div>ดาวน์ {formatTHB(d?.down ?? 0)} · {formatTHB(d?.monthly ?? 0)}/ด.</div>
+                  </button>
+                );
+              })}
+            </div>
+            {activePlan?.promo && <div className="mt-2 text-xs text-amber-800">โปรโมชัน: {activePlan.promo}</div>}
+          </div>
+        ) : (
+          <p className="text-xs text-slate-500">เครื่องในตะกร้ายังไม่มีราคาผ่อนที่ร้านตั้ง — กรอกเดือน/ดาวน์/ค่างวดเอง</p>
+        )}
+
         {/* Months */}
         <div>
           <label className="mb-2 block text-sm font-medium">ระยะเวลาผ่อน (เดือน)</label>

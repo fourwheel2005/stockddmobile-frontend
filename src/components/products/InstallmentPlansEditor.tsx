@@ -62,7 +62,7 @@ export function InstallmentPlansEditor({ value, onChange }: Props) {
 
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="mb-0.5 block text-xs text-slate-500">เงินดาวน์ (บาท)</label>
+              <label className="mb-0.5 block text-xs text-slate-500">ดาวน์หลัก (บาท) <span className="text-slate-400">— ใช้กับทุกงวดที่ไม่ระบุดาวน์เอง</span></label>
               <input type="number" step="0.01" min="0" className="input text-sm"
                 placeholder="0"
                 value={plan.down}
@@ -97,7 +97,7 @@ export function InstallmentPlansEditor({ value, onChange }: Props) {
                   onChange={(e) => patchTerm(pi, ti, { monthly: e.target.value })}
                 />
                 {/* ดาวน์เฉพาะงวดนี้ (FIX-200) — เว้นว่าง = ใช้เงินดาวน์ของแผนด้านบน */}
-                <span className="shrink-0 text-xs text-slate-400">· ดาวน์</span>
+                <span className="shrink-0 text-xs text-slate-400">· ดาวน์เฉพาะงวด</span>
                 <input type="number" step="0.01" min="0" inputMode="decimal"
                   className="input w-28 min-w-0 text-sm"
                   placeholder={plan.down.trim() !== '' ? `เว้น=${plan.down}` : 'เว้น=ดาวน์แผน'}

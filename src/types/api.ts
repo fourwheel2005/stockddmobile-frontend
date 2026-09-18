@@ -758,6 +758,14 @@ export interface CustomerRequest {
   note?: string;
 }
 
+/** แผนผ่อน 1 แบบจาก backend (InstallmentPlanOption) — FIX-200 */
+export interface PosInstallmentPlan {
+  label: string | null;
+  down: number | null;
+  promo: string | null;
+  terms: { months: number; monthly: number; down: number | null }[];
+}
+
 export interface CartScanResponse {
   serialized: boolean;
   variantId: string;
@@ -773,6 +781,8 @@ export interface CartScanResponse {
   availableQty: number;
   /** อุปกรณ์เสริมตามหมวด (backend StockCountClassifier) — บิลผ่อน default "จ่ายวันนี้" (FIX-198) */
   accessory?: boolean;
+  /** แผนผ่อนที่ร้านตั้งของเครื่อง/SKU นี้ — POS เติมดาวน์+ค่างวดตามเดือนที่เลือก (FIX-200) */
+  installmentPlans?: PosInstallmentPlan[] | null;
 }
 
 export interface CheckoutLine {
@@ -1258,6 +1268,7 @@ export interface InStockItem {
   receivedAt: string;
   /** อุปกรณ์เสริมตามหมวด — บิลผ่อน default "จ่ายวันนี้" (FIX-198) */
   accessory?: boolean;
+  installmentPlans?: PosInstallmentPlan[] | null;
 }
 
 // ─── Repair Tickets (รับซ่อม/เคลมเครื่องลูกค้า) ─────────────────────────────

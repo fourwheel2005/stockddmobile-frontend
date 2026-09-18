@@ -138,7 +138,7 @@ export function FirstHandInstallmentPage() {
                    onChange={(e) => setNewStorage(e.target.value)} />
           </div>
           <div className="w-28">
-            <label className="mb-0.5 block text-xs font-semibold text-slate-600">ดาวน์ (บาท)</label>
+            <label className="mb-0.5 block text-xs font-semibold text-slate-600">ดาวน์หลัก (บาท)</label>
             <input type="number" min={0} className="input" placeholder="4590" value={newDown}
                    onChange={(e) => setNewDown(e.target.value)} />
           </div>
@@ -169,7 +169,7 @@ export function FirstHandInstallmentPage() {
                 <th className="px-5 py-2.5">รุ่น</th>
                 <th className="px-5 py-2.5">ความจุ</th>
                 <th className="px-3 py-2.5 text-center">SKU</th>
-                <th className="px-5 py-2.5 text-right">ดาวน์</th>
+                <th className="px-5 py-2.5 text-right">ดาวน์หลัก<div className="text-[10px] font-normal normal-case text-slate-400">ใช้เมื่องวดไม่ระบุ</div></th>
                 {MONTH_COLS.map((m) => <th key={m} className="px-3 py-2.5 text-right">{m} เดือน<div className="text-[10px] font-normal normal-case text-slate-400">ค่างวด / ดาวน์</div></th>)}
                 <th className="px-5 py-2.5 text-right"></th>
               </tr>
