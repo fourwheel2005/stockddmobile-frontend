@@ -1,6 +1,6 @@
 import { EscPosBuilder } from './EscPosBuilder';
 import { formatShopDateTimeCompact } from '../datetime';
-import type { CashPeriodSummaryResponse, CashSessionResponse, PaymentBreakdown } from '@/types/api';
+import type { CashPeriodSummaryResponse, CashSessionResponse, PaymentBreakdown, StockCountResponse } from '@/types/api';
 
 const W = 48;
 
@@ -32,6 +32,8 @@ interface SummaryReceiptData {
   shortageTotal?: number;
   overageTotal?: number;
   note?: string | null;
+  /** ผลตรวจนับสต็อกของกะ — พิมพ์ท้ายใบสรุปปิดเก๊ะ (FIX-201) · undefined = ใบสรุปรายเดือน ไม่พิมพ์ส่วนนี้ */
+  stockCounts?: StockCountResponse[] | null;
 }
 
 const money = (value: number | null | undefined): string =>
@@ -70,6 +72,7 @@ export function buildCashSessionSummary(session: CashSessionResponse): Uint8Arra
     actualClose: session.actualClose ?? 0,
     variance: session.variance ?? 0,
     note: session.note,
+    stockCounts: session.stockCounts ?? [],
   });
 }
 
@@ -113,6 +116,7 @@ function buildSummaryReceipt(data: SummaryReceiptData): Uint8Array {
   printSales(b, data);
   printDrawer(b, data);
   printReconciliation(b, data);
+  if (data.stockCounts !== undefined) printStockCheck(b, data.stockCounts ?? []);
   if (data.note) b.align('L').separator('-', W).textln(`หมายเหตุ: ${data.note}`);
   b.align('C').separator('=', W).textln(`พิมพ์ ${formatShopDateTimeCompact(new Date().toISOString())}`);
   return b.feedAndCut(4).build();
@@ -153,6 +157,38 @@ function printReconciliation(b: EscPosBuilder, data: SummaryReceiptData): void {
     b.justify('ยอดขาดสะสม', money(data.shortageTotal), W);
     b.justify('ยอดเกินสะสม', money(data.overageTotal), W);
   }
+}
+
+/** ท้ายใบ: เครื่องมือ 1 / มือ 2 / อุปกรณ์ ที่นับได้เทียบระบบ ตอนเปิดร้านและปิดร้าน (FIX-201) */
+function printStockCheck(b: EscPosBuilder, counts: StockCountResponse[]): void {
+  b.align('L').separator('=', W).bold(true).textln('ตรวจนับสต็อก (นับได้ / ระบบ)').bold(false);
+  if (counts.length === 0) {
+    b.textln('ไม่มีบันทึกตรวจนับในกะนี้');
+    return;
+  }
+  const ordered = [...counts].sort((a, c) => (a.phase === c.phase ? 0 : a.phase === 'OPENING' ? -1 : 1));
+  for (const c of ordered) {
+    b.bold(true).textln(c.phase === 'OPENING' ? 'เปิดร้าน' : 'ปิดร้าน').bold(false);
+    b.justify('เครื่องมือ 1', `${c.countedNew} / ${c.expectedNew} เครื่อง`, W);
+    b.justify('เครื่องมือ 2', `${c.countedSecondHand} / ${c.expectedSecondHand} เครื่อง`, W);
+    b.justify('หัวชาร์จ', `${c.countedChargerHeads} / ${c.expectedChargerHeads}`, W);
+    b.justify('สายชาร์จ', `${c.countedChargingCables} / ${c.expectedChargingCables}`, W);
+    b.justify('อุปกรณ์อื่น', `${c.countedOtherAccessories} / ${c.expectedOtherAccessories}`, W);
+    b.justify('ผล', c.matched ? 'ตรง' : `ต่าง ${stockVarianceText(c)}`, W);
+    b.textln(`รับรองโดย ${c.certifiedName} ${formatShopDateTimeCompact(c.countedAt)}`);
+  }
+}
+
+const signed = (n: number): string => (n >= 0 ? `+${n}` : String(n));
+
+function stockVarianceText(c: StockCountResponse): string {
+  const parts: string[] = [];
+  if (c.varianceNew) parts.push(`มือ1 ${signed(c.varianceNew)}`);
+  if (c.varianceSecondHand) parts.push(`มือ2 ${signed(c.varianceSecondHand)}`);
+  if (c.varianceChargerHeads) parts.push(`หัว ${signed(c.varianceChargerHeads)}`);
+  if (c.varianceChargingCables) parts.push(`สาย ${signed(c.varianceChargingCables)}`);
+  if (c.varianceOtherAccessories) parts.push(`อื่น ${signed(c.varianceOtherAccessories)}`);
+  return parts.join(' ');
 }
 
 function emptyBreakdown(): PaymentBreakdown {

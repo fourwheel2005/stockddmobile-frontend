@@ -5,6 +5,7 @@ import { cashRegisterApi } from '@/api/cashRegister';
 import { formatDateTime, formatTHB } from '@/lib/format';
 import { shopToday } from '@/lib/datetime';
 import { usePrinter } from '@/hooks/usePrinter';
+import type { CashSessionResponse } from '@/types/api';
 
 interface Props {
   branchId?: string;
@@ -47,6 +48,7 @@ export function CashHistoryPanel({ branchId }: Props) {
                 <th className="px-4 py-2 text-right">ควรมี</th>
                 <th className="px-4 py-2 text-right">นับจริง</th>
                 <th className="px-4 py-2 text-center">ผลตรวจ</th>
+                <th className="px-4 py-2 text-center">สต็อกปิดร้าน (มือ1 / มือ2)</th>
                 <th className="px-4 py-2 text-center">พิมพ์</th>
               </tr>
             </thead>
@@ -64,6 +66,7 @@ export function CashHistoryPanel({ branchId }: Props) {
                     <td className="px-4 py-3 text-right">{formatTHB(session.expectedClose)}</td>
                     <td className="px-4 py-3 text-right">{formatTHB(session.actualClose)}</td>
                     <td className="px-4 py-3 text-center"><VarianceBadge variance={variance} /></td>
+                    <td className="px-4 py-3 text-center"><StockCountCell counts={session.stockCounts} /></td>
                     <td className="px-4 py-3 text-center">
                       <button className="btn-secondary px-2 py-1" title="พิมพ์ใบสรุปกะนี้"
                         disabled={printer.printing} onClick={() => printer.printCashSessionSummary(session)}>
@@ -98,6 +101,20 @@ function VarianceBadge({ variance }: { variance: number }) {
   return <span className="badge-amber">เกิน {formatTHB(variance)}</span>;
 }
 
+/** เครื่องมือ 1 / มือ 2 ที่นับได้ตอนปิดร้าน เทียบระบบ (FIX-201) */
+function StockCountCell({ counts }: { counts: CashSessionResponse['stockCounts'] }) {
+  const closing = (counts ?? []).find((c) => c.phase === 'CLOSING');
+  if (!closing) return <span className="text-xs text-slate-400">ไม่มีบันทึก</span>;
+  return (
+    <div className="text-xs">
+      <div className="tabular-nums">มือ1 {closing.countedNew}/{closing.expectedNew} · มือ2 {closing.countedSecondHand}/{closing.expectedSecondHand}</div>
+      {closing.matched
+        ? <span className="badge-green">ตรง</span>
+        : <span className="badge-red">ต่าง มือ1 {closing.varianceNew >= 0 ? '+' : ''}{closing.varianceNew} · มือ2 {closing.varianceSecondHand >= 0 ? '+' : ''}{closing.varianceSecondHand}</span>}
+    </div>
+  );
+}
+
 function EmptyRow({ text }: { text: string }) {
-  return <tr><td colSpan={8} className="px-4 py-10 text-center text-slate-400">{text}</td></tr>;
+  return <tr><td colSpan={9} className="px-4 py-10 text-center text-slate-400">{text}</td></tr>;
 }

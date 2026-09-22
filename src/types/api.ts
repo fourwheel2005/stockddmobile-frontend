@@ -880,6 +880,8 @@ export interface CashSessionResponse {
   financePayoutTotal: number;
   ownerPaidTotal: number;
   movements: CashMovementLine[] | null;
+  /** ผลตรวจนับสต็อกของกะ (เปิดร้าน/ปิดร้าน) — ใบสรุปปิดเก๊ะพิมพ์ท้ายใบ (FIX-201) */
+  stockCounts?: StockCountResponse[] | null;
 }
 
 export interface CashPeriodSummaryResponse {
