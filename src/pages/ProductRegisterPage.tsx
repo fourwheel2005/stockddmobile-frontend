@@ -17,6 +17,7 @@ import { extractErrorMessage } from '@/api/client';
 import { formatTHB } from '@/lib/format';
 import { ACQ_INFO, ACQ_ORDER } from '@/lib/acquisition';
 import { shopToday } from '@/lib/datetime';
+import { isImeiLessName } from '@/lib/productKind';
 import type { AcquisitionType, ProductWizardRequest } from '@/types/api';
 import { AccessorySerialList } from '@/components/products/AccessorySerialList';
 import { MultiImageUpload, ImageEditor } from '@/components/MultiImageUpload';
@@ -491,6 +492,11 @@ export function ProductRegisterPage() {
 
   /* รุ่นมีอยู่แล้ว → เติมหมวดหมู่ + ยี่ห้อ จากรุ่นเดิมให้อัตโนมัติ (ถ้ายังไม่ได้เลือก) — FIX-080 */
   const categoryIdW = useWatch({ control, name: 'categoryId' });
+  // iPad ไม่มี IMEI (FIX-203) — ดูจากหมวดที่เลือก (ชื่อหมวด/หมวดแม่) หรือชื่อรุ่น → ปิดช่อง IMEI ให้กรอก Serial
+  const imeiLess = useMemo(() => {
+    const categoryLabel = flatCategories.find((c) => c.id === categoryIdW)?.label ?? '';
+    return isImeiLessName(categoryLabel) || isImeiLessName(name);
+  }, [flatCategories, categoryIdW, name]);
   useEffect(() => {
     if (existingProduct && !categoryIdW) {
       setValue('categoryId', existingProduct.categoryId, { shouldDirty: false });
@@ -1101,7 +1107,7 @@ export function ProductRegisterPage() {
                                   onRemove={() => fields.length > 1 ? remove(idx) : null}
                                   disableRemove={fields.length === 1}
                                   unitLabel="เครื่อง" baseSku={skuVal}
-                                  flagMissingSpec={flagMissingSpec} />
+                                  flagMissingSpec={flagMissingSpec} imeiLess={imeiLess} />
                       ))}
                       <button type="button"
                               onClick={() => append(nextItemDefaults())}
@@ -1284,9 +1290,11 @@ function FieldRow({
 
 function ItemCard({
   idx, register, control, setValue, getValues, onRemove, disableRemove, unitLabel = 'เครื่อง', baseSku = '',
-  flagMissingSpec = false,
+  flagMissingSpec = false, imeiLess = false,
 }: {
   idx: number;
+  /** iPad ไม่มี IMEI (FIX-203) — ปิดช่อง IMEI, Serial เป็นช่องหลัก */
+  imeiLess?: boolean;
   register: UseFormRegister<FormValues>;
   control: Control<FormValues>;
   setValue: UseFormSetValue<FormValues>;
@@ -1429,15 +1437,17 @@ function ItemCard({
 
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <div>
-          <label className="mb-0.5 block text-xs font-semibold text-slate-600">IMEI <span className="font-normal text-slate-400">(15 หลัก)</span></label>
+          <label className="mb-0.5 block text-xs font-semibold text-slate-600">IMEI <span className="font-normal text-slate-400">{imeiLess ? '(iPad ไม่มี IMEI)' : '(15 หลัก)'}</span></label>
           {(() => {
             const imeiReg = register(`items.${idx}.imei`);
             return (
               <input
-                className="input font-mono text-sm"
-                placeholder="35xxxxxxxxxxxxx"
+                className="input font-mono text-sm disabled:bg-slate-100 disabled:text-slate-400"
+                placeholder={imeiLess ? 'ใช้ Serial แทน' : '35xxxxxxxxxxxxx'}
                 inputMode="numeric"
                 maxLength={15}
+                disabled={imeiLess}
+                title={imeiLess ? 'iPad ไม่มี IMEI — กรอก Serial แทน' : undefined}
                 {...imeiReg}
                 onChange={(e) => {
                   // IMEI = เลขล้วน สูงสุด 15 หลัก (กันพิมพ์/วางตัวอักษรหรือเกิน)
@@ -1449,8 +1459,8 @@ function ItemCard({
           })()}
         </div>
         <div>
-          <label className="mb-0.5 block text-xs font-semibold text-slate-600">Serial <span className="font-normal text-slate-400">(เว้น = ใช้ IMEI)</span></label>
-          <input className="input font-mono text-sm" {...register(`items.${idx}.serialNumber`)} />
+          <label className="mb-0.5 block text-xs font-semibold text-slate-600">Serial <span className="font-normal text-slate-400">{imeiLess ? '(จำเป็น)' : '(เว้น = ใช้ IMEI)'}</span></label>
+          <input className={`input font-mono text-sm ${imeiLess ? 'border-emerald-400' : ''}`} placeholder={imeiLess ? 'Serial ของ iPad' : ''} {...register(`items.${idx}.serialNumber`)} />
         </div>
         <div>
           <label className="mb-0.5 block text-xs font-semibold text-slate-600">สภาพ</label>

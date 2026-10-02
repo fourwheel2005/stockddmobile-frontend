@@ -17,7 +17,7 @@ import { ImageEditor } from '@/components/MultiImageUpload';
 import { InstallmentPlansEditor } from '@/components/products/InstallmentPlansEditor';
 import { AccessorySerialInboundModal } from './AccessorySerialInboundModal';
 import { PurchaseSourcePicker } from './PurchaseSourcePicker';
-import { isAccessoryProduct } from '@/lib/productKind';
+import { isAccessoryProduct, isImeiLessProduct } from '@/lib/productKind';
 import { serializePlans, type InstallmentPlan } from '@/lib/installment';
 import type {
   AcquisitionType, ProductDetail, VariantResponse, WizardInitialItem, WizardVariantBlock,
@@ -110,6 +110,8 @@ export function ProductFastInboundModal(props: ProductFastInboundModalProps) {
 function DeviceFastInboundModal({ product, initialVariant, onClose, onDone }: ProductFastInboundModalProps) {
   useModalChrome(onClose);
   const qc = useQueryClient();
+  // iPad ไม่มี IMEI (FIX-203) → ปิดช่อง IMEI · Serial เป็นช่องหลัก · สแกนลง Serial
+  const imeiLess = isImeiLessProduct(product);
 
   const activeVariants = product.variants.filter((v) => v.active);
   const colorOptions = Array.from(new Set(activeVariants.map((v) => (v.color ?? '').trim()).filter(Boolean))).sort();
@@ -159,10 +161,11 @@ function DeviceFastInboundModal({ product, initialVariant, onClose, onDone }: Pr
     setRows((prev) => {
       const next = [...prev];
       const firstEmpty = next.findIndex((r) => !r.imei && !r.serialNumber);
+      const field: 'imei' | 'serialNumber' = imeiLess ? 'serialNumber' : 'imei';
       let cursor = 0;
-      if (firstEmpty >= 0) next[firstEmpty] = { ...next[firstEmpty], imei: tokens[cursor++] };
+      if (firstEmpty >= 0) next[firstEmpty] = { ...next[firstEmpty], [field]: tokens[cursor++] };
       for (; cursor < tokens.length; cursor++) {
-        next.push({ ...cloneRow(next[next.length - 1] ?? EMPTY_ROW), imei: tokens[cursor] });
+        next.push({ ...cloneRow(next[next.length - 1] ?? EMPTY_ROW), [field]: tokens[cursor] });
       }
       return next;
     });
@@ -202,7 +205,7 @@ function DeviceFastInboundModal({ product, initialVariant, onClose, onDone }: Pr
 
   const submit = useMutation({
     mutationFn: async () => {
-      if (filled.length === 0) throw new Error('ใส่อย่างน้อย 1 เครื่อง (IMEI หรือ Serial)');
+      if (filled.length === 0) throw new Error(imeiLess ? 'ใส่ Serial อย่างน้อย 1 เครื่อง (iPad ไม่มี IMEI)' : 'ใส่อย่างน้อย 1 เครื่อง (IMEI หรือ Serial)');
       // สี+ความจุจำเป็นทุกเครื่อง — ไม่งั้นจับ SKU ไม่ได้ (จะไปสร้าง SKU no-spec)
       const missing = filled
         .map((r, i) => ({ r, i }))
@@ -408,7 +411,7 @@ function DeviceFastInboundModal({ product, initialVariant, onClose, onDone }: Pr
           {/* รายการเครื่อง */}
           <div className="space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <label className="text-sm font-medium">รายการเครื่อง (IMEI/Serial)</label>
+              <label className="text-sm font-medium">รายการเครื่อง ({imeiLess ? 'Serial — iPad ไม่มี IMEI' : 'IMEI/Serial'})</label>
               <button
                 type="button"
                 onClick={() => { setScannerMode((v) => !v); setTimeout(() => scannerRef.current?.focus(), 0); }}
@@ -439,7 +442,7 @@ function DeviceFastInboundModal({ product, initialVariant, onClose, onDone }: Pr
                     setScanText('');
                   }
                 }}
-                placeholder="ยิง → Enter เพื่อเพิ่ม / วางหลายบรรทัด"
+                placeholder={imeiLess ? 'ยิง Serial → Enter เพื่อเพิ่ม / วางหลายบรรทัด' : 'ยิง → Enter เพื่อเพิ่ม / วางหลายบรรทัด'}
                 className="input border-emerald-400 font-mono"
               />
             )}
@@ -450,14 +453,16 @@ function DeviceFastInboundModal({ product, initialVariant, onClose, onDone }: Pr
                   <div className="grid grid-cols-12 gap-2">
                     <span className="col-span-1 self-center text-xs font-semibold text-slate-500">{idx + 1}.</span>
                     <input
-                      className="input col-span-5 font-mono text-sm"
-                      placeholder="IMEI" inputMode="numeric" maxLength={15}
+                      className="input col-span-5 font-mono text-sm disabled:bg-slate-100 disabled:text-slate-400"
+                      placeholder={imeiLess ? 'iPad ไม่มี IMEI' : 'IMEI'} inputMode="numeric" maxLength={15}
+                      disabled={imeiLess}
+                      title={imeiLess ? 'iPad ไม่มี IMEI — ใช้ Serial แทน' : undefined}
                       value={r.imei}
                       onChange={(ev) => patchRow(idx, { imei: ev.target.value.replace(/\D/g, '').slice(0, 15) })}
                     />
                     <input
-                      className="input col-span-4 font-mono text-sm"
-                      placeholder="Serial (เว้น=ใช้ IMEI)"
+                      className={`input col-span-4 font-mono text-sm ${imeiLess ? 'border-emerald-400' : ''}`}
+                      placeholder={imeiLess ? 'Serial *' : 'Serial (เว้น=ใช้ IMEI)'}
                       value={r.serialNumber}
                       onChange={(ev) => patchRow(idx, { serialNumber: ev.target.value })}
                     />

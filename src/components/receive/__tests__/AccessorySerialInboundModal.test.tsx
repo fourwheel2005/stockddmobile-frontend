@@ -103,3 +103,40 @@ describe('Accessory serial inbound business', () => {
     expect(html).toContain('+ เพิ่มแหล่งซื้อใหม่');
   });
 });
+
+describe('iPad intake (FIX-203 — no IMEI)', () => {
+  it('disables the IMEI field and makes Serial the primary field for an iPad', () => {
+    const ipad: ProductDetail = {
+      ...accessory,
+      id: 'ipad-1', name: 'iPad Air M3', serialized: true,
+      category: { id: 'ipad', name: 'iPad', parentId: 'tablet', parentName: 'แท็บเล็ต' },
+      variants: [{ ...variant, id: 'v-ipad', productId: 'ipad-1', productName: 'iPad Air M3', sku: 'DD00100', color: 'Sage', storage: '256GB', condition: 'NEW' }],
+    };
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const html = renderToStaticMarkup(
+      <QueryClientProvider client={queryClient}>
+        <ProductFastInboundModal product={ipad} onClose={vi.fn()} onDone={vi.fn()} />
+      </QueryClientProvider>,
+    );
+    expect(html).toContain('placeholder="iPad ไม่มี IMEI"');
+    expect(html).toMatch(/placeholder="iPad ไม่มี IMEI"[^>]*disabled=""/);
+    expect(html).toContain('placeholder="Serial *"');
+    expect(html).toContain('Serial — iPad ไม่มี IMEI');
+  });
+
+  it('keeps the IMEI field enabled for phones', () => {
+    const phone: ProductDetail = {
+      ...accessory, id: 'ip-1', name: 'iPhone 17', serialized: true,
+      category: { id: 'iphone', name: 'iPhone', parentId: 'phone', parentName: 'มือถือ' },
+      variants: [{ ...variant, id: 'v-ip', productId: 'ip-1', productName: 'iPhone 17', sku: 'DD00200', condition: 'NEW' }],
+    };
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const html = renderToStaticMarkup(
+      <QueryClientProvider client={queryClient}>
+        <ProductFastInboundModal product={phone} onClose={vi.fn()} onDone={vi.fn()} />
+      </QueryClientProvider>,
+    );
+    expect(html).toContain('placeholder="IMEI"');
+    expect(html).not.toMatch(/placeholder="IMEI"[^>]*disabled=""/);
+  });
+});

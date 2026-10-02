@@ -34,3 +34,23 @@ export function isAccessoryCategory(category: Category): boolean {
 export function isAccessoryProduct(product: ProductDetail): boolean {
   return isAccessoryCategory(product.category);
 }
+
+/**
+ * เครื่องที่ "ไม่มี IMEI" ใช้ Serial แทน (FIX-203) — ตอนนี้เฉพาะ iPad ตามที่ร้านกำหนด
+ * (iPad WiFi ไม่มี IMEI · ฟอร์มรับเข้าปิดช่อง IMEI และบังคับ Serial) · เช็คจากชื่อหมวด/หมวดแม่/ชื่อรุ่น
+ */
+const IMEI_LESS_MARKERS = ['ipad'];
+
+export function isImeiLessName(name: string | null | undefined): boolean {
+  const n = normalize(name);
+  return IMEI_LESS_MARKERS.some((marker) => n.includes(marker));
+}
+
+export function isImeiLessCategory(category: Category | null | undefined): boolean {
+  if (!category) return false;
+  return isImeiLessName(category.name) || isImeiLessName(category.parentName);
+}
+
+export function isImeiLessProduct(product: Pick<ProductDetail, 'name' | 'category'>): boolean {
+  return isImeiLessCategory(product.category) || isImeiLessName(product.name);
+}
