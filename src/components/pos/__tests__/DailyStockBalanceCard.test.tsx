@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { DailyStockBalance } from '@/types/api';
-import { DailyStockBalanceCard, dailyStockBalanceKey } from '../DailyStockBalanceCard';
+import { DailyStockBalanceCard, SentClaimNote, dailyStockBalanceKey } from '../DailyStockBalanceCard';
 
 const REPORT: DailyStockBalance = {
   context: { businessDate: '2026-08-21', branchId: 'branch-main', accessoryInventoryGlobal: true },
@@ -72,5 +72,13 @@ describe('DailyStockBalanceCard', () => {
     expect(html).toContain('สายชาร์จ');
     expect(html).toContain('10<small class="ml-1 text-xs font-medium">เส้น');
     expect(html).toContain('Accessory แบบนับจำนวนเป็นยอดรวมทุกสาขา');
+  });
+
+  it('FIX-205: shows devices sent on claim as outside the shop, and nothing when there are none', () => {
+    const html = renderToStaticMarkup(<SentClaimNote count={2} />);
+    expect(html).toContain('ส่งเคลมอยู่นอกร้าน');
+    expect(html).toContain('2 เครื่อง');
+    expect(html).toContain('ไม่นับในยอดที่ควรพบในร้าน');
+    expect(renderToStaticMarkup(<SentClaimNote count={0} />)).toBe('');
   });
 });

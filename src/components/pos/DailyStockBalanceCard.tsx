@@ -106,6 +106,7 @@ function StockGroupCard({ group, tone, onView }: {
         <Metric label="ขายวันนี้" value={group.soldToday} />
       </div>
       {held > 0 && <HeldBreakdown group={group} />}
+      <SentClaimNote count={group.onHand.sentClaimOffSite ?? 0} />
     </div>
   );
 }
@@ -167,7 +168,7 @@ function HeldBreakdown({ group }: { group: DailyStockGroup }) {
   const h = group.onHand.held;
   return (
     <p className="mt-2 text-[11px] leading-5 text-slate-500">
-      รอลงสต๊อก {h.pendingIntake} · จอง {h.reserved} · เสีย/ซ่อม {h.defective} · รับคืนรอตรวจ {h.returned}
+      รอลงสต๊อก {h.pendingIntake} · จอง {h.reserved} · รอซ่อม {h.defective} · รับคืนรอตรวจ {h.returned}
     </p>
   );
 }
@@ -217,4 +218,14 @@ function heldTotal(group: DailyStockGroup) {
 function formatThaiDate(date: string) {
   const [year, month, day] = date.split('-').map(Number);
   return `${day.toString().padStart(2, '0')}/${month.toString().padStart(2, '0')}/${year + 543}`;
+}
+
+/** เครื่องที่ส่งเคลมอยู่ที่ศูนย์ (FIX-205) — แจ้งแยก ไม่นับในยอดที่ต้องหาเจอในร้าน */
+export function SentClaimNote({ count }: { count: number }) {
+  if (count <= 0) return null;
+  return (
+    <p className="mt-2 rounded-md bg-white/70 px-2 py-1 text-[11px] leading-5 text-slate-600">
+      ส่งเคลมอยู่นอกร้าน <strong className="text-slate-800">{count} เครื่อง</strong> · ไม่นับในยอดที่ควรพบในร้าน
+    </p>
+  );
 }

@@ -337,6 +337,7 @@ export interface StockSummaryResponse {
 export interface DailyStockHeld {
   pendingIntake: number;
   reserved: number;
+  /** รอซ่อม (ยังอยู่ในร้าน) — เครื่องส่งเคลมแยกไป sentClaimOffSite (FIX-205) */
   defective: number;
   returned: number;
 }
@@ -345,6 +346,8 @@ export interface DailyStockOnHand {
   readyToSell: number;
   held: DailyStockHeld;
   expectedPhysical: number;
+  /** ส่งเคลมอยู่นอกร้าน (FIX-205) — ไม่รวมใน expectedPhysical · backend เก่าไม่ส่ง = 0 */
+  sentClaimOffSite?: number;
 }
 
 export interface DailyStockGroup {
