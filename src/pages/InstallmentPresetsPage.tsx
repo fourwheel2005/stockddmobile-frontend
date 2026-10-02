@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { CreditCard, Plus, Save, Trash2, Info } from 'lucide-react';
+import { CreditCard, Plus, Save, Trash2, Info, History } from 'lucide-react';
 import {
   installmentPresetsApi, type InstallmentPresetResponse,
 } from '@/api/installmentPresets';
@@ -10,6 +10,7 @@ import { extractErrorMessage } from '@/api/client';
 import { formatTHB } from '@/lib/format';
 import { buildTermTable, monthColumns, parseTermTable, type TermTable } from '@/lib/installmentTable';
 import { AddMonthColumn, TermCellInput } from '@/components/products/InstallmentTermCells';
+import { PriceHistoryModal } from '@/components/products/PriceHistoryModal';
 
 /**
  * ตารางดาวน์/ผ่อน "มือ 2" ต่อ รุ่น×ความจุ (FIX-123) — แก้ที่นี่ที่เดียว
@@ -20,6 +21,7 @@ import { AddMonthColumn, TermCellInput } from '@/components/products/Installment
 
 
 interface RowDraft {
+  cash: string;
   down: string;
   monthly: TermTable;
   dirty: boolean;
@@ -43,7 +45,7 @@ export function InstallmentPresetsPage() {
   // draft ต่อแถว (แก้แล้วค่อยกดบันทึกทีละแถว — ชัดว่าแถวไหนยังไม่ได้เซฟ)
   const [drafts, setDrafts] = useState<Record<string, RowDraft>>({});
   const draftOf = (p: InstallmentPresetResponse): RowDraft =>
-    drafts[p.id] ?? { down: String(p.downPayment), monthly: parseTermTable(p.installmentTerms), dirty: false };
+    drafts[p.id] ?? { cash: p.cashPrice != null ? String(p.cashPrice) : '', down: String(p.downPayment), monthly: parseTermTable(p.installmentTerms), dirty: false };
   const patchDraft = (p: InstallmentPresetResponse, patch: Partial<RowDraft>) =>
     setDrafts((d) => ({ ...d, [p.id]: { ...draftOf(p), ...patch, dirty: true } }));
 
@@ -70,9 +72,11 @@ export function InstallmentPresetsPage() {
     if (d.down.trim() === '' || Number(d.down) < 0) { toast.error('กรอกเงินดาวน์ให้ถูกต้อง'); return; }
     const terms = buildTermTable(d.monthly);
     if (terms === '[]') { toast.error('กรอกค่างวดอย่างน้อย 1 ช่อง'); return; }
+    if (d.cash.trim() !== '' && Number(d.cash) <= 0) { toast.error('ราคาซื้อสดต้องมากกว่า 0'); return; }
     upsert.mutate({
       productId: p.productId, storage: p.storage,
       downPayment: Number(d.down), installmentTerms: terms,
+      cashPrice: d.cash.trim() === '' ? null : Number(d.cash),
     });
   };
 
@@ -80,7 +84,9 @@ export function InstallmentPresetsPage() {
   const [newProductId, setNewProductId] = useState('');
   const [newStorage, setNewStorage] = useState('');
   const [newDown, setNewDown] = useState('');
+  const [newCash, setNewCash] = useState('');
   const [newMonthly, setNewMonthly] = useState<TermTable>({});
+  const [history, setHistory] = useState<InstallmentPresetResponse | null>(null);
   // คอลัมน์เดือนที่ผู้ใช้เพิ่มเอง (FIX-200) — รวมกับค่าเริ่มต้นและเดือนที่มีในข้อมูล
   const [extraMonths, setExtraMonths] = useState<number[]>([]);
   const MONTH_COLS = monthColumns([...presets.map((p) => draftOf(p).monthly), newMonthly], extraMonths);
@@ -90,9 +96,11 @@ export function InstallmentPresetsPage() {
     if (newDown.trim() === '' || Number(newDown) < 0) { toast.error('กรอกเงินดาวน์'); return; }
     const terms = buildTermTable(newMonthly);
     if (terms === '[]') { toast.error('กรอกค่างวดอย่างน้อย 1 ช่อง'); return; }
+    if (newCash.trim() !== '' && Number(newCash) <= 0) { toast.error('ราคาซื้อสดต้องมากกว่า 0'); return; }
     upsert.mutate(
-      { productId: newProductId, storage: newStorage, downPayment: Number(newDown), installmentTerms: terms },
-      { onSuccess: () => { setNewProductId(''); setNewStorage(''); setNewDown(''); setNewMonthly({}); } },
+      { productId: newProductId, storage: newStorage, downPayment: Number(newDown), installmentTerms: terms,
+        cashPrice: newCash.trim() === '' ? null : Number(newCash) },
+      { onSuccess: () => { setNewProductId(''); setNewStorage(''); setNewDown(''); setNewCash(''); setNewMonthly({}); } },
     );
   };
 
@@ -124,6 +132,12 @@ export function InstallmentPresetsPage() {
                    onChange={(e) => setNewStorage(e.target.value)} />
           </div>
           <div className="w-28">
+            <label className="mb-0.5 block text-xs font-semibold text-slate-600">ราคาซื้อสด (บาท)</label>
+            <input type="number" min={0} className="input" placeholder="เว้น=ไม่ตั้ง" value={newCash}
+                   title="ราคาขายเงินสดมาตรฐานของมือ 2 รุ่นนี้ — เติมให้เครื่องที่รับเข้าใหม่และยังไม่ตั้งราคาขาย"
+                   onChange={(e) => setNewCash(e.target.value)} />
+          </div>
+          <div className="w-28">
             <label className="mb-0.5 block text-xs font-semibold text-slate-600">ดาวน์หลัก (บาท)</label>
             <input type="number" min={0} className="input" placeholder="1490" value={newDown}
                    onChange={(e) => setNewDown(e.target.value)} />
@@ -151,6 +165,7 @@ export function InstallmentPresetsPage() {
               <tr>
                 <th className="px-5 py-2.5">รุ่น</th>
                 <th className="px-5 py-2.5">ความจุ</th>
+                <th className="px-5 py-2.5 text-right">ราคาซื้อสด</th>
                 <th className="px-5 py-2.5 text-right">ดาวน์หลัก<div className="text-[10px] font-normal normal-case text-slate-400">ใช้เมื่องวดไม่ระบุ</div></th>
                 {MONTH_COLS.map((m) => <th key={m} className="px-3 py-2.5 text-right">{m} เดือน<div className="text-[10px] font-normal normal-case text-slate-400">ค่างวด / ดาวน์</div></th>)}
                 <th className="px-5 py-2.5 text-right"></th>
@@ -158,7 +173,7 @@ export function InstallmentPresetsPage() {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {isLoading && (
-                <tr><td colSpan={MONTH_COLS.length + 4} className="px-5 py-8 text-center text-slate-400">กำลังโหลด...</td></tr>
+                <tr><td colSpan={MONTH_COLS.length + 5} className="px-5 py-8 text-center text-slate-400">กำลังโหลด...</td></tr>
               )}
               {presets.map((p) => {
                 const d = draftOf(p);
@@ -166,6 +181,11 @@ export function InstallmentPresetsPage() {
                   <tr key={p.id} className={d.dirty ? 'bg-amber-50/60' : 'hover:bg-slate-50'}>
                     <td className="px-5 py-2 font-medium">{p.productName}</td>
                     <td className="px-5 py-2">{p.storage}GB</td>
+                    <td className="px-3 py-2 text-right">
+                      <input type="number" min={0} className="input w-28 text-right text-sm" placeholder="—"
+                             title="ราคาซื้อสดมาตรฐานของมือ 2 รุ่นนี้ — เติมให้เครื่องรับเข้าใหม่ที่ยังไม่ตั้งราคาขาย"
+                             value={d.cash} onChange={(e) => patchDraft(p, { cash: e.target.value })} />
+                    </td>
                     <td className="px-3 py-2 text-right">
                       <input type="number" min={0} className="input w-28 text-right text-sm"
                              value={d.down} onChange={(e) => patchDraft(p, { down: e.target.value })} />
@@ -184,6 +204,10 @@ export function InstallmentPresetsPage() {
                             <Save className="h-3.5 w-3.5" /> บันทึก
                           </button>
                         )}
+                        <button type="button" onClick={() => setHistory(p)} title="ดูประวัติราคาย้อนหลัง"
+                                className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100">
+                          <History className="h-4 w-4" />
+                        </button>
                         <button type="button"
                                 onClick={() => { if (confirm(`ลบราคา ${p.productName} ${p.storage}GB ?`)) del.mutate(p.id); }}
                                 className="rounded-md p-1.5 text-red-600 hover:bg-red-50">
@@ -195,7 +219,7 @@ export function InstallmentPresetsPage() {
                 );
               })}
               {!isLoading && presets.length === 0 && (
-                <tr><td colSpan={MONTH_COLS.length + 4} className="px-5 py-10 text-center text-slate-400">
+                <tr><td colSpan={MONTH_COLS.length + 5} className="px-5 py-10 text-center text-slate-400">
                   ยังไม่มีราคาในตาราง — เพิ่มแถวแรกด้านบน
                 </td></tr>
               )}
@@ -209,6 +233,10 @@ export function InstallmentPresetsPage() {
           </div>
         )}
       </div>
+      {history && (
+        <PriceHistoryModal productId={history.productId} productName={history.productName}
+                           storage={history.storage} condition="SECOND_HAND" onClose={() => setHistory(null)} />
+      )}
     </div>
   );
 }

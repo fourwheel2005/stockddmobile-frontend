@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { CreditCard, Plus, Save, Info } from 'lucide-react';
+import { CreditCard, Plus, Save, Info, History } from 'lucide-react';
 import {
   firstHandInstallmentApi,
 } from '@/api/firstHandInstallment';
@@ -11,6 +11,7 @@ import { extractErrorMessage } from '@/api/client';
 import { formatTHB } from '@/lib/format';
 import { buildTermTable, monthColumns, parseTermTable, type TermTable } from '@/lib/installmentTable';
 import { AddMonthColumn, TermCellInput } from '@/components/products/InstallmentTermCells';
+import { PriceHistoryModal } from '@/components/products/PriceHistoryModal';
 
 /**
  * ตารางผ่อน "มือ 1" ต่อ รุ่น×ความจุ (FIX-138) — แก้ที่นี่ที่เดียว, เขียนลง SKU มือ 1 ทุกสีที่ตรง.
@@ -21,6 +22,7 @@ import { AddMonthColumn, TermCellInput } from '@/components/products/Installment
 
 
 interface RowDraft {
+  cash: string;
   down: string;
   monthly: TermTable;
   dirty: boolean;
@@ -48,6 +50,7 @@ export function FirstHandInstallmentPage() {
   const [drafts, setDrafts] = useState<Record<string, RowDraft>>({});
   const draftOf = (r: FirstHandInstallmentRow): RowDraft =>
     drafts[rowKey(r)] ?? {
+      cash: r.cashPrice != null ? String(r.cashPrice) : '',
       down: r.downPayment != null ? String(r.downPayment) : '',
       monthly: parseTermTable(r.installmentTerms),
       dirty: false,
@@ -81,11 +84,14 @@ export function FirstHandInstallmentPage() {
     }
     if (!downEmpty && Number(d.down) < 0) { toast.error('เงินดาวน์ต้องไม่ติดลบ'); return; }
     if (terms === '[]') { toast.error('กรอกค่างวดอย่างน้อย 1 ช่อง (หรือเว้นดาวน์ด้วยเพื่อล้าง)'); return; }
+    const cashEmpty = d.cash.trim() === '';
+    if (!cashEmpty && Number(d.cash) <= 0) { toast.error('ราคาซื้อสดต้องมากกว่า 0'); return; }
     upsert.mutate({
       productId: r.productId,
       storage: r.storage,
       downPayment: downEmpty ? null : Number(d.down),
       installmentTerms: terms,
+      cashPrice: cashEmpty ? null : Number(d.cash),
     });
   };
 
@@ -93,7 +99,9 @@ export function FirstHandInstallmentPage() {
   const [newProductId, setNewProductId] = useState('');
   const [newStorage, setNewStorage] = useState('');
   const [newDown, setNewDown] = useState('');
+  const [newCash, setNewCash] = useState('');
   const [newMonthly, setNewMonthly] = useState<TermTable>({});
+  const [history, setHistory] = useState<FirstHandInstallmentRow | null>(null);
   // คอลัมน์เดือนที่ผู้ใช้เพิ่มเอง (FIX-200) — รวมกับค่าเริ่มต้นและเดือนที่มีในข้อมูล
   const [extraMonths, setExtraMonths] = useState<number[]>([]);
   const MONTH_COLS = monthColumns([...rows.map((r) => draftOf(r).monthly), newMonthly], extraMonths);
@@ -103,9 +111,11 @@ export function FirstHandInstallmentPage() {
     if (newDown.trim() === '' || Number(newDown) < 0) { toast.error('กรอกเงินดาวน์'); return; }
     const terms = buildTermTable(newMonthly);
     if (terms === '[]') { toast.error('กรอกค่างวดอย่างน้อย 1 ช่อง'); return; }
+    if (newCash.trim() !== '' && Number(newCash) <= 0) { toast.error('ราคาซื้อสดต้องมากกว่า 0'); return; }
     upsert.mutate(
-      { productId: newProductId, storage: newStorage, downPayment: Number(newDown), installmentTerms: terms },
-      { onSuccess: () => { setNewProductId(''); setNewStorage(''); setNewDown(''); setNewMonthly({}); } },
+      { productId: newProductId, storage: newStorage, downPayment: Number(newDown), installmentTerms: terms,
+        cashPrice: newCash.trim() === '' ? null : Number(newCash) },
+      { onSuccess: () => { setNewProductId(''); setNewStorage(''); setNewDown(''); setNewCash(''); setNewMonthly({}); } },
     );
   };
 
@@ -136,6 +146,12 @@ export function FirstHandInstallmentPage() {
             <label className="mb-0.5 block text-xs font-semibold text-slate-600">ความจุ</label>
             <input className="input" placeholder="128" value={newStorage}
                    onChange={(e) => setNewStorage(e.target.value)} />
+          </div>
+          <div className="w-28">
+            <label className="mb-0.5 block text-xs font-semibold text-slate-600">ราคาซื้อสด (บาท)</label>
+            <input type="number" min={0} className="input" placeholder="เว้น=คงเดิม" value={newCash}
+                   title="ราคาขายเงินสดของ SKU มือ 1 ทุกสีในรุ่น×ความจุนี้ · เว้นว่าง = ไม่เปลี่ยน"
+                   onChange={(e) => setNewCash(e.target.value)} />
           </div>
           <div className="w-28">
             <label className="mb-0.5 block text-xs font-semibold text-slate-600">ดาวน์หลัก (บาท)</label>
@@ -169,6 +185,7 @@ export function FirstHandInstallmentPage() {
                 <th className="px-5 py-2.5">รุ่น</th>
                 <th className="px-5 py-2.5">ความจุ</th>
                 <th className="px-3 py-2.5 text-center">SKU</th>
+                <th className="px-5 py-2.5 text-right">ราคาซื้อสด</th>
                 <th className="px-5 py-2.5 text-right">ดาวน์หลัก<div className="text-[10px] font-normal normal-case text-slate-400">ใช้เมื่องวดไม่ระบุ</div></th>
                 {MONTH_COLS.map((m) => <th key={m} className="px-3 py-2.5 text-right">{m} เดือน<div className="text-[10px] font-normal normal-case text-slate-400">ค่างวด / ดาวน์</div></th>)}
                 <th className="px-5 py-2.5 text-right"></th>
@@ -176,7 +193,7 @@ export function FirstHandInstallmentPage() {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {isLoading && (
-                <tr><td colSpan={MONTH_COLS.length + 5} className="px-5 py-8 text-center text-slate-400">กำลังโหลด...</td></tr>
+                <tr><td colSpan={MONTH_COLS.length + 6} className="px-5 py-8 text-center text-slate-400">กำลังโหลด...</td></tr>
               )}
               {rows.map((r) => {
                 const d = draftOf(r);
@@ -185,6 +202,11 @@ export function FirstHandInstallmentPage() {
                     <td className="px-5 py-2 font-medium">{r.productName}</td>
                     <td className="px-5 py-2">{r.storage}GB</td>
                     <td className="px-3 py-2 text-center text-xs text-slate-400">{r.variantCount}</td>
+                    <td className="px-3 py-2 text-right">
+                      <input type="number" min={0} className="input w-28 text-right text-sm" placeholder="—"
+                             title="ราคาซื้อสด (ราคาขายเงินสด) — บันทึกลง SKU มือ 1 ทุกสีของรุ่น×ความจุนี้"
+                             value={d.cash} onChange={(e) => patchDraft(r, { cash: e.target.value })} />
+                    </td>
                     <td className="px-3 py-2 text-right">
                       <input type="number" min={0} className="input w-28 text-right text-sm" placeholder="—"
                              value={d.down} onChange={(e) => patchDraft(r, { down: e.target.value })} />
@@ -196,18 +218,24 @@ export function FirstHandInstallmentPage() {
                       </td>
                     ))}
                     <td className="px-5 py-2 text-right">
-                      {d.dirty && (
-                        <button type="button" onClick={() => saveRow(r)} disabled={upsert.isPending}
-                                className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-2 py-1 text-xs font-semibold text-white hover:bg-emerald-700">
-                          <Save className="h-3.5 w-3.5" /> บันทึก
+                      <div className="flex items-center justify-end gap-1">
+                        {d.dirty && (
+                          <button type="button" onClick={() => saveRow(r)} disabled={upsert.isPending}
+                                  className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-2 py-1 text-xs font-semibold text-white hover:bg-emerald-700">
+                            <Save className="h-3.5 w-3.5" /> บันทึก
+                          </button>
+                        )}
+                        <button type="button" onClick={() => setHistory(r)} title="ดูประวัติราคาย้อนหลัง"
+                                className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100">
+                          <History className="h-4 w-4" />
                         </button>
-                      )}
+                      </div>
                     </td>
                   </tr>
                 );
               })}
               {!isLoading && rows.length === 0 && (
-                <tr><td colSpan={MONTH_COLS.length + 5} className="px-5 py-10 text-center text-slate-400">
+                <tr><td colSpan={MONTH_COLS.length + 6} className="px-5 py-10 text-center text-slate-400">
                   ยังไม่มี SKU มือ 1 (condition = NEW) ในระบบ — เพิ่มสินค้ามือ 1 ก่อน
                 </td></tr>
               )}
@@ -223,6 +251,10 @@ export function FirstHandInstallmentPage() {
           </div>
         )}
       </div>
+      {history && (
+        <PriceHistoryModal productId={history.productId} productName={history.productName}
+                           storage={history.storage} condition="NEW" onClose={() => setHistory(null)} />
+      )}
     </div>
   );
 }

@@ -8,6 +8,7 @@ export interface InstallmentPresetResponse {
   storage: string;            // ตัวเลขล้วน เช่น "128"
   downPayment: number;
   installmentTerms: string;   // JSON [{"months":10,"monthly":1990}, ...]
+  cashPrice: number | null;   // ราคาซื้อสดมาตรฐาน (FIX-202)
   updatedAt: string;
 }
 
@@ -16,6 +17,7 @@ export interface UpsertInstallmentPresetRequest {
   storage: string;            // "128" หรือ "128GB" ก็ได้
   downPayment: number;
   installmentTerms: string;
+  cashPrice?: number | null;  // ราคาซื้อสดมาตรฐาน — เว้น = ไม่ตั้ง (FIX-202)
 }
 
 export const installmentPresetsApi = {

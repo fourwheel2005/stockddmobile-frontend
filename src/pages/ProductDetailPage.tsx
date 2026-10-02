@@ -733,7 +733,7 @@ function AddVariantModal({ productId, editVariant, onClose }: {
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium">
-                ราคาขาย (Selling) <span className="text-red-500">*</span>
+                ราคาซื้อสด (ราคาขาย) <span className="text-red-500">*</span>
               </label>
               <input type="number" step="0.01" className="input" placeholder="39900"
                      {...register('sellingPrice', { required: 'จำเป็น', min: 0 })} />

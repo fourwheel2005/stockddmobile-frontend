@@ -310,6 +310,8 @@ export interface FirstHandInstallmentRow {
   downPayment: number | null;
   installmentTerms: string | null; // JSON [{months,monthly}]
   variantCount: number;
+  /** ราคาซื้อสด = sellingPrice ของ SKU ตัวแทน (FIX-202) */
+  cashPrice: number | null;
 }
 
 export interface UpsertFirstHandInstallmentRequest {
@@ -317,6 +319,8 @@ export interface UpsertFirstHandInstallmentRequest {
   storage: string;
   downPayment?: number | null;     // null = ล้างค่าผ่อนกลุ่มนี้
   installmentTerms?: string | null;
+  /** ราคาซื้อสด — เว้น = ไม่เปลี่ยนราคาขายเดิม (FIX-202) */
+  cashPrice?: number | null;
 }
 
 export interface StockSummaryResponse {
