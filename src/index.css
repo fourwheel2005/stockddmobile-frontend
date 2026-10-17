@@ -106,3 +106,14 @@ body {
   .label-price { font-size: 9pt; font-weight: bold; color: #0f766e; margin-top: 1mm; }
   @page { size: A4 portrait; margin: 8mm; }
 }
+
+/* FIX-206 — หน้า POS: ช่องตัวเลขพิมพ์เท่านั้น ไม่มีลูกศรขึ้น/ลง (กันกด/เลื่อนแล้วราคาเพี้ยน) */
+body.pos-keyboard-only-numbers input[type='number']::-webkit-outer-spin-button,
+body.pos-keyboard-only-numbers input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+body.pos-keyboard-only-numbers input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}

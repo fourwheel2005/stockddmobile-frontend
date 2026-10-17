@@ -118,8 +118,10 @@ const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 import { changeFromTender, round2, suggestTenders } from '@/lib/pos/tender';
 import type { LucideIcon } from 'lucide-react';
 import { InitialChip, OWNER_CHIP, SHIPPING_PARTNER_CHIP } from '@/components/ui/InitialChip';
+import { useKeyboardOnlyNumberInputs } from '@/hooks/useKeyboardOnlyNumberInputs';
 
 export function PosTerminalPage() {
+  useKeyboardOnlyNumberInputs();   // FIX-206: ช่องตัวเลขพิมพ์เท่านั้น — ไม่มีลูกศร/ล้อเมาส์เปลี่ยนราคา
   const qc = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
   // F-03 (FIX-132): idempotency key ต่อ "ตะกร้าปัจจุบัน" — สร้าง lazy ตอน checkout ครั้งแรก,
