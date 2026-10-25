@@ -124,12 +124,15 @@ function buildSummaryReceipt(data: SummaryReceiptData): Uint8Array {
 
 function printSales(b: EscPosBuilder, data: SummaryReceiptData): void {
   const payment = data.breakdown;
-  b.align('L').separator('=', W).bold(true).textln('ยอดรับจากการขาย').bold(false);
+  b.align('L').separator('=', W).bold(true).textln('ยอดรับจากการขายและงานซ่อม').bold(false);
   b.justify(`เงินสด (${payment.cashOrderCount})`, money(payment.cashTotal), W);
   b.justify(`เงินโอน (${payment.transferOrderCount})`, money(payment.transferTotal), W);
   b.justify(`บัตร (${payment.cardOrderCount})`, money(payment.cardTotal), W);
   b.justify(`QR (${payment.qrOrderCount})`, money(payment.qrTotal), W);
-  b.justify(`รับรวม (${payment.totalOrderCount} บิล)`, money(payment.grandTotal), W);
+  b.justify(`รับรวม (${payment.totalOrderCount} บิล/งาน)`, money(payment.grandTotal), W);
+  if ((payment.repairTotal ?? 0) > 0) {
+    b.justify(`  ในนี้เป็นค่าซ่อม (${payment.repairCount ?? 0} งาน)`, money(payment.repairTotal), W);   // FIX-207
+  }
   b.justify(`คืนเงิน (${data.refundCount})`, `-${money(data.refundCashTotal + data.refundTransferTotal)}`, W);
   b.bold(true).justify('ยอดรับสุทธิ', money(data.netSalesTotal), W).bold(false);
 }
@@ -137,7 +140,7 @@ function printSales(b: EscPosBuilder, data: SummaryReceiptData): void {
 function printDrawer(b: EscPosBuilder, data: SummaryReceiptData): void {
   b.separator('-', W).bold(true).textln('กระทบยอดเงินสดในลิ้นชัก').bold(false);
   b.justify('เงินทอนตั้งต้น', money(data.openingFloat), W);
-  b.justify('ขายรับเงินสด', money(data.breakdown.cashTotal), W);
+  b.justify('รับเงินสด (ขาย/ค่างวด/ซ่อม)', money(data.breakdown.cashTotal), W);
   if (data.cashInTotal) b.justify('เติมเงิน/เจ้าของใส่', money(data.cashInTotal), W);
   if (data.refundCashTotal) b.justify('คืนเงินสด', `-${money(data.refundCashTotal)}`, W);
   if (data.payoutTotal) b.justify('จ่ายค่าใช้จ่าย', `-${money(data.payoutTotal)}`, W);

@@ -856,6 +856,9 @@ export interface PaymentBreakdown {
   qrOrderCount:       number;
   grandTotal:         number;
   totalOrderCount:    number;
+  /** ในยอดรับนี้เป็นค่าซ่อมเท่าไหร่ / กี่งาน (FIX-207) — รวมอยู่ในช่องทางด้านบนแล้ว · backend เก่าไม่ส่ง */
+  repairTotal?:       number;
+  repairCount?:       number;
 }
 
 export interface CashSessionResponse {
@@ -1148,15 +1151,20 @@ export interface SalesSummaryResponse {
   avgOrderValue: number;
   profitMargin: number;
   repairCount: number;
+  /** เงินค่าซ่อมสุทธิที่รับจริงในช่วง (มัดจำ + ส่วนที่เหลือ − คืน) — FIX-207 */
   repairRevenue: number;
+  /** ค่าจ้างช่างนอกของงานที่รับคืนในช่วง (หักกำไรแล้ว) — FIX-207 */
+  repairOutsourceCost?: number;
 }
 
 export interface DailySalesPoint {
   date: string;
   orderCount: number;
   itemCount: number;
+  /** ขายสินค้า + ค่าซ่อมสุทธิ (FIX-207) */
   revenue: number;
   profit: number;
+  repairRevenue?: number;
 }
 
 export interface TopProductRow {
@@ -1340,7 +1348,10 @@ export interface UpdateRepairStatusRequest {
   status: RepairStatus;
   repairCost?: number;
   workDescription?: string;
+  /** PICKED_UP: วิธีรับเงินที่เหลือ/คืนมัดจำส่วนเกิน · CANCELLED: วิธีคืนมัดจำ */
   paymentMethod?: PaymentMethod;
+  /** CANCELLED: true = ร้านเก็บมัดจำ (นับเป็นรายได้) · false = คืนลูกค้า (FIX-207) */
+  keepDeposit?: boolean;
 }
 
 /** แก้ไข/เพิ่มข้อมูลใบซ่อมระหว่างทาง (partial) */
@@ -1358,6 +1369,8 @@ export interface UpdateRepairRequest {
   estimatedCost?: number;
   repairCost?: number;
   depositAmount?: number;
+  /** วิธีรับ/คืนส่วนต่างเมื่อแก้มัดจำ (FIX-207) */
+  depositPaymentMethod?: PaymentMethod;
   outsourced?: boolean;            // ส่งซ่อมช่างนอก (FIX-093)
   technicianName?: string;
   outsourceCost?: number;

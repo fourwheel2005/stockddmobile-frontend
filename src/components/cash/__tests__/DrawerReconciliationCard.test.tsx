@@ -12,7 +12,7 @@ describe('DrawerReconciliationCard', () => {
   it('shows float, cash sales and payouts as separate lines that add up to the drawer balance', () => {
     const html = renderToStaticMarkup(
       <DrawerReconciliationCard
-        accountingCashTotal={12800}
+        accountingCashTotal={12900}
         movements={[
           line({ id: '1', type: 'OPENING_FLOAT', amount: 1000, referenceType: 'SESSION' }),
           line({ id: '2', type: 'SALE_CASH', amount: 12800 }),
@@ -27,7 +27,8 @@ describe('DrawerReconciliationCard', () => {
     expect(html).toContain('จ่ายออกจากเก๊ะ');
     expect(html).toContain('฿13,810.00');            // 1000 + 12800 + 100 − 90
     expect(html).toContain('ขายรับโอน (เข้าบัญชีร้าน)');
-    expect(html).not.toContain('การ์ด &quot;สรุปยอดขายตามวันที่บัญชี&quot; นับเงินสด'); // ขายสด 12,800 ตรงกับบัญชี → ไม่เตือน
+    // ยอดตามวันที่บัญชีรวมขาย 12,800 + ค่างวด 100 = 12,900 ตรงกับเงินสดที่เข้าเก๊ะ → ไม่เตือน (FIX-207)
+    expect(html).not.toContain('สรุปยอดรับตามวันที่บัญชี&quot; นับเงินสด');
   });
 
   it('warns when accounting cash differs from cash that physically entered the drawer', () => {
@@ -37,5 +38,17 @@ describe('DrawerReconciliationCard', () => {
     );
     expect(html).toContain('ต่างกัน');
     expect(html).toContain('฿2,200.00');
+  });
+
+  it('FIX-207: repair cash counts toward the accounting comparison, so a matching shift shows no warning', () => {
+    const html = renderToStaticMarkup(
+      <DrawerReconciliationCard accountingCashTotal={1500}
+        movements={[
+          line({ id: '1', type: 'SALE_CASH', amount: 1000 }),
+          line({ id: '2', type: 'SALE_CASH', amount: 500, referenceType: 'REPAIR_TICKET', note: 'ค่าซ่อม (สด) 500' }),
+        ]} />,
+    );
+    expect(html).toContain('ค่าซ่อม รับเป็นเงินสด');
+    expect(html).not.toContain('สรุปยอดรับตามวันที่บัญชี&quot; นับเงินสด');
   });
 });

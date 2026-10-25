@@ -1,4 +1,5 @@
 import { Fragment, useMemo, useState } from 'react';
+import { cancelRequest, depositDelta, repairPickupSettlement, REPAIR_MONEY_METHODS, type CancelDepositChoice } from '@/lib/repairMoney';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { Wrench, Printer, Play, CheckCircle2, HandCoins, Ban, X, Pencil, ReceiptText, Calendar } from 'lucide-react';
@@ -115,7 +116,10 @@ export function RepairListPage() {
   };
 
   const start = (t: RepairTicket) => update.mutate({ id: t.id, body: { status: 'IN_PROGRESS' } });
+  // FIX-207: มีมัดจำ → ต้องเลือกว่าคืนลูกค้า (สด/โอน) หรือร้านเก็บไว้ ไม่ให้เงินค้างในระบบ
+  const [cancelTarget, setCancelTarget] = useState<RepairTicket | null>(null);
   const cancel = (t: RepairTicket) => {
+    if (t.depositAmount > 0) { setCancelTarget(t); return; }
     if (window.confirm(`ยกเลิกงานซ่อม ${t.ticketNo}?`)) {
       update.mutate({ id: t.id, body: { status: 'CANCELLED' } });
     }
@@ -269,6 +273,18 @@ export function RepairListPage() {
         />
       )}
 
+      {/* ยกเลิกงานที่มีมัดจำ — คืนหรือเก็บ (FIX-207) */}
+      {cancelTarget && (
+        <CancelDialog
+          ticket={cancelTarget}
+          pending={update.isPending}
+          onClose={() => setCancelTarget(null)}
+          onConfirm={(choice) => update.mutate(
+            { id: cancelTarget.id, body: cancelRequest(choice) },
+            { onSuccess: () => setCancelTarget(null) })}
+        />
+      )}
+
       {/* แก้ไข/เพิ่มอาการ ระหว่างทาง */}
       {editTarget && (
         <EditRepairDialog
@@ -323,16 +339,23 @@ function PickupDialog({ ticket, pending, onClose, onConfirm }: {
   onClose: () => void; onConfirm: (method: PaymentMethod) => void;
 }) {
   const [method, setMethod] = useState<PaymentMethod>('CASH');
+  const settlement = repairPickupSettlement(ticket.repairCost, ticket.depositAmount);
   return (
     <Dialog title={`รับเครื่องคืน — ${ticket.ticketNo}`} onClose={onClose}>
       <div className="rounded-md bg-slate-50 p-3 text-sm">
         <div className="flex justify-between"><span>ค่าซ่อม:</span><span>{formatTHB(ticket.repairCost)}</span></div>
         <div className="flex justify-between"><span>มัดจำ:</span><span>- {formatTHB(ticket.depositAmount)}</span></div>
-        <div className="flex justify-between border-t border-slate-300 pt-1 font-semibold">
-          <span>ต้องชำระเพิ่ม:</span><span>{formatTHB(ticket.balanceDue)}</span>
-        </div>
+        {settlement.refund > 0 ? (
+          <div className="flex justify-between border-t border-slate-300 pt-1 font-semibold text-rose-700">
+            <span>คืนมัดจำส่วนเกินให้ลูกค้า:</span><span>{formatTHB(settlement.refund)}</span>
+          </div>
+        ) : (
+          <div className="flex justify-between border-t border-slate-300 pt-1 font-semibold">
+            <span>ต้องชำระเพิ่ม:</span><span>{formatTHB(settlement.due)}</span>
+          </div>
+        )}
       </div>
-      <label className="mb-1 mt-3 block text-sm font-medium">วิธีชำระเงิน</label>
+      <label className="mb-1 mt-3 block text-sm font-medium">{settlement.refund > 0 ? 'คืนเงินด้วยวิธี' : 'วิธีชำระเงิน'}</label>
       <div className="grid grid-cols-1 gap-2">
         {PAYMENT_OPTIONS.map((o) => (
           <button key={o.value} type="button" onClick={() => setMethod(o.value)}
@@ -372,6 +395,9 @@ function EditRepairDialog({ ticket, pending, onClose, onSave }: {
     outsourced: ticket.outsourced, technicianName: ticket.technicianName ?? '', outsourceCost: ticket.outsourceCost ?? 0,
     note: ticket.note ?? '',
   });
+  // FIX-207: แก้มัดจำ = มีเงินเข้า/ออกจริง → เลือกช่องทาง (ลงเก๊ะ/สมุดเงินงานซ่อม)
+  const [depositMethod, setDepositMethod] = useState<PaymentMethod>('CASH');
+  const delta = depositDelta(ticket.depositAmount, f.depositAmount);
   const set = (p: Partial<typeof f>) => setF((s) => ({ ...s, ...p }));
 
   return (
@@ -407,6 +433,15 @@ function EditRepairDialog({ ticket, pending, onClose, onSave }: {
               <label className="mb-1 block text-xs font-medium">มัดจำ</label>
               <input type="number" min={0} className="input text-sm" value={f.depositAmount}
                      onChange={(e) => set({ depositAmount: Number(e.target.value) || 0 })} />
+              {delta !== 0 && (
+                <div className="mt-1 space-y-1 rounded-md bg-amber-50 p-2 text-xs text-amber-800">
+                  <div>{delta > 0 ? `รับมัดจำเพิ่ม ${formatTHB(delta)}` : `คืนมัดจำให้ลูกค้า ${formatTHB(-delta)}`} · ลงเก๊ะ/บัญชีเมื่อกดบันทึก</div>
+                  <select className="input text-xs" value={depositMethod}
+                          onChange={(e) => setDepositMethod(e.target.value as PaymentMethod)}>
+                    {REPAIR_MONEY_METHODS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </div>
+              )}
             </div>
           </div>
           <div className="grid grid-cols-3 gap-2">
@@ -448,6 +483,7 @@ function EditRepairDialog({ ticket, pending, onClose, onSave }: {
                     imei: f.imei, serialNumber: f.serialNumber, screenCode: f.screenCode,
                     reportedSymptom: f.reportedSymptom, workDescription: f.workDescription,
                     estimatedCost: f.estimatedCost, repairCost: f.repairCost, depositAmount: f.depositAmount,
+                    depositPaymentMethod: depositMethod,
                     outsourced: f.outsourced,
                     technicianName: f.outsourced ? f.technicianName : '',
                     outsourceCost: f.outsourced ? f.outsourceCost : 0,
@@ -462,6 +498,45 @@ function EditRepairDialog({ ticket, pending, onClose, onSave }: {
 }
 
 // ─── Generic small dialog ─────────────────────────────────────────────────────
+
+// ─── Cancel dialog (มีมัดจำ) — FIX-207 ─────────────────────────────────────
+
+const CANCEL_CHOICES: { value: CancelDepositChoice; label: string; hint: string }[] = [
+  { value: 'REFUND_CASH', label: 'คืนมัดจำเป็นเงินสด', hint: 'เงินออกจากเก๊ะ (ต้องเปิดเก๊ะ)' },
+  { value: 'REFUND_TRANSFER', label: 'คืนมัดจำผ่านโอน', hint: 'บันทึกเป็นเงินคืนผ่านบัญชีร้าน' },
+  { value: 'KEEP', label: 'ร้านเก็บมัดจำไว้', hint: 'เช่น ค่าตรวจเช็ค — นับเป็นรายได้ค่าซ่อม' },
+];
+
+export function CancelDialog({ ticket, pending, onClose, onConfirm }: {
+  ticket: RepairTicket; pending: boolean;
+  onClose: () => void; onConfirm: (choice: CancelDepositChoice) => void;
+}) {
+  const [choice, setChoice] = useState<CancelDepositChoice>('REFUND_CASH');
+  return (
+    <Dialog title={`ยกเลิกงานซ่อม — ${ticket.ticketNo}`} onClose={onClose}>
+      <p className="text-sm text-slate-600">
+        ลูกค้าจ่ายมัดจำไว้ <strong>{formatTHB(ticket.depositAmount)}</strong> — เลือกว่าจะทำอย่างไรกับเงินนี้
+      </p>
+      <div className="mt-3 grid gap-2">
+        {CANCEL_CHOICES.map((o) => (
+          <button key={o.value} type="button" onClick={() => setChoice(o.value)}
+                  className={`rounded-md border px-3 py-2 text-left text-sm ${
+                    choice === o.value ? 'border-brand-500 bg-brand-50 font-semibold text-brand-700'
+                      : 'border-slate-200 hover:bg-slate-50'}`}>
+            <div>{o.label}</div>
+            <div className="text-xs font-normal text-slate-500">{o.hint}</div>
+          </button>
+        ))}
+      </div>
+      <div className="mt-4 flex justify-end gap-2">
+        <button className="btn-secondary" onClick={onClose}>ไม่ยกเลิก</button>
+        <button className="btn-primary bg-rose-600 hover:bg-rose-700" disabled={pending} onClick={() => onConfirm(choice)}>
+          ยืนยันยกเลิกงาน
+        </button>
+      </div>
+    </Dialog>
+  );
+}
 
 function Dialog({ title, onClose, children }: {
   title: string; onClose: () => void; children: React.ReactNode;

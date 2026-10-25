@@ -57,7 +57,7 @@ export function PaymentBreakdownCard({ breakdown, refundTotal = 0, netSalesTotal
     <div className={`overflow-hidden rounded-lg border border-slate-200 bg-white ${className}`}>
       <div className="flex items-center gap-2 border-b border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-700">
         <Receipt className="h-4 w-4" />
-        สรุปยอดขายตามวันที่บัญชี ({breakdown.totalOrderCount} บิล)
+        สรุปยอดรับตามวันที่บัญชี ({breakdown.totalOrderCount} บิล/งานซ่อม)
       </div>
       <div className="divide-y divide-slate-100">
         {rows.map((r) => (
@@ -78,6 +78,12 @@ export function PaymentBreakdownCard({ breakdown, refundTotal = 0, netSalesTotal
           </div>
         ))}
       </div>
+      {(breakdown.repairTotal ?? 0) > 0 && (
+        <div className="flex items-center justify-between border-t border-slate-100 px-4 py-2 text-xs text-slate-600">
+          <span>ในยอดด้านบนเป็นค่าซ่อม ({breakdown.repairCount ?? 0} งาน)</span>
+          <span className="font-semibold tabular-nums">{formatTHB(breakdown.repairTotal ?? 0)}</span>
+        </div>
+      )}
       <div className="flex items-center justify-between border-t-2 border-slate-200 bg-slate-50 px-4 py-2.5">
         <span className="text-sm font-semibold text-slate-700">ยอดรับรวม</span>
         <span className="text-lg font-bold tabular-nums text-slate-900">{formatTHB(breakdown.grandTotal)}</span>

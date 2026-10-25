@@ -91,4 +91,14 @@ describe('cash summary thermal receipts', () => {
     };
     expect(String.fromCharCode(...buildCashPeriodSummary(summary))).not.toContain(th('ตรวจนับสต็อก'));
   });
+
+  it('FIX-207: prints how much of the shift income came from repairs', () => {
+    const withRepair = { ...session, breakdown: { ...breakdown, repairTotal: 500, repairCount: 1 } };
+    const output = String.fromCharCode(...buildCashSessionSummary(withRepair));
+    expect(output).toContain(th('ยอดรับจากการขายและงานซ่อม'));
+    expect(output).toContain(th('ในนี้เป็นค่าซ่อม (1 งาน)'));
+    expect(output).toContain('500.00');
+    const noRepair = String.fromCharCode(...buildCashSessionSummary(session));
+    expect(noRepair).not.toContain(th('ในนี้เป็นค่าซ่อม'));
+  });
 });

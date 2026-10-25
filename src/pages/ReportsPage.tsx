@@ -106,6 +106,10 @@ export function ReportsPage() {
                  sub={`Margin ${Number(summary.data?.profitMargin ?? 0).toFixed(1)}%`
                    + ((summary.data?.shippingExpense ?? 0) > 0
                        ? ` · หักค่าส่ง ${formatTHB(summary.data!.shippingExpense)}`
+                       : '')
+                   // FIX-207: ค่าจ้างช่างนอกของงานซ่อมที่รับคืนในช่วง หักจากกำไรแล้ว
+                   + ((summary.data?.repairOutsourceCost ?? 0) > 0
+                       ? ` · หักค่าช่างนอก ${formatTHB(summary.data!.repairOutsourceCost ?? 0)}`
                        : '')}
                  color="bg-blue-100 text-blue-700" />
         <KpiCard icon={<Boxes className="h-5 w-5" />}

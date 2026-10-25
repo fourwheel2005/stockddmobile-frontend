@@ -16,7 +16,10 @@ interface Props {
  */
 export function DrawerReconciliationCard({ movements, accountingCashTotal, className = '' }: Props) {
   const r = reconcileDrawer(movements);
-  const salesCash = r.inflows.find((l) => l.key === 'SALE_CASH')?.amount ?? 0;
+  // ยอด "ตามวันที่บัญชี" รวมขาย + ค่างวด + ค่าซ่อม (FIX-207) → เทียบกับเงินสดที่เข้าเก๊ะจากทั้ง 3 ทาง
+  const salesCash = r.inflows
+    .filter((l) => l.key === 'SALE_CASH' || l.key === 'INSTALLMENT_CASH' || l.key === 'REPAIR_CASH')
+    .reduce((sum, l) => sum + l.amount, 0);
   const accountingDiff = accountingCashTotal == null ? 0 : Math.round((salesCash - accountingCashTotal) * 100) / 100;
 
   return (
@@ -64,8 +67,8 @@ export function DrawerReconciliationCard({ movements, accountingCashTotal, class
           <div className="flex items-start gap-2 bg-amber-50 px-4 py-2.5 text-xs text-amber-800">
             <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <span>
-              การ์ด "สรุปยอดขายตามวันที่บัญชี" นับเงินสด {formatTHB(accountingCashTotal)} ตามวันที่ขายบนบิล
-              แต่เงินสดที่เข้าเก๊ะจริงจากการขายคือ {formatTHB(salesCash)}
+              การ์ด "สรุปยอดรับตามวันที่บัญชี" นับเงินสด {formatTHB(accountingCashTotal)} ตามวันที่ขายบนบิล
+              แต่เงินสดที่เข้าเก๊ะจริงจากการขาย ค่างวด และค่าซ่อม คือ {formatTHB(salesCash)}
               (ต่างกัน {accountingDiff > 0 ? '+' : '−'}{formatTHB(Math.abs(accountingDiff))} — มักเกิดจากบิลที่แก้วันที่ขาย
               หรือรับเงินคนละกะ) · การนับเก๊ะให้ยึดตัวเลขในการ์ดนี้
             </span>
