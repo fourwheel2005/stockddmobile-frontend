@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { CreditCard, Plus, Save, Info, History } from 'lucide-react';
+import { CreditCard, Plus, Save, Info, History, Undo2 } from 'lucide-react';
 import {
   firstHandInstallmentApi,
 } from '@/api/firstHandInstallment';
@@ -12,6 +12,9 @@ import { formatTHB } from '@/lib/format';
 import { buildTermTable, monthColumns, parseTermTable, type TermTable } from '@/lib/installmentTable';
 import { AddMonthColumn, TermCellInput } from '@/components/products/InstallmentTermCells';
 import { PriceHistoryModal } from '@/components/products/PriceHistoryModal';
+import { FirstHandBulkPanel } from '@/components/products/FirstHandBulkPanel';
+import { FirstHandBulkConfirm, type BulkChange } from '@/components/products/FirstHandBulkConfirm';
+import { applyBulkAdjust, draftFromRow, isChanged, rowRequest, type BulkAdjust, type RowDraft } from '@/lib/firstHandBulk';
 
 /**
  * ตารางผ่อน "มือ 1" ต่อ รุ่น×ความจุ (FIX-138) — แก้ที่นี่ที่เดียว, เขียนลง SKU มือ 1 ทุกสีที่ตรง.
@@ -20,13 +23,6 @@ import { PriceHistoryModal } from '@/components/products/PriceHistoryModal';
  */
 
 
-
-interface RowDraft {
-  cash: string;
-  down: string;
-  monthly: TermTable;
-  dirty: boolean;
-}
 
 const rowKey = (r: FirstHandInstallmentRow) => `${r.productId}|${r.storage}`;
 
@@ -48,13 +44,7 @@ export function FirstHandInstallmentPage() {
     [productPage]);
 
   const [drafts, setDrafts] = useState<Record<string, RowDraft>>({});
-  const draftOf = (r: FirstHandInstallmentRow): RowDraft =>
-    drafts[rowKey(r)] ?? {
-      cash: r.cashPrice != null ? String(r.cashPrice) : '',
-      down: r.downPayment != null ? String(r.downPayment) : '',
-      monthly: parseTermTable(r.installmentTerms),
-      dirty: false,
-    };
+  const draftOf = (r: FirstHandInstallmentRow): RowDraft => drafts[rowKey(r)] ?? draftFromRow(r);
   const patchDraft = (r: FirstHandInstallmentRow, patch: Partial<RowDraft>) =>
     setDrafts((d) => ({ ...d, [rowKey(r)]: { ...draftOf(r), ...patch, dirty: true } }));
 
@@ -74,26 +64,61 @@ export function FirstHandInstallmentPage() {
   });
 
   const saveRow = (r: FirstHandInstallmentRow) => {
-    const d = draftOf(r);
-    const terms = buildTermTable(d.monthly);
-    const downEmpty = d.down.trim() === '';
-    if (downEmpty && terms === '[]') {
-      if (!confirm(`ล้างค่าผ่อนของ ${r.productName} ${r.storage}GB ?`)) return;
-      upsert.mutate({ productId: r.productId, storage: r.storage, downPayment: null, installmentTerms: '[]' });
-      return;
-    }
-    if (!downEmpty && Number(d.down) < 0) { toast.error('เงินดาวน์ต้องไม่ติดลบ'); return; }
-    if (terms === '[]') { toast.error('กรอกค่างวดอย่างน้อย 1 ช่อง (หรือเว้นดาวน์ด้วยเพื่อล้าง)'); return; }
-    const cashEmpty = d.cash.trim() === '';
-    if (!cashEmpty && Number(d.cash) <= 0) { toast.error('ราคาซื้อสดต้องมากกว่า 0'); return; }
-    upsert.mutate({
-      productId: r.productId,
-      storage: r.storage,
-      downPayment: downEmpty ? null : Number(d.down),
-      installmentTerms: terms,
-      cashPrice: cashEmpty ? null : Number(d.cash),
-    });
+    const result = rowRequest(r, draftOf(r));
+    if (!result.ok) { toast.error(result.error); return; }
+    if (result.clears && !confirm(`ล้างค่าผ่อนของ ${r.productName} ${r.storage}GB ?`)) return;
+    upsert.mutate(result.request);
   };
+
+  // ─── แก้หลายแถวในคำสั่งเดียว (FIX-208) ────────────────────────────────
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const toggleSelected = (key: string) => setSelected((cur) => {
+    const next = new Set(cur);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    return next;
+  });
+  const allSelected = rows.length > 0 && rows.every((r) => selected.has(rowKey(r)));
+  const toggleAll = () => setSelected(allSelected ? new Set() : new Set(rows.map(rowKey)));
+
+  const applyToSelected = (adjust: BulkAdjust) => {
+    const targets = rows.filter((r) => selected.has(rowKey(r)));
+    setDrafts((cur) => {
+      const next = { ...cur };
+      for (const r of targets) next[rowKey(r)] = applyBulkAdjust(cur[rowKey(r)] ?? draftFromRow(r), adjust);
+      return next;
+    });
+    toast.success(`ปรับตัวเลข ${targets.length} แถวแล้ว — ตรวจแถวสีเหลือง แล้วกด "บันทึกทั้งหมด"`);
+  };
+
+  const changedRows = rows.filter((r) => drafts[rowKey(r)]?.dirty && isChanged(r, drafts[rowKey(r)]));
+  const [confirmChanges, setConfirmChanges] = useState<BulkChange[] | null>(null);
+  const openSaveAll = () => {
+    const changes: BulkChange[] = [];
+    for (const r of changedRows) {
+      const result = rowRequest(r, drafts[rowKey(r)]);
+      if (!result.ok) { toast.error(result.error); return; }
+      changes.push({ row: r, request: result.request, clears: result.clears });
+    }
+    if (changes.length === 0) { toast('ยังไม่มีแถวที่ตัวเลขเปลี่ยน'); return; }
+    setConfirmChanges(changes);
+  };
+  const discardAll = () => {
+    if (changedRows.length > 0 && !confirm(`ยกเลิกการแก้ไข ${changedRows.length} แถว?`)) return;
+    setDrafts({});
+  };
+
+  const upsertAll = useMutation({
+    mutationFn: firstHandInstallmentApi.upsertAll,
+    onSuccess: (res, sent) => {
+      toast.success(`บันทึก ${res.rows} รุ่น×ความจุแล้ว — มีผลกับ ${res.updated} SKU มือ 1 · เว็บหน้าร้านอัปเดต`);
+      const savedKeys = new Set(sent.map((q) => `${q.productId}|${(q.storage ?? '').replace(/\D/g, '')}`));
+      setDrafts((cur) => Object.fromEntries(Object.entries(cur).filter(([k]) => !savedKeys.has(k))));
+      setConfirmChanges(null);
+      setSelected(new Set());
+      qc.invalidateQueries({ queryKey: ['firsthand-installment'] });
+    },
+    onError: (e) => toast.error(extractErrorMessage(e)),
+  });
 
   // ─── เพิ่ม/ตั้งราคารุ่น (เหมือนมือ 2) — ใช้กับรุ่น×ความจุที่มี SKU มือ 1 อยู่แล้ว ───
   const [newProductId, setNewProductId] = useState('');
@@ -178,10 +203,31 @@ export function FirstHandInstallmentPage() {
       </div>
 
       <div className="card">
+        {/* FIX-208: บันทึกหลายแถวในคำสั่งเดียว */}
+        {changedRows.length > 0 && (
+          <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-2 border-b border-amber-200 bg-amber-50 px-5 py-2.5 text-sm">
+            <span className="font-semibold text-amber-900">แก้ไขแล้ว {changedRows.length} แถว (ยังไม่บันทึก)</span>
+            <div className="flex gap-2">
+              <button type="button" className="btn-secondary" onClick={discardAll}>
+                <Undo2 className="h-4 w-4" /> ยกเลิกการแก้ไข
+              </button>
+              <button type="button" className="btn-primary bg-emerald-600 hover:bg-emerald-700"
+                      disabled={upsertAll.isPending} onClick={openSaveAll}>
+                <Save className="h-4 w-4" /> บันทึกทั้งหมด ({changedRows.length})
+              </button>
+            </div>
+          </div>
+        )}
+        <FirstHandBulkPanel selectedCount={selected.size} monthColumns={MONTH_COLS}
+                            onApply={applyToSelected} onClearSelection={() => setSelected(new Set())} />
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
               <tr>
+                <th className="w-10 px-3 py-2.5">
+                  <input type="checkbox" checked={allSelected} onChange={toggleAll}
+                         aria-label="เลือกทุกแถว" title="เลือกทุกแถวเพื่อปรับราคาพร้อมกัน" />
+                </th>
                 <th className="px-5 py-2.5">รุ่น</th>
                 <th className="px-5 py-2.5">ความจุ</th>
                 <th className="px-3 py-2.5 text-center">SKU</th>
@@ -193,12 +239,16 @@ export function FirstHandInstallmentPage() {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {isLoading && (
-                <tr><td colSpan={MONTH_COLS.length + 6} className="px-5 py-8 text-center text-slate-400">กำลังโหลด...</td></tr>
+                <tr><td colSpan={MONTH_COLS.length + 7} className="px-5 py-8 text-center text-slate-400">กำลังโหลด...</td></tr>
               )}
               {rows.map((r) => {
                 const d = draftOf(r);
                 return (
                   <tr key={rowKey(r)} className={d.dirty ? 'bg-amber-50/60' : 'hover:bg-slate-50'}>
+                    <td className="px-3 py-2">
+                      <input type="checkbox" checked={selected.has(rowKey(r))} onChange={() => toggleSelected(rowKey(r))}
+                             aria-label={`เลือก ${r.productName} ${r.storage}GB`} />
+                    </td>
                     <td className="px-5 py-2 font-medium">{r.productName}</td>
                     <td className="px-5 py-2">{r.storage}GB</td>
                     <td className="px-3 py-2 text-center text-xs text-slate-400">{r.variantCount}</td>
@@ -235,7 +285,7 @@ export function FirstHandInstallmentPage() {
                 );
               })}
               {!isLoading && rows.length === 0 && (
-                <tr><td colSpan={MONTH_COLS.length + 6} className="px-5 py-10 text-center text-slate-400">
+                <tr><td colSpan={MONTH_COLS.length + 7} className="px-5 py-10 text-center text-slate-400">
                   ยังไม่มี SKU มือ 1 (condition = NEW) ในระบบ — เพิ่มสินค้ามือ 1 ก่อน
                 </td></tr>
               )}
@@ -244,13 +294,18 @@ export function FirstHandInstallmentPage() {
         </div>
         {rows.length > 0 && (
           <div className="border-t border-slate-100 px-5 py-2 text-xs text-slate-500">
-            <Info className="inline h-3.5 w-3.5 align-[-2px]" /> แก้ตัวเลขในแถว → แถวเป็นสีเหลือง → กดบันทึก · ช่องล่างของแต่ละเดือน = ดาวน์เฉพาะงวดนั้น (เว้น = ใช้ดาวน์หลัก) · ปุ่ม "เพิ่มเดือน" ยืดงวดได้ เช่น 24/36 · เว้นดาวน์+ค่างวดทั้งหมดแล้วบันทึก = ล้างค่าผ่อนของกลุ่มนั้น
+            <Info className="inline h-3.5 w-3.5 align-[-2px]" /> แก้ตัวเลขในแถว → แถวเป็นสีเหลือง → กดบันทึกรายแถว หรือ "บันทึกทั้งหมด" · ติ๊กเลือกหลายแถวเพื่อปรับราคาซื้อสด/ดาวน์/ค่างวดพร้อมกัน · ช่องล่างของแต่ละเดือน = ดาวน์เฉพาะงวดนั้น (เว้น = ใช้ดาวน์หลัก) · ปุ่ม "เพิ่มเดือน" ยืดงวดได้ เช่น 24/36 · เว้นดาวน์+ค่างวดทั้งหมดแล้วบันทึก = ล้างค่าผ่อนของกลุ่มนั้น
             {rows[0].downPayment != null && (
               <> · ตัวอย่าง: {rows[0].productName} {rows[0].storage}GB ดาวน์ {formatTHB(rows[0].downPayment)}</>
             )}
           </div>
         )}
       </div>
+      {confirmChanges && (
+        <FirstHandBulkConfirm changes={confirmChanges} pending={upsertAll.isPending}
+                              onClose={() => setConfirmChanges(null)}
+                              onConfirm={() => upsertAll.mutate(confirmChanges.map((c) => c.request))} />
+      )}
       {history && (
         <PriceHistoryModal productId={history.productId} productName={history.productName}
                            storage={history.storage} condition="NEW" onClose={() => setHistory(null)} />

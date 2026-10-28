@@ -13,4 +13,7 @@ export const firstHandInstallmentApi = {
     api.get<FirstHandInstallmentRow[]>('/firsthand-installment').then((r) => r.data),
   upsert: (req: UpsertFirstHandInstallmentRequest) =>
     api.put<{ updated: number }>('/firsthand-installment', req).then((r) => r.data),
+  /** บันทึกหลายรุ่น×ความจุในคำสั่งเดียว (FIX-208) — ทั้งหมดสำเร็จหรือไม่บันทึกเลย */
+  upsertAll: (rows: UpsertFirstHandInstallmentRequest[]) =>
+    api.put<{ rows: number; updated: number }>('/firsthand-installment/bulk', { rows }).then((r) => r.data),
 };
