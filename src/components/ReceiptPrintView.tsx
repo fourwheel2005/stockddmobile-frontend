@@ -68,9 +68,13 @@ export function ReceiptPrintView({ order, shopName = 'Stockdd Mobile', duplicate
       // อุปกรณ์เสริมจ่ายสดวันนี้ในบิลผ่อน (FIX-122): flag จริงจากตอนคิดเงินก่อน · บิลเก่า (null) เดาแบบเดิม
       const isPayToday = (it: (typeof order.items)[number]) =>
         it.payToday ?? (!hasRealImei(it.imei) && !it.serialNumber);
+      // FIX-209: บิลใหม่ใช้ยอดอุปกรณ์ที่บันทึกไว้ + ส่วนลดหักจากยอดจ่ายวันนี้ · บิลเก่าส่วนลด = 0
       const addOn = hidePrice
-        ? order.items.filter(isPayToday).reduce((s, it) => s + (it.lineTotal ?? 0), 0)
+        ? (order.addOnTodayAmount
+          ?? order.items.filter(isPayToday).reduce((s, it) => s + (it.lineTotal ?? 0), 0))
         : 0;
+      const todayDiscount = hidePrice ? (order.todayDiscountAmount ?? 0) : 0;
+      const payToday = Math.max(0, (order.downPaymentAmount ?? 0) + addOn - todayDiscount);
       return (
       <>
       <table className="w-full text-sm">
@@ -143,22 +147,30 @@ export function ReceiptPrintView({ order, shopName = 'Stockdd Mobile', duplicate
             </div>
           </>
         )}
+        {hidePrice && todayDiscount > 0 && (order.tradeInValue ?? 0) <= 0 && (
+          <>
+            <div className="flex justify-between"><span>เงินดาวน์:</span><span>{formatTHB(order.downPaymentAmount ?? 0)}</span></div>
+            {addOn > 0 && <div className="flex justify-between"><span>อุปกรณ์จ่ายวันนี้:</span><span>{formatTHB(addOn)}</span></div>}
+            <div className="flex justify-between"><span>ส่วนลด:</span><span>- {formatTHB(todayDiscount)}</span></div>
+          </>
+        )}
         {hidePrice && (
           // บิลไม่เทิร์นคงยอดเดิม; บิลเทิร์นแสดงส่วนต่างใน block ถัดไป — FIX-183
           <div className="flex justify-between border-t border-slate-400 pt-1 text-base">
             <strong>{(order.tradeInValue ?? 0) > 0 ? 'ยอดวันนี้ก่อนหักเทิร์น:' : 'ยอดที่ต้องชำระวันนี้:'}</strong>
-            <strong>{formatTHB((order.downPaymentAmount ?? 0) + addOn)}</strong>
+            <strong>{formatTHB(payToday)}</strong>
           </div>
         )}
         {(order.tradeInValue ?? 0) > 0 && (() => {
           const settlement = order.tradeInSettlementAmount
-            ?? (hidePrice ? (order.downPaymentAmount ?? 0) + addOn : order.grandTotal);
+            ?? (hidePrice ? payToday : order.grandTotal);
           const difference = order.tradeInDifferenceAmount
             ?? settlement - (order.tradeInValue ?? 0);
           return (
             <div className="my-2 space-y-1 border-y border-dashed border-violet-300 py-2">
               {hidePrice && <div className="flex justify-between"><span>เงินดาวน์:</span><span>{formatTHB(order.downPaymentAmount ?? 0)}</span></div>}
               {hidePrice && addOn > 0 && <div className="flex justify-between"><span>อุปกรณ์จ่ายวันนี้:</span><span>{formatTHB(addOn)}</span></div>}
+              {hidePrice && todayDiscount > 0 && <div className="flex justify-between"><span>ส่วนลด:</span><span>- {formatTHB(todayDiscount)}</span></div>}
               <div className="flex justify-between text-violet-700"><span>มูลค่ารับซื้อเครื่องเก่า:</span><span>- {formatTHB(order.tradeInValue ?? 0)}</span></div>
               <div className="flex justify-between font-bold">
                 <span>{difference >= 0 ? 'ส่วนต่างลูกค้าจ่ายให้ร้าน:' : 'ส่วนต่างร้านจ่ายให้ลูกค้า:'}</span>
@@ -208,7 +220,7 @@ export function ReceiptPrintView({ order, shopName = 'Stockdd Mobile', duplicate
                   // ค่างวดที่พนักงานกำหนด (รวมดอกเบี้ย) ถ้ามี · ไม่งั้น fallback (ยอด−ดาวน์−อุปกรณ์เสริม)/งวด (FIX-090)
                   order.installmentMonthlyAmount != null && order.installmentMonthlyAmount > 0
                     ? order.installmentMonthlyAmount
-                    : Math.max(0, (order.grandTotal ?? 0) - (order.downPaymentAmount ?? 0) - addOn) /
+                    : Math.max(0, (order.grandTotal ?? 0) - payToday) /
                         Math.max(1, order.installmentMonths)
                 )} / เดือน
               </span>

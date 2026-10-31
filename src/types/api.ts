@@ -1077,6 +1077,10 @@ export interface SalesOrderResponse {
   installmentMonths: number | null;
   installmentMonthlyAmount: number | null;
   downPaymentAmount: number | null;
+  /** บิลผ่อน: อุปกรณ์จ่ายวันนี้ที่บันทึกตอนปิดบิล (FIX-209) · null = บิลเก่า ให้เดาจากรายการ */
+  addOnTodayAmount?: number | null;
+  /** บิลผ่อน: ส่วนลดที่หักจากยอดจ่ายวันนี้ (FIX-209) · บิลเก่า = 0 */
+  todayDiscountAmount?: number | null;
   paymentSlipUrl: string | null;
   shippingPartner: ShippingPartner | null;
   shippingTrackingNo: string | null;

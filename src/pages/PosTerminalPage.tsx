@@ -25,7 +25,8 @@ import type {
   ShippingPartner, TradeInProductResponse, PosInstallmentPlan,
 } from '@/types/api';
 import {
-  calculateTradeInSettlement, getTradeInBlockedReason, isTradeInActive, TRADE_IN_INTAKE_POLICY,
+  calculateTradeInSettlement, getTradeInBlockedReason, installmentPayToday, isTradeInActive,
+  TRADE_IN_INTAKE_POLICY,
 } from '@/lib/pos/tradeIn';
 import { defaultPayToday } from '@/lib/pos/installmentLines';
 import { monthsOfPlan, pickInstallmentDefaults, planLabel, plansForCart } from '@/lib/pos/installmentPlanPick';
@@ -460,12 +461,17 @@ export function PosTerminalPage() {
   }, [tradeInEnabled, tradeInModelQuery, tradeInProduct, tradeInSearchRetry]);
   // บิลผ่อน: บรรทัดที่ "จ่ายสดวันนี้" (อุปกรณ์เสริม) = ไม่รวมยอดผ่อน · ติ๊กต่อบรรทัดได้ (FIX-090/094)
   const addOnToday = r2(cart.filter((l) => l.payToday).reduce((s, l) => s + l.sellPrice * l.quantity, 0));
-  const payToday = downAmount + addOnToday;
+  // FIX-209: บิลผ่อน ส่วนลด = ลดเงินที่ลูกค้าจ่ายวันนี้ (ดาวน์ + อุปกรณ์) ไม่ใช่ลดยอดผ่อน
+  // (เดิมไม่หัก → เงินดาวน์เต็มเข้าเก๊ะทั้งที่ลูกค้าได้ส่วนลด)
+  const installmentDiscount = isInstallmentSel ? discount : 0;
+  const payToday = installmentPayToday(downAmount, addOnToday, installmentDiscount);
+  const installmentDiscountOver = isInstallmentSel && discount > r2(downAmount + addOnToday);
   const tradeInSettlement = calculateTradeInSettlement({
     paymentMethod,
     grandTotal,
     downPayment: downAmount,
     addOnToday,
+    todayDiscount: installmentDiscount,
     tradeInValue: tradeInValueNum,
   });
   const netCollect = tradeInSettlement.differenceAmount;
@@ -779,6 +785,7 @@ export function PosTerminalPage() {
     !cashierProfileId ? 'กรุณาเลือกผู้รับเงิน' :
     cart.length === 0 ? 'ยังไม่มีสินค้าในตะกร้า' :
     discountExceedsSubtotal ? 'ส่วนลดเกินยอดรวมสินค้า' :
+    installmentDiscountOver ? `บิลผ่อน: ส่วนลดหักจากยอดจ่ายวันนี้ ต้องไม่เกินดาวน์ + อุปกรณ์เสริม (${formatTHB(r2(downAmount + addOnToday))})` :
     shippingSplitOver ? 'ค่าส่งของตา+ยาย เกินค่าส่งรวม' :
     onlineNeedsIdentity ? 'ออนไลน์: ต้องระบุชื่อลูกค้า' :
     onlineNeedsPartner ? 'ออนไลน์: ต้องเลือกพาร์ทเนอร์จัดส่ง' :
@@ -1345,6 +1352,7 @@ export function PosTerminalPage() {
           // QA FIX-151 (Critical): ฐานแผนผ่อนต้องรวม VAT+ค่าส่ง (grandTotal) — เดิมไม่รวม → เก็บขาดทั้งแผน
           grandTotalTarget={grandTotal}
           addOnToday={addOnToday}
+          discount={installmentDiscount}
           months={installmentMonths} setMonths={setInstallmentMonths}
           monthly={installmentMonthly} setMonthly={setInstallmentMonthly}
           monthlyTouched={installmentMonthlyTouched} setMonthlyTouched={setInstallmentMonthlyTouched}
@@ -1630,6 +1638,12 @@ export function PosTerminalPage() {
             {discountExceedsSubtotal && (
               <div className="text-xs text-red-600"><TriangleAlert className="inline h-3.5 w-3.5 align-[-2px]" /> ส่วนลดเกินยอดรวม</div>
             )}
+            {isInstallmentSel && discount > 0 && !discountExceedsSubtotal && (
+              <div className={`text-xs ${installmentDiscountOver ? 'text-red-600' : 'text-purple-700'}`}>
+                {installmentDiscountOver && <TriangleAlert className="inline h-3.5 w-3.5 align-[-2px]" />}
+                {' '}บิลผ่อน: ส่วนลดหักจากยอดที่ลูกค้าจ่ายวันนี้ (ดาวน์ + อุปกรณ์เสริม) — ยอดผ่อนไม่เปลี่ยน
+              </div>
+            )}
             <div className="flex items-center justify-between text-sm">
               <span className="text-slate-500">VAT เพิ่มจากราคาขาย (%)</span>
               {documentMode === 'TAX_INVOICE' ? (
@@ -1677,7 +1691,7 @@ export function PosTerminalPage() {
               (() => {
                 const monthlyShow = installmentMonthly > 0
                   ? installmentMonthly
-                  : (installmentMonths > 0 ? Math.ceil(Math.max(0, grandTotal - downAmount - addOnToday) / installmentMonths) : 0);
+                  : (installmentMonths > 0 ? Math.ceil(Math.max(0, grandTotal - payToday) / installmentMonths) : 0);
                 const payNetView = tradeInActive ? tradeInSettlement.customerPays : payToday;
                 const payoutView = tradeInActive ? tradeInSettlement.storePays : 0;
                 const transferView = Math.min(payTransferClamped, payNetView);
@@ -1707,9 +1721,11 @@ export function PosTerminalPage() {
                         <span className="font-semibold text-slate-700">{formatTHB(transferView)}</span>
                       </div>
                     )}
-                    {addOnToday > 0 && (
+                    {(addOnToday > 0 || installmentDiscount > 0) && (
                       <div className="flex justify-between text-[11px] text-slate-400">
-                        <span>(ดาวน์ {formatTHB(downAmount)} + อุปกรณ์เสริม {formatTHB(addOnToday)})</span>
+                        <span>(ดาวน์ {formatTHB(downAmount)}
+                          {addOnToday > 0 && <> + อุปกรณ์เสริม {formatTHB(addOnToday)}</>}
+                          {installmentDiscount > 0 && <> − ส่วนลด {formatTHB(installmentDiscount)}</>})</span>
                       </div>
                     )}
                     <div className="flex justify-between text-xs text-slate-500">
@@ -1902,6 +1918,8 @@ interface InstallmentPanelProps {
   grandTotalTarget: number;
   /** อุปกรณ์เสริม (bulk) ในบิล — จ่ายสดวันนี้ ไม่รวมยอดผ่อน (FIX-090) */
   addOnToday?: number;
+  /** ส่วนลดบิล — หักจากยอดจ่ายวันนี้ ไม่ใช่ยอดผ่อน (FIX-209) */
+  discount?: number;
   months: number; setMonths: (m: number) => void;
   monthly: number; setMonthly: (n: number) => void;   // ค่างวด/เดือน — ส่งเข้า checkout เพื่อใช้ใน LINE/บิล
   monthlyTouched: boolean; setMonthlyTouched: (b: boolean) => void;  // state อยู่ที่ parent (reset ได้หลังปิดบิล)
@@ -1914,7 +1932,7 @@ interface InstallmentPanelProps {
 }
 
 function InstallmentPanel({
-  grandTotalTarget, addOnToday = 0, months, setMonths, monthly, setMonthly, monthlyTouched, setMonthlyTouched,
+  grandTotalTarget, addOnToday = 0, discount = 0, months, setMonths, monthly, setMonthly, monthlyTouched, setMonthlyTouched,
   downAmount, setDownAmount, payTransfer, setPayTransfer, tradeInValue, shopPlans,
 }: InstallmentPanelProps) {
   // FIX-200: เลือกแผน + เดือนจากตารางที่ร้านตั้ง → เติมดาวน์/ค่างวดของงวดนั้นให้ (พนักงานแก้ทับได้)
@@ -1932,12 +1950,13 @@ function InstallmentPanel({
     setMonthly(d.monthly);
     toast.success(`ใช้ราคาที่ร้านตั้ง: ${d.months} เดือน · ดาวน์ ${formatTHB(d.down)} · ${formatTHB(d.monthly)}/เดือน`, { duration: 2500 });
   };
-  // ยอดผ่อนคงเหลือ = ยอดบิล − ดาวน์ − อุปกรณ์เสริมที่จ่ายสดวันนี้ (หัวชาร์จ/เคส ไม่รวมยอดผ่อน) FIX-090
-  const remaining = Math.max(0, grandTotalTarget - downAmount - addOnToday);
-  const payToday = downAmount + addOnToday;
+  // ยอดจ่ายวันนี้ = ดาวน์ + อุปกรณ์เสริม − ส่วนลด (FIX-209)
+  // ยอดผ่อนคงเหลือ = ยอดบิล − ยอดจ่ายวันนี้ → ส่วนลดไม่ไปลดเงินต้นผ่อน (FIX-090/209)
+  const payToday = installmentPayToday(downAmount, addOnToday, discount);
+  const remaining = Math.max(0, grandTotalTarget - payToday);
   const settlement = calculateTradeInSettlement({
     paymentMethod: 'INSTALLMENT', grandTotal: grandTotalTarget,
-    downPayment: downAmount, addOnToday, tradeInValue,
+    downPayment: downAmount, addOnToday, todayDiscount: discount, tradeInValue,
   });
   // รับเงินจริงเฉพาะเมื่อลูกค้าเป็นฝ่ายจ่ายส่วนต่าง; เครดิตเกินจะไปเป็น payout ฝั่งร้าน
   const transferPart = Math.min(Math.max(0, payTransfer), settlement.customerPays);
@@ -2086,9 +2105,11 @@ function InstallmentPanel({
             <span className="text-sm font-semibold text-amber-900">ยอดวันนี้ก่อนหักเทิร์น</span>
             <span className="text-lg font-bold text-amber-900">{formatTHB(payToday)}</span>
           </div>
-          {addOnToday > 0 && (
+          {(addOnToday > 0 || discount > 0) && (
             <div className="mt-0.5 text-[11px] text-amber-700">
-              = เงินดาวน์ {formatTHB(downAmount)} + อุปกรณ์เสริม {formatTHB(addOnToday)}
+              = เงินดาวน์ {formatTHB(downAmount)}
+              {addOnToday > 0 && <> + อุปกรณ์เสริม {formatTHB(addOnToday)}</>}
+              {discount > 0 && <> − ส่วนลด {formatTHB(discount)}</>}
             </div>
           )}
           {tradeInValue > 0 && (

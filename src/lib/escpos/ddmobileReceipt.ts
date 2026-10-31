@@ -50,6 +50,7 @@ export interface ReceiptData {
   installmentMonths?: number | null;
   downPaymentAmount?: number | null;
   addOnTotal?: number | null;      // อุปกรณ์เสริมจ่ายสดวันนี้ในบิลผ่อน เช่น หัวชาร์จ (FIX-090)
+  todayDiscountAmount?: number | null; // บิลผ่อน: ส่วนลดหักจากยอดจ่ายวันนี้ (FIX-209)
   downCash?: number | null;        // เงินดาวน์ส่วนที่จ่ายสด
   downTransfer?: number | null;    // เงินดาวน์ส่วนที่โอน
   monthlyAmount?: number | null;
@@ -235,13 +236,16 @@ export function buildDDMobileReceipt(
   } else {
     // ผ่อนยังไม่โชว์ราคาเครื่องเต็ม แต่บิลเทิร์นต้องระบุฐาน/เครดิต/ส่วนต่างครบ — FIX-183
     const addOn = data.addOnTotal ?? 0;
+    const todayDiscount = data.todayDiscountAmount ?? 0;
+    // FIX-209: ส่วนลดบิลผ่อนหักจากยอดจ่ายวันนี้ (ดาวน์ + อุปกรณ์ − ส่วนลด)
+    const payToday = Math.max(0, (data.downPaymentAmount ?? 0) + addOn - todayDiscount);
     if ((data.tradeInValue ?? 0) > 0) {
-      const settlement = data.tradeInSettlementAmount
-        ?? ((data.downPaymentAmount ?? 0) + addOn);
+      const settlement = data.tradeInSettlementAmount ?? payToday;
       const difference = data.tradeInDifferenceAmount
         ?? (settlement - (data.tradeInValue ?? 0));
       b.justify('เงินดาวน์:', fmtTHB(data.downPaymentAmount ?? 0), W);
       if (addOn > 0) b.justify('อุปกรณ์จ่ายวันนี้:', fmtTHB(addOn), W);
+      if (todayDiscount > 0) b.justify('ส่วนลด:', '-' + fmtTHB(todayDiscount), W);
       b.justify('ยอดวันนี้ก่อนเทิร์น:', fmtTHB(settlement), W);
       b.justify('มูลค่าเครื่องเก่า:', '-' + fmtTHB(data.tradeInValue), W);
       b.separator('=', W);
@@ -255,8 +259,13 @@ export function buildDDMobileReceipt(
       }
       b.separator('=', W);
     } else {
+      if (todayDiscount > 0) {
+        b.justify('เงินดาวน์:', fmtTHB(data.downPaymentAmount ?? 0), W);
+        if (addOn > 0) b.justify('อุปกรณ์จ่ายวันนี้:', fmtTHB(addOn), W);
+        b.justify('ส่วนลด:', '-' + fmtTHB(todayDiscount), W);
+      }
       b.separator('=', W);
-      b.size(2, 1).justify('ชำระวันนี้:', fmtTHB((data.downPaymentAmount ?? 0) + addOn), W / 2).size(1, 1);
+      b.size(2, 1).justify('ชำระวันนี้:', fmtTHB(payToday), W / 2).size(1, 1);
       b.separator('=', W);
     }
   }

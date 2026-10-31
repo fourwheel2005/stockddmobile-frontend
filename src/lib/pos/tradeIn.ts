@@ -19,7 +19,7 @@ interface TradeInGuardInput {
 }
 
 export interface TradeInSettlement {
-  /** ยอดที่เทียบเครดิตเทิร์น: สด=ยอดบิล, ผ่อน=ดาวน์+อุปกรณ์จ่ายวันนี้ */
+  /** ยอดที่เทียบเครดิตเทิร์น: สด=ยอดบิล, ผ่อน=ดาวน์+อุปกรณ์จ่ายวันนี้−ส่วนลด (FIX-209) */
   settlementAmount: number;
   /** signed: + ลูกค้าจ่ายร้าน, - ร้านจ่ายลูกค้า */
   differenceAmount: number;
@@ -34,10 +34,12 @@ export function calculateTradeInSettlement(input: {
   grandTotal: number;
   downPayment: number;
   addOnToday: number;
+  /** บิลผ่อน: ส่วนลดหักจากยอดที่ลูกค้าจ่ายวันนี้ (FIX-209) · บิลสดส่วนลดอยู่ใน grandTotal แล้ว */
+  todayDiscount?: number;
   tradeInValue: number;
 }): TradeInSettlement {
   const settlementAmount = money(input.paymentMethod === 'INSTALLMENT'
-    ? Math.max(0, input.downPayment) + Math.max(0, input.addOnToday)
+    ? installmentPayToday(input.downPayment, input.addOnToday, input.todayDiscount ?? 0)
     : Math.max(0, input.grandTotal));
   const differenceAmount = money(settlementAmount - Math.max(0, input.tradeInValue));
   return {
@@ -46,6 +48,14 @@ export function calculateTradeInSettlement(input: {
     customerPays: Math.max(0, differenceAmount),
     storePays: Math.max(0, -differenceAmount),
   };
+}
+
+/**
+ * บิลผ่อน: ยอดที่ลูกค้าจ่ายวันนี้ก่อนหักเทิร์น = ดาวน์ + อุปกรณ์เสริมจ่ายวันนี้ − ส่วนลด (FIX-209)
+ * — ส่วนลดลดเงินที่รับวันนี้ ไม่ใช่ลดยอดผ่อน · สูตรเดียวกับ backend TradeInSettlement.
+ */
+export function installmentPayToday(downPayment: number, addOnToday: number, discount: number): number {
+  return money(Math.max(0, Math.max(0, downPayment) + Math.max(0, addOnToday) - Math.max(0, discount)));
 }
 
 export function isTradeInActive(

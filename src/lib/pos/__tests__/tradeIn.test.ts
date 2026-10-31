@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  calculateTradeInSettlement, getTradeInBlockedReason, isTradeInActive, TRADE_IN_INTAKE_POLICY,
+  calculateTradeInSettlement, getTradeInBlockedReason, installmentPayToday, isTradeInActive,
+  TRADE_IN_INTAKE_POLICY,
 } from '../tradeIn';
 import { changeFromTender } from '../tender';
 
@@ -98,5 +99,28 @@ describe('POS trade-in state', () => {
     expect(settlement.customerPays).toBe(2000);
     expect(changeFromTender('3000', settlement.customerPays)).toBe(1000);
     expect(changeFromTender('1999.99', settlement.customerPays)).toBe(-0.01);
+  });
+});
+
+describe('installment discount (FIX-209)', () => {
+  it('takes the discount off what the customer pays today', () => {
+    expect(installmentPayToday(9999, 0, 9999)).toBe(0);          // ฟรีดาวน์
+    expect(installmentPayToday(5000, 590, 1000)).toBe(4590);
+    expect(installmentPayToday(5000, 0, 0)).toBe(5000);
+  });
+
+  it('compares the trade-in with the discounted amount, and ignores it on cash bills', () => {
+    const inst = calculateTradeInSettlement({
+      paymentMethod: 'INSTALLMENT', grandTotal: 28000, downPayment: 5000, addOnToday: 1000,
+      todayDiscount: 2000, tradeInValue: 3000,
+    });
+    expect(inst.settlementAmount).toBe(4000);
+    expect(inst.customerPays).toBe(1000);
+
+    const cash = calculateTradeInSettlement({
+      paymentMethod: 'CASH', grandTotal: 9000, downPayment: 0, addOnToday: 0,
+      todayDiscount: 1000, tradeInValue: 0,
+    });
+    expect(cash.settlementAmount).toBe(9000);
   });
 });

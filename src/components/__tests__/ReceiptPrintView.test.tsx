@@ -43,6 +43,26 @@ describe('ReceiptPrintView document marking', () => {
     expect(html).toContain(`src="${LINE_QR_IMAGE_URL}"`);
   });
 
+  it('takes the installment discount off the amount paid today (FIX-209)', () => {
+    const discounted = {
+      ...order,
+      paymentMethod: 'INSTALLMENT',
+      installmentMonths: 10,
+      grandTotal: 20001,
+      discountAmount: 9999,
+      downPaymentAmount: 9999,
+      addOnTodayAmount: 0,
+      todayDiscountAmount: 9999,
+      installmentMonthlyAmount: 2000,
+    } as unknown as SalesOrderResponse;
+
+    const html = renderToStaticMarkup(<ReceiptPrintView order={discounted} />);
+
+    expect(html).toContain('ส่วนลด:');
+    expect(html).toContain('- ฿9,999.00');
+    expect(html).toMatch(/ยอดที่ต้องชำระวันนี้:<\/strong><strong>฿0\.00/);
+  });
+
   it('shows who pays the installment trade-in difference', () => {
     const tradeOrder = {
       ...order,

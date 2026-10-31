@@ -161,6 +161,22 @@ describe('buildDDMobileReceipt', () => {
     expect(str).toMatch(/10,000\.00|10000\.00/);
   });
 
+  it('takes the installment discount off the amount paid today (FIX-209)', () => {
+    const bytes = buildDDMobileReceipt(makeReceipt({
+      paymentMethod: 'INSTALLMENT',
+      installmentMonths: 10,
+      downPaymentAmount: 5000,
+      addOnTotal: 590,
+      todayDiscountAmount: 1000,
+      discountAmount: 1000,
+    }));
+    const text = String.fromCharCode(...bytes);
+
+    expect(text).toContain('-1,000.00');
+    expect(text).toContain('4,590.00');
+    expect(text).not.toContain('5,590.00');
+  });
+
   it('prints installment trade-in settlement when the store pays the customer', () => {
     const bytes = buildDDMobileReceipt(makeReceipt({
       paymentMethod: 'INSTALLMENT',

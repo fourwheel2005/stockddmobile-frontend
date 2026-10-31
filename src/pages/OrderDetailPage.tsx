@@ -125,6 +125,9 @@ export function OrderDetailPage() {
                 <div className="mt-3 rounded-md bg-purple-50 p-3">
                   <div className="mb-1 text-xs font-semibold text-purple-800">รายละเอียดผ่อนชำระ</div>
                   <Row label="เงินดาวน์" value={formatTHB(o.downPaymentAmount ?? 0)} />
+                  {(o.todayDiscountAmount ?? 0) > 0 && (
+                    <Row label="ส่วนลด (หักจากยอดจ่ายวันนี้)" value={`- ${formatTHB(o.todayDiscountAmount ?? 0)}`} />
+                  )}
                   <Row label="ส่วนที่เหลือผ่อน" value={formatTHB(remaining)} />
                   <Row
                     label="ค่างวด/เดือน"
