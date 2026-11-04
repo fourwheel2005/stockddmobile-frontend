@@ -102,3 +102,26 @@ describe('cash summary thermal receipts', () => {
     expect(noRepair).not.toContain(th('ในนี้เป็นค่าซ่อม'));
   });
 });
+
+describe('FIX-210: refunds come off the method they left through', () => {
+  it('prints the cash line net of the cash refund and the transfer line net of the transfer refund', () => {
+    const output = String.fromCharCode(...buildCashSessionSummary(session));
+    // เงินสด 1,000 − คืนสด 100 = 900 · โอน 500 − คืนโอน 50 = 450
+    expect(output).toContain(th('เงินสด (1)'));
+    expect(output).toContain('900.00');
+    expect(output).toContain(th('รับ 1,000.00 คืน -100.00'));
+    expect(output).toContain('450.00');
+    expect(output).toContain(th('รับ 500.00 คืน -50.00'));
+    expect(output).toContain(th('รับก่อนหักคืน (2 บิล/งาน)'));
+    expect(output).toContain('-150.00');
+    expect(output).toContain('1,550.00');
+  });
+
+  it('prints no received/refunded sub-line when nothing was refunded', () => {
+    const output = String.fromCharCode(...buildCashSessionSummary({
+      ...session, refundCashTotal: 0, refundTransferTotal: 0, refundTotal: 0, refundCount: 0, netSalesTotal: 1700,
+    }));
+    expect(output).not.toContain(th('คืน -'));
+    expect(output).toContain('1,700.00');
+  });
+});

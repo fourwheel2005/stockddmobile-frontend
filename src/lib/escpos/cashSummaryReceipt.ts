@@ -1,8 +1,11 @@
 import { EscPosBuilder } from './EscPosBuilder';
 import { formatShopDateTimeCompact } from '../datetime';
 import type { CashPeriodSummaryResponse, CashSessionResponse, PaymentBreakdown, StockCountResponse } from '@/types/api';
+import { netPayments, type PaymentMethodKey } from '../cash/netPayments';
 
 const W = 48;
+
+const METHOD_LABEL: Record<PaymentMethodKey, string> = { CASH: 'เงินสด', TRANSFER: 'เงินโอน', CARD: 'บัตร', QR: 'QR' };
 
 interface SummaryReceiptData {
   title: string;
@@ -124,17 +127,19 @@ function buildSummaryReceipt(data: SummaryReceiptData): Uint8Array {
 
 function printSales(b: EscPosBuilder, data: SummaryReceiptData): void {
   const payment = data.breakdown;
-  b.align('L').separator('=', W).bold(true).textln('ยอดรับจากการขายและงานซ่อม').bold(false);
-  b.justify(`เงินสด (${payment.cashOrderCount})`, money(payment.cashTotal), W);
-  b.justify(`เงินโอน (${payment.transferOrderCount})`, money(payment.transferTotal), W);
-  b.justify(`บัตร (${payment.cardOrderCount})`, money(payment.cardTotal), W);
-  b.justify(`QR (${payment.qrOrderCount})`, money(payment.qrTotal), W);
-  b.justify(`รับรวม (${payment.totalOrderCount} บิล/งาน)`, money(payment.grandTotal), W);
+  // FIX-210: ยอดต่อช่องทาง = สุทธิหลังหักคืน (สูตรเดียวกับการ์ดบนจอ) · มีคืน → บรรทัดรอง "รับ ... คืน ..."
+  const net = netPayments(payment, data.refundCashTotal, data.refundTransferTotal);
+  b.align('L').separator('=', W).bold(true).textln('ยอดรับจากการขายและงานซ่อม (หักคืนแล้ว)').bold(false);
+  for (const l of net.lines) {
+    b.justify(`${METHOD_LABEL[l.key]} (${l.count})`, money(l.net), W);
+    if (l.refunded > 0) b.textln(`  รับ ${money(l.received)} คืน -${money(l.refunded)}`);
+  }
+  b.justify(`รับก่อนหักคืน (${payment.totalOrderCount} บิล/งาน)`, money(net.receivedTotal), W);
   if ((payment.repairTotal ?? 0) > 0) {
     b.justify(`  ในนี้เป็นค่าซ่อม (${payment.repairCount ?? 0} งาน)`, money(payment.repairTotal), W);   // FIX-207
   }
-  b.justify(`คืนเงิน (${data.refundCount})`, `-${money(data.refundCashTotal + data.refundTransferTotal)}`, W);
-  b.bold(true).justify('ยอดรับสุทธิ', money(data.netSalesTotal), W).bold(false);
+  b.justify(`คืนเงิน (${data.refundCount})`, `-${money(net.refundTotal)}`, W);
+  b.bold(true).justify('ยอดรับสุทธิ', money(net.netTotal), W).bold(false);
 }
 
 function printDrawer(b: EscPosBuilder, data: SummaryReceiptData): void {

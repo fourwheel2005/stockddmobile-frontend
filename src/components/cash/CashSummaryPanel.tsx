@@ -106,7 +106,7 @@ export function CashSummaryPanel({ branchId }: Props) {
             {' '}— “ยอดรับสุทธิ” คือเงินที่รับจากการขายหักเงินคืน ไม่รวมเงินทอนหรือเงินเติมเก๊ะ
           </div>
           <PaymentBreakdownCard breakdown={summary.breakdown}
-            refundTotal={summary.refundTotal} netSalesTotal={summary.netSalesTotal} />
+            refundCashTotal={summary.refundCashTotal} refundTransferTotal={summary.refundTransferTotal} />
           <div className="grid gap-4 lg:grid-cols-2">
             <section className="card">
               <div className="card-header">สรุปยอดรับและรายการประกอบ</div>

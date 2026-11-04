@@ -154,7 +154,7 @@ export function CashRegisterPage() {
 
           {/* V31 — สรุปสด/โอน/บัตร/QR ตอบ requirement "เย็นนี้สรุปยอด" */}
           <PaymentBreakdownCard breakdown={session.breakdown ?? null}
-            refundTotal={session.refundTotal} netSalesTotal={session.netSalesTotal} />
+            refundCashTotal={session.refundCashTotal} refundTransferTotal={session.refundTransferTotal} />
 
           {/* FIX-158: บันทึกตรวจนับสต็อกของ session (เปิดร้าน/ปิดร้าน) */}
           <StockCountHistory sessionId={session.id} />

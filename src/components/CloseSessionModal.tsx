@@ -83,7 +83,7 @@ export function CloseSessionModal({ session, onClose, onClosed }: Props) {
         <div className="flex-1 overflow-y-auto space-y-4 p-5">
           {/* V31 — Breakdown สด/โอน/บัตร/QR ตอบ requirement "เย็นนี้สรุปยอด" */}
           <PaymentBreakdownCard breakdown={session.breakdown ?? null}
-            refundTotal={session.refundTotal} netSalesTotal={session.netSalesTotal} />
+            refundCashTotal={session.refundCashTotal} refundTransferTotal={session.refundTransferTotal} />
 
           {/* ตัวเลขเดียวที่ต้องเทียบตอนปิดร้าน — เงินสดในลิ้นชักเท่านั้น */}
           <div className="rounded-lg border-2 border-brand-200 bg-brand-50 p-4 text-center">
