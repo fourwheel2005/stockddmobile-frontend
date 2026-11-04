@@ -11,6 +11,8 @@ import { RepairBillPrintView } from '@/components/RepairBillPrintView';
 import { printOrchestrator } from '@/lib/printer/PrintOrchestrator';
 import { buildRepairSlip, type RepairSlipMode } from '@/lib/escpos/repairEscpos';
 import type { PaymentMethod, RepairStatus, RepairTicket, UpdateRepairRequest } from '@/types/api';
+import { ImeiInput } from '@/components/ImeiInput';
+import { imeiProblem } from '@/lib/imei';
 
 const STATUS_TH: Record<RepairStatus, string> = {
   RECEIVED: 'รับเครื่อง',
@@ -398,6 +400,8 @@ function EditRepairDialog({ ticket, pending, onClose, onSave }: {
   // FIX-207: แก้มัดจำ = มีเงินเข้า/ออกจริง → เลือกช่องทาง (ลงเก๊ะ/สมุดเงินงานซ่อม)
   const [depositMethod, setDepositMethod] = useState<PaymentMethod>('CASH');
   const delta = depositDelta(ticket.depositAmount, f.depositAmount);
+  // FIX-211: IMEI ที่แก้ต้องครบ 15 หลัก (ใบเก่าที่ IMEI ไม่ครบ ยังแก้ช่องอื่นได้)
+  const imeiError = (f.imei ?? '') !== (ticket.imei ?? '') ? imeiProblem(f.imei) : null;
   const set = (p: Partial<typeof f>) => setF((s) => ({ ...s, ...p }));
 
   return (
@@ -450,7 +454,7 @@ function EditRepairDialog({ ticket, pending, onClose, onSave }: {
             <input className="input text-sm" placeholder="สี" value={f.deviceColor} onChange={(e) => set({ deviceColor: e.target.value })} />
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <input className="input text-sm font-mono" placeholder="IMEI" value={f.imei} onChange={(e) => set({ imei: e.target.value })} />
+            <ImeiInput className="input text-sm" placeholder="IMEI" value={f.imei ?? ''} onChange={(imei) => set({ imei })} />
             <input className="input text-sm" placeholder="รหัสหน้าจอ" value={f.screenCode} onChange={(e) => set({ screenCode: e.target.value })} />
           </div>
           {/* ส่งซ่อมช่างนอก (FIX-093) */}
@@ -476,7 +480,8 @@ function EditRepairDialog({ ticket, pending, onClose, onSave }: {
         </div>
         <div className="flex justify-end gap-2 border-t px-5 py-3">
           <button className="btn-secondary" onClick={onClose}>ยกเลิก</button>
-          <button className="btn-primary" disabled={pending || !f.customerName.trim() || !f.deviceModel.trim() || !f.reportedSymptom.trim()}
+          {imeiError && <span className="mr-auto self-center text-xs text-rose-600">{imeiError}</span>}
+          <button className="btn-primary" disabled={pending || !!imeiError || !f.customerName.trim() || !f.deviceModel.trim() || !f.reportedSymptom.trim()}
                   onClick={() => onSave({
                     customerName: f.customerName, customerPhone: f.customerPhone,
                     deviceBrand: f.deviceBrand, deviceModel: f.deviceModel, deviceColor: f.deviceColor,

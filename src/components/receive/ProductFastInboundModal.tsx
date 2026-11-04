@@ -22,6 +22,8 @@ import { serializePlans, type InstallmentPlan } from '@/lib/installment';
 import type {
   AcquisitionType, ProductDetail, VariantResponse, WizardInitialItem, WizardVariantBlock,
 } from '@/types/api';
+import { ImeiInput } from '@/components/ImeiInput';
+import { imeiProblem } from '@/lib/imei';
 
 /**
  * ฟอร์มรับเข้า "หนึ่งเดียว" ของสินค้ามือถือ (FIX-112 → FIX-114) — หลายสี/หลายมือ กดบันทึกครั้งเดียว
@@ -212,6 +214,13 @@ function DeviceFastInboundModal({ product, initialVariant, onClose, onDone }: Pr
         .filter(({ r }) => !r.color.trim() || !r.storage.trim());
       if (missing.length > 0) {
         throw new Error(`เครื่องที่ ${missing.map(({ i }) => i + 1).join(', ')} ยังไม่มีสี/ความจุ — ใส่ให้ครบทุกแถว`);
+      }
+      // IMEI ต้องครบ 15 หลัก (FIX-211) · iPad ไม่มี IMEI = ข้าม
+      if (!imeiLess) {
+        const bad = rows.map((r, i) => ({ i, problem: imeiProblem(r.imei) })).filter((x) => x.problem);
+        if (bad.length > 0) {
+          throw new Error(`เครื่องที่ ${bad.map((x) => x.i + 1).join(', ')}: ${bad[0].problem}`);
+        }
       }
       // IMEI/Serial ซ้ำกันเองในฟอร์ม → แจ้งก่อนส่ง (backend ก็เช็กซ้ำอีกชั้น)
       const dupCheck = new Set<string>();
@@ -452,14 +461,16 @@ function DeviceFastInboundModal({ product, initialVariant, onClose, onDone }: Pr
                 <div key={idx} className="space-y-1.5 rounded border border-slate-100 bg-slate-50 p-2">
                   <div className="grid grid-cols-12 gap-2">
                     <span className="col-span-1 self-center text-xs font-semibold text-slate-500">{idx + 1}.</span>
-                    <input
-                      className="input col-span-5 font-mono text-sm disabled:bg-slate-100 disabled:text-slate-400"
-                      placeholder={imeiLess ? 'iPad ไม่มี IMEI' : 'IMEI'} inputMode="numeric" maxLength={15}
-                      disabled={imeiLess}
-                      title={imeiLess ? 'iPad ไม่มี IMEI — ใช้ Serial แทน' : undefined}
-                      value={r.imei}
-                      onChange={(ev) => patchRow(idx, { imei: ev.target.value.replace(/\D/g, '').slice(0, 15) })}
-                    />
+                    <div className="col-span-5">
+                      <ImeiInput
+                        className="input text-sm disabled:bg-slate-100 disabled:text-slate-400"
+                        placeholder={imeiLess ? 'iPad ไม่มี IMEI' : 'IMEI'}
+                        disabled={imeiLess}
+                        title={imeiLess ? 'iPad ไม่มี IMEI — ใช้ Serial แทน' : undefined}
+                        value={r.imei}
+                        onChange={(imei) => patchRow(idx, { imei })}
+                      />
+                    </div>
                     <input
                       className={`input col-span-4 font-mono text-sm ${imeiLess ? 'border-emerald-400' : ''}`}
                       placeholder={imeiLess ? 'Serial *' : 'Serial (เว้น=ใช้ IMEI)'}

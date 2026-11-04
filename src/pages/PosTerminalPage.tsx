@@ -120,6 +120,7 @@ import { changeFromTender, round2, suggestTenders } from '@/lib/pos/tender';
 import type { LucideIcon } from 'lucide-react';
 import { InitialChip, OWNER_CHIP, SHIPPING_PARTNER_CHIP } from '@/components/ui/InitialChip';
 import { useKeyboardOnlyNumberInputs } from '@/hooks/useKeyboardOnlyNumberInputs';
+import { ImeiInput } from '@/components/ImeiInput';
 
 export function PosTerminalPage() {
   useKeyboardOnlyNumberInputs();   // FIX-206: ช่องตัวเลขพิมพ์เท่านั้น — ไม่มีลูกศร/ล้อเมาส์เปลี่ยนราคา
@@ -1566,8 +1567,8 @@ export function PosTerminalPage() {
                      value={tradeInColor} onChange={(e) => setTradeInColor(e.target.value)} />
               <input className="input" maxLength={20} placeholder="ความจุ เช่น 256GB"
                      value={tradeInStorage} onChange={(e) => setTradeInStorage(e.target.value)} />
-              <input className="input font-mono" maxLength={20} placeholder="IMEI ใหม่ (ต้องไม่เคยมีในระบบ)"
-                     value={tradeInImei} onChange={(e) => setTradeInImei(e.target.value)} />
+              <ImeiInput placeholder="IMEI ใหม่ (ต้องไม่เคยมีในระบบ)"
+                         value={tradeInImei} onChange={setTradeInImei} />
               <input className="input font-mono" maxLength={30} placeholder="Serial (ถ้ามี)"
                      value={tradeInSerial} onChange={(e) => setTradeInSerial(e.target.value)} />
               <input type="number" min={0} max={100} step={1} className="input" placeholder="แบต %"

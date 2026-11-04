@@ -20,6 +20,8 @@ import { shopToday } from '@/lib/datetime';
 import { isImeiLessName } from '@/lib/productKind';
 import type { AcquisitionType, ProductWizardRequest } from '@/types/api';
 import { AccessorySerialList } from '@/components/products/AccessorySerialList';
+import { ImeiCount, imeiBorder } from '@/components/ImeiInput';
+import { cleanImei, imeiProblem } from '@/lib/imei';
 import { MultiImageUpload, ImageEditor } from '@/components/MultiImageUpload';
 import { InstallmentPlansEditor } from '@/components/products/InstallmentPlansEditor';
 import { serializePlans, type InstallmentPlan } from '@/lib/installment';
@@ -626,6 +628,17 @@ export function ProductRegisterPage() {
         toast.error('ใส่อย่างน้อย 1 ชิ้น (IMEI หรือ Serial)');
         scrollToSection('section-stock');
         return null;
+      }
+      // IMEI ต้องครบ 15 หลัก (FIX-211) — เฉพาะมือถือที่มี IMEI (iPad/อุปกรณ์เสริมใช้ Serial)
+      if (productKind === 'phone' && !imeiLess) {
+        const badImei = d.items
+          .map((it, i) => ({ i, problem: imeiProblem(it.imei) }))   // i = ลำดับการ์ดเครื่องบนจอ
+          .filter((x) => x.problem);
+        if (badImei.length > 0) {
+          toast.error(`เครื่องที่ ${badImei.map((x) => x.i + 1).join(', ')}: ${badImei[0].problem}`, { duration: 5000 });
+          scrollToSection('section-stock');
+          return null;
+        }
       }
       // มือ 1 ต้องมีสี+ความจุ (variant ห้าม null) — กัน SKU สีว่างหลุดขึ้นเว็บ (FIX-087: บล็อกจริง)
       // เฉพาะ "มือถือ" เท่านั้น — อุปกรณ์เสริม (Quick-Add) ไม่มีช่องสี/ความจุให้กรอก
@@ -1313,6 +1326,7 @@ function ItemCard({
   const hasBox = useWatch({ control, name: `items.${idx}.hasBox` }) ?? false;
   const hasCharger = useWatch({ control, name: `items.${idx}.hasCharger` }) ?? false;
   const warrantyTerms = useWatch({ control, name: `items.${idx}.warrantyTerms` }) ?? '';
+  const imeiValue = useWatch({ control, name: `items.${idx}.imei` }) ?? '';   // ตัวนับ 14/15 (FIX-211)
   /* มือ 2 ระบุวันจริงได้เสมอ; มือ 1 โชว์เมื่อ activate แล้ว (ก่อน activate ยังไม่มีวันหมดที่แม่นยำ). */
   const needsExpireDate = condition !== 'NEW'
     || warrantyTerms === WARRANTY_APPLE_ACTIVATED || /activate/i.test(warrantyTerms);
@@ -1441,20 +1455,23 @@ function ItemCard({
           {(() => {
             const imeiReg = register(`items.${idx}.imei`);
             return (
-              <input
-                className="input font-mono text-sm disabled:bg-slate-100 disabled:text-slate-400"
-                placeholder={imeiLess ? 'ใช้ Serial แทน' : '35xxxxxxxxxxxxx'}
-                inputMode="numeric"
-                maxLength={15}
-                disabled={imeiLess}
-                title={imeiLess ? 'iPad ไม่มี IMEI — กรอก Serial แทน' : undefined}
-                {...imeiReg}
-                onChange={(e) => {
-                  // IMEI = เลขล้วน สูงสุด 15 หลัก (กันพิมพ์/วางตัวอักษรหรือเกิน)
-                  e.target.value = e.target.value.replace(/\D/g, '').slice(0, 15);
-                  imeiReg.onChange(e);
-                }}
-              />
+              <div className="relative">
+                <input
+                  className={`input pr-12 font-mono text-sm disabled:bg-slate-100 disabled:text-slate-400 ${imeiLess ? '' : imeiBorder(imeiValue)}`}
+                  placeholder={imeiLess ? 'ใช้ Serial แทน' : '35xxxxxxxxxxxxx'}
+                  inputMode="numeric"
+                  maxLength={15}
+                  disabled={imeiLess}
+                  title={imeiLess ? 'iPad ไม่มี IMEI — กรอก Serial แทน' : undefined}
+                  {...imeiReg}
+                  onChange={(e) => {
+                    // IMEI = เลขล้วน สูงสุด 15 หลัก (กันพิมพ์/วางตัวอักษรหรือเกิน)
+                    e.target.value = cleanImei(e.target.value);
+                    imeiReg.onChange(e);
+                  }}
+                />
+                {!imeiLess && <ImeiCount value={imeiValue} />}
+              </div>
             );
           })()}
         </div>

@@ -8,6 +8,8 @@ import { CustomerPickerModal } from '@/components/CustomerPickerModal';
 import { useModalChrome, backdropCloseHandler } from '@/hooks/useModalChrome';
 import { formatTHB } from '@/lib/format';
 import type { Customer, CreateRepairRequest, RepairTicket } from '@/types/api';
+import { ImeiInput } from '@/components/ImeiInput';
+import { imeiProblem } from '@/lib/imei';
 
 interface Props {
   onClose: () => void;
@@ -86,6 +88,8 @@ export function RepairIntakeModal({ onClose, onCreated, initial }: Props) {
     if (!form.customerName.trim()) return toast.error('กรุณากรอกชื่อลูกค้า');
     if (!form.deviceModel.trim()) return toast.error('กรุณากรอกรุ่นเครื่อง');
     if (!form.reportedSymptom.trim()) return toast.error('กรุณากรอกอาการเสีย');
+    const imeiError = imeiProblem(form.imei);   // FIX-211
+    if (imeiError) return toast.error(imeiError);
     create.mutate();
   };
 
@@ -152,8 +156,7 @@ export function RepairIntakeModal({ onClose, onCreated, initial }: Props) {
               </div>
               <div>
                 <label className="mb-1 block text-sm font-medium">IMEI</label>
-                <input className="input" value={form.imei}
-                       onChange={(e) => set('imei', e.target.value)} />
+                <ImeiInput value={form.imei ?? ''} onChange={(imei) => set('imei', imei)} placeholder="15 หลัก (ถ้ามี)" />
               </div>
               <div>
                 <label className="mb-1 block text-sm font-medium">Serial Number</label>

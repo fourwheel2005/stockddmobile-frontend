@@ -15,6 +15,8 @@ import { RepairIntakeModal } from '@/components/RepairIntakeModal';
 import { ReturnDeviceModal } from '@/components/ReturnDeviceModal';
 import { SecurityCodeModal } from '@/components/SecurityCodeModal';
 import { ImageEditor } from '@/components/MultiImageUpload';
+import { ImeiInput } from '@/components/ImeiInput';
+import { imeiProblem } from '@/lib/imei';
 import type { SerializedStatus, ServiceState, SerializedItemResponse, SerializedCondition, AcquisitionType, DeviceServiceType, VariantResponse, SalesOrderResponse, RefundMethod } from '@/types/api';
 
 interface Props {
@@ -666,6 +668,10 @@ export function EditSerialModal({ item, variantCondition, onClose, onSaved, onCo
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!serialNumber.trim()) { toast.error('Serial ห้ามว่าง'); return; }
+    // IMEI ต้องครบ 15 หลัก (FIX-211) — ตรวจเฉพาะช่องที่แก้ (เครื่องเก่าที่ IMEI ไม่ครบ ยังแก้ราคา/ช่องอื่นได้)
+    const imeiError = (imei.trim() !== (item.imei ?? '') ? imeiProblem(imei) : null)
+      ?? (imei2.trim() !== (item.imei2 ?? '') ? imeiProblem(imei2, 'IMEI 2') : null);
+    if (imeiError) { toast.error(imeiError); return; }
     save.mutate();
   };
 
@@ -682,13 +688,11 @@ export function EditSerialModal({ item, variantCondition, onClose, onSaved, onCo
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="mb-0.5 block text-xs font-semibold text-slate-600">IMEI</label>
-              <input className="input font-mono" value={imei} onChange={(e) => setImei(e.target.value)}
-                     placeholder="35xxxxxxxxxxxxx" />
+              <ImeiInput value={imei} onChange={setImei} placeholder="35xxxxxxxxxxxxx" />
             </div>
             <div>
               <label className="mb-0.5 block text-xs font-semibold text-slate-600">IMEI 2 <span className="font-normal text-slate-400">(dual-sim)</span></label>
-              <input className="input font-mono" value={imei2} onChange={(e) => setImei2(e.target.value)}
-                     placeholder="ถ้ามี" />
+              <ImeiInput value={imei2} onChange={setImei2} placeholder="ถ้ามี" />
             </div>
           </div>
           <div>

@@ -1,4 +1,5 @@
 import type { PaymentMethod } from '@/types/api';
+import { imeiProblem } from '@/lib/imei';
 
 export const TRADE_IN_INTAKE_POLICY = {
   newIdentifierOnly: 'รับเฉพาะเครื่องที่ IMEI/Serial ไม่เคยอยู่ในระบบ',
@@ -84,6 +85,8 @@ export function getTradeInBlockedReason(input: TradeInGuardInput): string | null
   if (!hasRealImei && !input.serialNumber.trim()) {
     return 'เทิร์น: กรอก IMEI หรือ Serial ของเครื่องเก่า';
   }
+  const imeiError = hasRealImei ? imeiProblem(imei) : null;   // FIX-211: IMEI ต้องครบ 15 หลัก
+  if (imeiError) return `เทิร์น: ${imeiError}`;
   if (input.batteryHealth.trim()) {
     const battery = Number(input.batteryHealth);
     if (!Number.isInteger(battery) || battery < 0 || battery > 100) {
