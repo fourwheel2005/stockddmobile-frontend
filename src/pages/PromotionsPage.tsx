@@ -29,7 +29,7 @@ export function PromotionsPage() {
   });
 
   return (
-    <div className="page-enter space-y-4">
+    <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="page-title flex items-center gap-2"><Tag className="h-6 w-6 text-brand-600" /> โปรโมชันราคา</h1>

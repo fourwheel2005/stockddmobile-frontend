@@ -54,7 +54,9 @@ export default {
         },
       },
       animation: {
-        'fade-up': 'fade-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both',
+        // backwards (ไม่ใช่ both): จบแล้วไม่ทิ้ง transform ค้างที่ตัวห่อหน้า — transform ทำให้ modal position:fixed
+        // ยึดกรอบเนื้อหาหน้าแทนทั้งจอ (หน้าเนื้อหาสั้น modal ถูกบีบ/ตัดขาด) · หน้าตาเหมือนเดิมเพราะ 100% = ค่าปกติ
+        'fade-up': 'fade-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards',
         'float-slow': 'float-slow 14s ease-in-out infinite',
         'float-slower': 'float-slower 20s ease-in-out infinite',
         shake: 'shake 0.4s both',

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { AlertTriangle, Eye, Save, X } from 'lucide-react';
@@ -97,7 +98,8 @@ export function PromotionFormModal({ editing, onClose }: { editing: PromotionRes
     onError: (e) => toast.error(extractErrorMessage(e)),
   });
 
-  return (
+  // portal ไป body — ไม่ให้ transform ของตัวห่อหน้า (animation) ทำให้ modal ยึดกรอบหน้าแทนทั้งจอ
+  return createPortal(
     <div onClick={backdropCloseHandler(onClose)}
          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/70 p-4 backdrop-blur-sm">
       <div onClick={(e) => e.stopPropagation()} className="my-6 w-full max-w-4xl rounded-xl bg-white shadow-2xl">
@@ -117,13 +119,14 @@ export function PromotionFormModal({ editing, onClose }: { editing: PromotionRes
             <input className="input" maxLength={255} value={form.note} onChange={(e) => set({ note: e.target.value })} />
           </label>
 
+          <div className="grid gap-4 md:col-span-2 md:grid-cols-3">
           <div className="text-sm">
             <span className="mb-1 block font-medium">ใช้กับ</span>
             <div className="flex gap-2">
               {(['NEW', 'SECOND_HAND'] as const).map((g) => (
                 <button key={g} type="button" disabled={!!editing && editing.conditionGroup !== g}
                         onClick={() => set({ conditionGroup: g, variantIds: [], serialIds: [] })}
-                        className={`flex-1 rounded-lg border px-3 py-2 font-medium disabled:opacity-40 ${form.conditionGroup === g ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-slate-300'}`}>
+                        className={`flex-1 rounded-lg border px-3 py-2 font-medium shadow-sm disabled:opacity-40 ${form.conditionGroup === g ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-slate-300'}`}>
                   {g === 'NEW' ? 'มือ 1' : 'มือ 2'}
                 </button>
               ))}
@@ -146,6 +149,7 @@ export function PromotionFormModal({ editing, onClose }: { editing: PromotionRes
               {storages.map((s) => <option key={s} value={s}>{storageLabels.get(s)}</option>)}
             </select>
           </label>
+          </div>
 
           <div className="text-sm md:col-span-2">
             {form.conditionGroup === 'NEW' ? (
@@ -200,11 +204,12 @@ export function PromotionFormModal({ editing, onClose }: { editing: PromotionRes
                 </div>
               </div>
             )}
-            <label className="block text-sm">
-              <span className="mb-1 block font-medium">ปัดเศษผลลัพธ์</span>
-              <select className="input" value={form.rounding} onChange={(e) => set({ rounding: Number(e.target.value) })}>
+            <label className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3 text-sm md:col-span-3">
+              <span className="font-medium">ปัดเศษผลลัพธ์</span>
+              <select className="input w-44" value={form.rounding} onChange={(e) => set({ rounding: Number(e.target.value) })}>
                 {ROUNDING_OPTIONS.map((r) => <option key={r} value={r}>{r === 1 ? 'ไม่ปัด (1 บาท)' : `ปัดหลัก ${r}`}</option>)}
               </select>
+              <span className="text-xs text-slate-500">ใช้กับราคาสด/ดาวน์/ค่างวดที่โปรปรับ · ไม่ต่ำกว่า 0</span>
             </label>
           </div>
 
@@ -217,13 +222,18 @@ export function PromotionFormModal({ editing, onClose }: { editing: PromotionRes
             <input type="datetime-local" className="input" value={form.endAt} onChange={(e) => set({ endAt: e.target.value })} />
           </label>
           <label className="block text-sm">
-            <span className="mb-1 block font-medium">ลำดับความสำคัญ <span className="font-normal text-slate-500">(เครื่องเดียวติดหลายโปร → เลขมากชนะ)</span></span>
+            <span className="mb-1 block font-medium">ลำดับความสำคัญ</span>
             <input type="number" step={1} className="input" value={form.priority} onChange={(e) => set({ priority: e.target.value })} />
+            <span className="mt-1 block text-xs text-slate-500">เครื่องเดียวติดหลายโปร → เลขมากชนะ (เท่ากัน = โปรที่เริ่มทีหลัง)</span>
           </label>
-          <label className="flex items-center gap-2 self-end pb-2 text-sm">
-            <input type="checkbox" checked={form.active} onChange={(e) => set({ active: e.target.checked })} />
-            เปิดใช้งาน
-          </label>
+          <div className="text-sm">
+            <span className="mb-1 block font-medium">สถานะ</span>
+            <label className="input flex cursor-pointer items-center gap-2">
+              <input type="checkbox" checked={form.active} onChange={(e) => set({ active: e.target.checked })} />
+              เปิดใช้งาน
+            </label>
+            <span className="mt-1 block text-xs text-slate-500">ปิด = ไม่ใช้โปรแม้อยู่ในช่วงเวลา (ราคาปกติ)</span>
+          </div>
         </div>
 
         {preview && <PreviewTable preview={preview} group={form.conditionGroup} />}
@@ -237,7 +247,8 @@ export function PromotionFormModal({ editing, onClose }: { editing: PromotionRes
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -248,13 +259,14 @@ function EffectInput({ label, mode, value, onChange }: {
     <div className="text-sm">
       <span className="mb-1 block font-medium">{label}</span>
       <div className="flex gap-1">
-        <select className="input" value={mode} onChange={(e) => onChange(e.target.value as PromoAdjust, value)}>
+        <select className="input min-w-0 flex-1" value={mode} onChange={(e) => onChange(e.target.value as PromoAdjust, value)}>
           {ADJUSTS.map((a) => <option key={a} value={a}>{ADJUST_LABEL[a]}</option>)}
         </select>
-        {mode !== 'NONE' && (
-          <input type="number" min={0} className="input w-28" value={value} aria-label={`${label} ค่า`}
-                 placeholder={mode === 'PERCENT_OFF' ? '%' : 'บาท'} onChange={(e) => onChange(mode, e.target.value)} />
-        )}
+        {/* ช่องค่าโชว์ตลอด (ปิดตอน "ไม่ปรับ") — 3 คอลัมน์กว้างเท่ากันไม่กระโดดตามโหมด */}
+        <input type="number" min={0} className="input w-28 shrink-0 disabled:bg-slate-50" value={mode === 'NONE' ? '' : value}
+               disabled={mode === 'NONE'} aria-label={`${label} ค่า`}
+               placeholder={mode === 'NONE' ? '—' : mode === 'PERCENT_OFF' ? '%' : 'บาท'}
+               onChange={(e) => onChange(mode, e.target.value)} />
       </div>
     </div>
   );
