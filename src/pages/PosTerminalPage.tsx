@@ -2,11 +2,11 @@ import { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { Bookmark, PackagePlus, ScanLine, Trash2, ShoppingCart, Receipt, Search, ListChecks, UserCircle2, Printer, Upload, X, Wrench, Truck, Globe, Store, Plus, ChevronDown, ChevronUp, ArrowLeftRight, FileText, Banknote, Calculator, Check, CreditCard, Info, Landmark, Star, TriangleAlert, XCircle } from 'lucide-react';
+import { BadgePercent, Bookmark, PackagePlus, ScanLine, Trash2, ShoppingCart, Receipt, Search, ListChecks, UserCircle2, Printer, Upload, X, Wrench, Truck, Globe, Store, Plus, ChevronDown, ChevronUp, ArrowLeftRight, FileText, Banknote, Calculator, Check, CreditCard, Info, Landmark, Star, TriangleAlert, XCircle } from 'lucide-react';
 import { posApi } from '@/api/pos';
 import { filesApi } from '@/api/files';
 import { extractErrorMessage } from '@/api/client';
-import { formatTHB } from '@/lib/format';
+import { formatDateTime, formatTHB } from '@/lib/format';
 import { validateShippingRecipient } from '@/lib/tspl/shippingLabel';
 import { CustomerPickerModal } from '@/components/CustomerPickerModal';
 import { ImeiPickerModal } from '@/components/ImeiPickerModal';
@@ -87,7 +87,12 @@ interface CartLine {
   payToday: boolean;
   /** แผนผ่อนที่ร้านตั้ง (มือ 1 = SKU · มือ 2 = รายเครื่อง) — FIX-200 */
   installmentPlans?: PosInstallmentPlan[] | null;
+  /** โปรที่ระบบใช้กับเครื่องนี้ (FIX-217) — sellPrice/แผนผ่อนเป็นราคาโปรแล้ว · labelPrice = ราคาปกติ */
+  promotion?: { name: string; originalPrice: number | null; endAt: string } | null;
 }
+
+const linePromo = (p: CartScanResponse['promotion']) =>
+  p ? { name: p.name, originalPrice: p.originalPrice, endAt: p.endAt } : null;
 
 interface PaymentOption {
   value: PaymentMethod;
@@ -365,6 +370,7 @@ export function PosTerminalPage() {
           // default ตามหมวดสินค้า (FIX-198): เครื่อง (iPhone/iPad/Watch) → ผ่อน · อุปกรณ์เสริม Serial → จ่ายวันนี้
           payToday: defaultPayToday({ serialized: true, accessory: item.accessory, imei: item.imei }),
           installmentPlans: item.installmentPlans ?? null,
+          promotion: linePromo(item.promotion),
         }];
       }
       // Bulk: merge if same variantId
@@ -557,13 +563,15 @@ export function PosTerminalPage() {
       productName: item.productName,
       imei: item.imei,
       detail: [item.color, item.storage].filter(Boolean).join(' / '),
-      labelPrice: item.sellingPrice,
+      // FIX-217: sellingPrice เป็นราคาโปรแล้ว — ป้ายราคา = ราคาปกติ (เหมือนสแกน IMEI)
+      labelPrice: item.promotion?.originalPrice ?? item.sellingPrice,
       sellPrice: item.sellingPrice,
       quantity: 1,
       serialized: true,
       // default ตามหมวดสินค้า (FIX-198): เครื่อง (iPhone/iPad/Watch) → ผ่อน · อุปกรณ์เสริม Serial → จ่ายวันนี้
       payToday: defaultPayToday({ serialized: true, accessory: item.accessory, imei: item.imei }),
       installmentPlans: item.installmentPlans ?? null,
+      promotion: linePromo(item.promotion),
     }]);
     toast.success(`เพิ่มแล้ว: ${item.sku}`, { duration: 1500 });
   }
@@ -1491,6 +1499,13 @@ export function PosTerminalPage() {
                     )}
                     {l.imei && <div className="text-xs text-brand-700">IMEI: {l.imei}</div>}
                     {l.detail && <div className="text-xs text-slate-500">{l.detail}</div>}
+                    {l.promotion && (
+                      <div className="mt-1 inline-flex flex-wrap items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-700"
+                           title={`ราคาโปรถึง ${formatDateTime(l.promotion.endAt)} · ราคาตารางไม่ถูกแก้`}>
+                        <BadgePercent className="h-3 w-3" /> โปร {l.promotion.name}
+                        {l.promotion.originalPrice != null && <span className="font-normal">· ปกติ {formatTHB(l.promotion.originalPrice)}</span>}
+                      </div>
+                    )}
                     {/* บิลผ่อน: เลือกต่อบรรทัด ว่า "ผ่อน" หรือ "จ่ายวันนี้" (อุปกรณ์เสริม) — FIX-094 */}
                     {paymentMethod === 'INSTALLMENT' && (
                       <button type="button"

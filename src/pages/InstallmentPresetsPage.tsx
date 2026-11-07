@@ -11,6 +11,7 @@ import { formatTHB } from '@/lib/format';
 import { buildTermTable, monthColumns, parseTermTable, type TermTable } from '@/lib/installmentTable';
 import { AddMonthColumn, TermCellInput } from '@/components/products/InstallmentTermCells';
 import { PriceHistoryModal } from '@/components/products/PriceHistoryModal';
+import { RunningPromoBadge, promotionsFor, useRunningPromotions } from '@/components/promotions/RunningPromoBadge';
 
 /**
  * ตารางดาวน์/ผ่อน "มือ 2" ต่อ รุ่น×ความจุ (FIX-123) — แก้ที่นี่ที่เดียว
@@ -30,6 +31,7 @@ interface RowDraft {
 
 export function InstallmentPresetsPage() {
   const qc = useQueryClient();
+  const runningPromos = useRunningPromotions();   // FIX-217 ป้ายโปร
   const { data: presets = [], isLoading } = useQuery({
     queryKey: ['installment-presets'],
     queryFn: installmentPresetsApi.list,
@@ -198,7 +200,10 @@ export function InstallmentPresetsPage() {
                 const d = draftOf(p);
                 return (
                   <tr key={p.id} className={d.dirty ? 'bg-amber-50/60' : 'hover:bg-slate-50'}>
-                    <td className="px-5 py-2 font-medium">{p.productName}</td>
+                    <td className="px-5 py-2 font-medium">
+                      {p.productName}
+                      <RunningPromoBadge promos={promotionsFor(runningPromos, 'SECOND_HAND', p.productId, p.storage)} />
+                    </td>
                     <td className="px-5 py-2">{p.storage}GB</td>
                     <td className="px-3 py-2 text-right">
                       <input type="number" min={0} className="input w-28 text-right text-sm" placeholder="—"

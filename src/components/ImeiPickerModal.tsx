@@ -125,7 +125,14 @@ export function ImeiPickerModal({ selectedIds = [], onSelect, onClose }: Props) 
                         )}
                       </td>
                       <td className="px-4 py-2 font-mono text-xs text-slate-600">{it.sku}</td>
-                      <td className="px-4 py-2 text-right font-semibold">{formatTHB(it.sellingPrice)}</td>
+                      <td className="px-4 py-2 text-right font-semibold">
+                        {formatTHB(it.sellingPrice)}
+                        {it.promotion && (
+                          <div className="text-[11px] font-normal text-rose-600" title="ราคาโปร (FIX-217) — ราคาปกติยังอยู่">
+                            โปร {it.promotion.name} · <span className="line-through">{formatTHB(it.promotion.originalPrice)}</span>
+                          </div>
+                        )}
+                      </td>
                       <td className="px-4 py-2 text-xs text-slate-500">{formatDate(it.receivedAt)}</td>
                     </tr>
                   );

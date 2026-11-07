@@ -94,6 +94,7 @@ export function ReceiptPrintView({ order, shopName = 'Stockdd Mobile', duplicate
               <td className="py-1.5">
                 <div>{it.productName}</div>
                 {spec && <div className="text-xs text-slate-600">{spec}</div>}
+                {it.promotionName && <div className="text-xs text-slate-600">โปร: {it.promotionName}</div>}
                 {hasRealImei(it.imei)
                   ? <div className="text-xs text-slate-600">IMEI: {it.imei}</div>
                   : it.serialNumber

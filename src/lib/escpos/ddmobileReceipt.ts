@@ -32,6 +32,8 @@ export interface ReceiptData {
     lineTotal: number;
     /** "จ่ายวันนี้" ในบิลผ่อน ตามที่เลือกจริง (FIX-122) · null = บิลเก่า → เดาแบบเดิม */
     payToday?: boolean | null;
+    /** โปรตอนขาย (FIX-217) */
+    promotionName?: string | null;
   }>;
   subtotal: number;
   discountAmount: number;
@@ -165,6 +167,7 @@ export function buildDDMobileReceipt(
     // Line 2: สี / ความจุ / สภาพ (มือ 1-2)
     const spec = [it.color, it.storage, it.condition].filter(Boolean).join(' · ');
     if (spec) b.textln(`   ${spec}`);
+    if (it.promotionName) b.textln(`   โปร: ${it.promotionName}`);
 
     // Line 3: IMEI · ถ้าไม่มี IMEI จริง (iPad WiFi กรอก 000...) → SN · ไม่มีทั้งคู่ → SKU (FIX-075)
     // บิลค่างวด (FIX-085) ไม่มี IMEI/SN/SKU เลย → ข้ามบรรทัดนี้ (กันพิมพ์ "SKU: null")

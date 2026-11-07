@@ -12,6 +12,7 @@ import { formatTHB } from '@/lib/format';
 import { buildTermTable, monthColumns, parseTermTable, type TermTable } from '@/lib/installmentTable';
 import { AddMonthColumn, TermCellInput } from '@/components/products/InstallmentTermCells';
 import { PriceHistoryModal } from '@/components/products/PriceHistoryModal';
+import { RunningPromoBadge, promotionsFor, useRunningPromotions } from '@/components/promotions/RunningPromoBadge';
 import { FirstHandBulkPanel } from '@/components/products/FirstHandBulkPanel';
 import { FirstHandBulkConfirm, type BulkChange } from '@/components/products/FirstHandBulkConfirm';
 import { applyBulkAdjust, draftFromRow, isChanged, rowRequest, type BulkAdjust, type RowDraft } from '@/lib/firstHandBulk';
@@ -28,6 +29,7 @@ const rowKey = (r: FirstHandInstallmentRow) => `${r.productId}|${r.storage}`;
 
 export function FirstHandInstallmentPage() {
   const qc = useQueryClient();
+  const runningPromos = useRunningPromotions();   // FIX-217 ป้ายโปร
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ['firsthand-installment'],
     queryFn: firstHandInstallmentApi.list,
@@ -249,7 +251,10 @@ export function FirstHandInstallmentPage() {
                       <input type="checkbox" checked={selected.has(rowKey(r))} onChange={() => toggleSelected(rowKey(r))}
                              aria-label={`เลือก ${r.productName} ${r.storage}GB`} />
                     </td>
-                    <td className="px-5 py-2 font-medium">{r.productName}</td>
+                    <td className="px-5 py-2 font-medium">
+                      {r.productName}
+                      <RunningPromoBadge promos={promotionsFor(runningPromos, 'NEW', r.productId, r.storage)} />
+                    </td>
                     <td className="px-5 py-2">{r.storage}GB</td>
                     <td className="px-3 py-2 text-center text-xs text-slate-400">{r.variantCount}</td>
                     <td className="px-3 py-2 text-right">

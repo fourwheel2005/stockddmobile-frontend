@@ -74,6 +74,8 @@ export interface VariantResponse {
   installmentPlans?: string | null;    // JSON แผนหลายแบบ: [{"label","down","promo","terms":[...]}, ...]
   createdAt: string;
   updatedAt: string;
+  /** โปรที่กำลังทำงานกับ SKU นี้ (FIX-217) — ราคาตารางด้านบนคือราคาปกติ */
+  promotion?: PromoInfo | null;
 }
 
 /** รุ่นสินค้าใน catalog สำหรับระบุเครื่องที่ลูกค้านำมา — ไม่มี Stock/SKU/ราคา. */
@@ -476,6 +478,8 @@ export interface SerializedItemResponse {
   downPayment?: number | null;         // ผ่อนดาวน์ มือ 2 (เว็บหน้าร้านดึงไปแสดง)
   installmentTerms?: string | null;    // JSON: [{"months":12,"monthly":2190}, ...]
   installmentPromo?: string | null;
+  /** โปรที่กำลังทำงานกับเครื่องนี้ (FIX-217) — sellingPrice/ผ่อนด้านบนคือราคาปกติ */
+  promotion?: PromoInfo | null;
 }
 
 /** ยอดขายแยกสาขา (Phase 2C) */
@@ -773,6 +777,104 @@ export interface PosInstallmentPlan {
   terms: { months: number; monthly: number; down: number | null }[];
 }
 
+// ─── โปรโมชันราคา (FIX-217) ───────────────────────────────────────────────
+// คิดสดทุกครั้งจากราคาตาราง — ไม่เขียนทับราคาปกติ · หมดเวลาโปร = กลับราคาปกติเอง
+
+export type PromoAdjust = 'NONE' | 'AMOUNT_OFF' | 'PERCENT_OFF' | 'SET';
+export type PromotionStatus = 'SCHEDULED' | 'RUNNING' | 'ENDED' | 'INACTIVE';
+
+/** ผลโปรของ SKU/เครื่อง 1 ตัว — ราคาปกติ + ราคาโปรคู่กัน */
+export interface PromoInfo {
+  id: string;
+  name: string;
+  startAt: string;   // UTC
+  endAt: string;     // UTC
+  originalPrice: number | null;
+  price: number | null;
+  plans: PosInstallmentPlan[];
+  originalPlans: PosInstallmentPlan[];
+}
+
+/** startAt/endAt = ISO UTC */
+export interface PromotionRequest {
+  name: string;
+  note?: string | null;
+  startAt: string;
+  endAt: string;
+  active?: boolean;
+  priority?: number;
+  conditionGroup: 'NEW' | 'SECOND_HAND';
+  productId: string;
+  storage?: string | null;
+  variantIds?: string[];
+  serialIds?: string[];
+  cashMode: PromoAdjust;
+  cashValue?: number | null;
+  downMode: PromoAdjust;
+  downValue?: number | null;
+  monthlyMode: PromoAdjust;
+  monthlyValue?: number | null;
+  termMonths?: string | null;
+  rounding?: number;
+}
+
+export interface PromotionResponse {
+  id: string;
+  name: string;
+  note: string | null;
+  startAt: string;
+  endAt: string;
+  active: boolean;
+  priority: number;
+  status: PromotionStatus;
+  conditionGroup: 'NEW' | 'SECOND_HAND';
+  productId: string;
+  productName: string;
+  storageDigits: string | null;
+  variantIds: string[];
+  serialIds: string[];
+  cashMode: PromoAdjust;
+  cashValue: number | null;
+  downMode: PromoAdjust;
+  downValue: number | null;
+  monthlyMode: PromoAdjust;
+  monthlyValue: number | null;
+  termMonths: string | null;
+  rounding: number;
+  createdBy: string | null;
+  updatedBy: string | null;
+  updatedAt: string | null;
+}
+
+export interface PromotionPreviewRow {
+  variantId: string | null;
+  serialItemId: string | null;
+  sku: string | null;
+  stockCode: string | null;
+  imei: string | null;
+  color: string | null;
+  storage: string | null;
+  originalPrice: number | null;
+  promoPrice: number | null;
+  originalPlans: PosInstallmentPlan[];
+  promoPlans: PosInstallmentPlan[];
+  /** โปรอื่นที่ชนะเครื่องนี้อยู่ — null = โปรนี้ใช้จริง */
+  overriddenBy: string | null;
+}
+
+export interface PromotionConflict { id: string; name: string; priority: number; startAt: string; endAt: string; }
+export interface PromotionPreview { rows: PromotionPreviewRow[]; conflicts: PromotionConflict[]; }
+
+export interface RunningPromotion {
+  id: string;
+  name: string;
+  productId: string;
+  productName: string;
+  storageDigits: string | null;
+  conditionGroup: 'NEW' | 'SECOND_HAND';
+  endAt: string;
+}
+
 export interface CartScanResponse {
   serialized: boolean;
   variantId: string;
@@ -790,6 +892,8 @@ export interface CartScanResponse {
   accessory?: boolean;
   /** แผนผ่อนที่ร้านตั้งของเครื่อง/SKU นี้ — POS เติมดาวน์+ค่างวดตามเดือนที่เลือก (FIX-200) */
   installmentPlans?: PosInstallmentPlan[] | null;
+  /** FIX-217: โปรที่ใช้กับเครื่องนี้ — sellPrice/installmentPlans เป็นราคาโปรแล้ว · labelPrice = ราคาปกติ */
+  promotion?: PromoInfo | null;
 }
 
 export interface CheckoutLine {
@@ -1057,6 +1161,9 @@ export interface SalesOrderItemResponse {
   lineTotal: number;
   /** "จ่ายวันนี้" ในบิลผ่อน ตามที่เลือกจริงตอนคิดเงิน (FIX-122) · null = บิลเก่า → FE เดาแบบเดิม */
   payToday?: boolean | null;
+  /** โปรตอนขาย (FIX-217) — ชื่อ + ราคาโปรที่ระบบเสนอ (ก่อนส่วนลดมือ) */
+  promotionName?: string | null;
+  promoPrice?: number | null;
 }
 
 export interface SalesOrderResponse {
@@ -1298,6 +1405,8 @@ export interface InStockItem {
   /** อุปกรณ์เสริมตามหมวด — บิลผ่อน default "จ่ายวันนี้" (FIX-198) */
   accessory?: boolean;
   installmentPlans?: PosInstallmentPlan[] | null;
+  /** FIX-217: sellingPrice/installmentPlans เป็นราคาโปรแล้ว · promotion.originalPrice = ราคาปกติ */
+  promotion?: PromoInfo | null;
 }
 
 // ─── Repair Tickets (รับซ่อม/เคลมเครื่องลูกค้า) ─────────────────────────────

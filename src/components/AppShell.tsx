@@ -13,7 +13,7 @@ import {
   LayoutDashboard, Boxes, Package, ArrowUpFromLine,
   History, BellRing, LogOut, SlidersHorizontal, ScanLine, Users, Layers, Receipt,
   BarChart3, ShieldCheck, Tag, Wrench, Menu, X, Wallet, Landmark, Building2, ArrowLeftRight, UserCog,
-  CreditCard, PackageOpen, PackageCheck, Bookmark } from 'lucide-react';
+  CreditCard, PackageOpen, PackageCheck, Bookmark, BadgePercent } from 'lucide-react';
 
 /**
  * สิทธิ์เมนู (FIX-102) — STAFF = "ขายหน้าร้านอย่างเดียว"
@@ -41,6 +41,7 @@ export const navItems = [
   { to: '/lots',         label: 'ล็อตนำเข้า',    icon: Layers,            roles: BACK_OFFICE },
   { to: '/firsthand-installment', label: 'ตารางผ่อนมือ 1', icon: CreditCard, roles: BACK_OFFICE },
   { to: '/installment-presets', label: 'ตารางผ่อนมือ 2', icon: CreditCard, roles: BACK_OFFICE },
+  { to: '/promotions',   label: 'โปรโมชันราคา',  icon: BadgePercent,      roles: BACK_OFFICE },   // FIX-217
   { to: '/sales',        label: 'ประวัติบิลขาย',  icon: Receipt,           roles: ALL_ROLES },
   // ─── ซ่อนชั่วคราว — ยังไม่ใช้ในตอนนี้ (V31 finance partner tracking) ───
   // เก็บ route /finance-pending ไว้ + backend ทำงานตามปกติ

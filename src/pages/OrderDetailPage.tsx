@@ -184,6 +184,12 @@ export function OrderDetailPage() {
                         ) : (
                           <div className="font-mono text-xs text-slate-400">{it.sku}</div>
                         )}
+                        {it.promotionName && (
+                          <div className="mt-0.5 text-xs font-medium text-rose-600"
+                               title="โปรที่ระบบเสนอตอนขาย (FIX-217) — ราคาที่ขายจริงอยู่ช่องราคา">
+                            โปร {it.promotionName}{it.promoPrice != null ? ` · ราคาโปร ${formatTHB(it.promoPrice)}` : ''}
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-2 font-mono text-xs">{it.imei ?? '-'}</td>
                       <td className="px-4 py-2 text-right">{formatTHB(it.sellPrice)}</td>

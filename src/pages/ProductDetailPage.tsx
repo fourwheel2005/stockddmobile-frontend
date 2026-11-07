@@ -15,6 +15,7 @@ import { FastInboundModal } from '@/components/receive/FastInboundModal';
 import { ProductFastInboundModal } from '@/components/receive/ProductFastInboundModal';
 import { formatDate, formatNumber, formatTHB } from '@/lib/format';
 import { InstallmentPlansEditor } from '@/components/products/InstallmentPlansEditor';
+import { PromoTag } from '@/components/promotions/PromoTag';
 import { parsePlans, serializePlans, type InstallmentPlan } from '@/lib/installment';
 import type { CreateVariantRequest, VariantResponse, ProductDetail } from '@/types/api';
 
@@ -303,7 +304,10 @@ export function ProductDetailPage() {
                       : <span className="font-mono font-semibold tracking-wider text-slate-500"
                               title="รหัสต้นทุน (เฉพาะผู้จัดการเห็นตัวเลขจริง)">{v.costCode ?? '-'}</span>}
                   </td>
-                  <td className="px-5 py-3 text-right font-semibold">{formatTHB(v.sellingPrice)}</td>
+                  <td className="px-5 py-3 text-right font-semibold">
+                    {formatTHB(v.sellingPrice)}
+                    <PromoTag promotion={v.promotion} />
+                  </td>
                   <td className="px-5 py-3 text-right">{v.reorderPoint}</td>
                   <td className="px-5 py-3 text-right">
                     {canEdit && (
@@ -519,7 +523,10 @@ function ProductSerialsSection({ product }: { product: ProductDetail }) {
                     )}
                   </td>
                   <td className="px-5 py-3"><span className={st.cls}>{st.text}</span></td>
-                  <td className="px-5 py-3 text-right font-semibold">{sell != null ? formatTHB(sell) : '-'}</td>
+                  <td className="px-5 py-3 text-right font-semibold">
+                    {sell != null ? formatTHB(sell) : '-'}
+                    <PromoTag promotion={s.promotion} />
+                  </td>
                   <td className="px-5 py-3 text-xs text-slate-500">{formatDate(s.receivedAt)}</td>
                   <td className="px-5 py-3 text-right">
                     <button type="button"
