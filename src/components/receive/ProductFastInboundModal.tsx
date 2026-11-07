@@ -19,6 +19,8 @@ import { AccessorySerialInboundModal } from './AccessorySerialInboundModal';
 import { PurchaseSourcePicker } from './PurchaseSourcePicker';
 import { isAccessoryProduct, isImeiLessProduct } from '@/lib/productKind';
 import { serializePlans, type InstallmentPlan } from '@/lib/installment';
+import { DeviceCheckFields } from '@/components/inventory/DeviceCheckFields';
+import { EMPTY_CHECK, checkRequest, isCheckEmpty, type DeviceCheckForm } from '@/lib/deviceCheck';
 import type {
   AcquisitionType, ProductDetail, VariantResponse, WizardInitialItem, WizardVariantBlock,
 } from '@/types/api';
@@ -59,6 +61,7 @@ interface DeviceRow {
   warrantyExpire: string;   // YYYY-MM-DD (เช่น มือ2 ประกันศูนย์ activate แล้วเหลือถึงวันที่)
   hasBox: boolean;          // อุปกรณ์เครื่องมือสอง (FIX-108)
   hasCharger: boolean;
+  check: DeviceCheckForm;   // ผลตรวจสภาพมือสอง (FIX-220) — โชว์ลูกค้าบนเว็บ
   imageUrls: string[];
   // ผ่อนรายเครื่อง (มือ 2) — เว็บหน้าร้านดึงไปแสดง
   downPayment: string;
@@ -70,7 +73,7 @@ const EMPTY_ROW: DeviceRow = {
   imei: '', serialNumber: '', color: '', storage: '', condition: 'NEW',
   batteryHealth: '', purchasePrice: '', sellingPrice: '',
   extraOpen: false, modelNumber: '', deviceNetwork: '', acquisitionOverride: '',
-  warrantyTerms: '', warrantyExpire: '', hasBox: false, hasCharger: false, imageUrls: [],
+  warrantyTerms: '', warrantyExpire: '', hasBox: false, hasCharger: false, check: EMPTY_CHECK, imageUrls: [],
   downPayment: '', instPromo: '', instTerms: [],
 };
 
@@ -260,6 +263,7 @@ function DeviceFastInboundModal({ product, initialVariant, onClose, onDone }: Pr
           batteryHealth: isNew ? 100 : (r.batteryHealth === '' ? undefined : Number(r.batteryHealth)),
           hasBox: !isNew ? r.hasBox : undefined,          // อุปกรณ์เครื่องมือสอง (FIX-108)
           hasCharger: !isNew ? r.hasCharger : undefined,
+          check: !isNew ? checkRequest(r.check) : undefined,   // ผลตรวจสภาพมือสอง (FIX-220)
           deviceColor: r.color.trim(),
           deviceStorage: r.storage.trim(),
           deviceNetwork: (r.deviceNetwork || batchNetwork).trim() || undefined,
@@ -512,9 +516,9 @@ function DeviceFastInboundModal({ product, initialVariant, onClose, onDone }: Pr
                   <button type="button" onClick={() => patchRow(idx, { extraOpen: !r.extraOpen })}
                           className="ml-6 inline-flex items-center gap-0.5 text-[11px] text-slate-500 hover:text-slate-700">
                     {r.extraOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                    เพิ่มเติม (เลขรุ่น / ประกัน / อุปกรณ์ / รูป{isSecond ? ' / ผ่อน' : ''})
+                    เพิ่มเติม (เลขรุ่น / ประกัน / อุปกรณ์ / รูป{isSecond ? ' / ผลตรวจสภาพ / ผ่อน' : ''})
                     {(r.warrantyTerms || r.modelNumber || r.deviceNetwork || r.acquisitionOverride
-                      || r.hasBox || r.hasCharger || r.imageUrls.length > 0
+                      || r.hasBox || r.hasCharger || r.imageUrls.length > 0 || (isSecond && !isCheckEmpty(r.check))
                       || r.downPayment || r.instTerms.length > 0) && !r.extraOpen && (
                       <span className="ml-1 rounded bg-indigo-100 px-1 text-[10px] text-indigo-700">มีข้อมูล</span>
                     )}
@@ -574,6 +578,9 @@ function DeviceFastInboundModal({ product, initialVariant, onClose, onDone }: Pr
                                    onChange={(ev) => patchRow(idx, { hasCharger: ev.target.checked })} /> <Plug className="inline h-4 w-4 align-[-2px]" /> สายชาร์จ
                           </label>
                         </div>
+                      )}
+                      {isSecond && (
+                        <DeviceCheckFields value={r.check} onChange={(check) => patchRow(idx, { check })} />
                       )}
                       {isSecond && (
                         <div className="space-y-1.5 rounded-md border border-amber-200 bg-amber-50/60 p-2">

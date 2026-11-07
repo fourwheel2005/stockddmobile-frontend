@@ -165,6 +165,35 @@ export interface UpdateSerialRequest {
   installmentTerms?: string | null;    // JSON: [{"months":12,"monthly":2190}, ...]
   installmentPromo?: string | null;
   installmentProvided?: boolean;       // true = ตั้งใจแก้ตารางผ่อน (ให้ backend เซ็ต/ล้าง)
+  /** อุปกรณ์ที่มากับเครื่องมือสอง (FIX-220: แก้ได้หลังรับเข้า) — ไม่ส่ง = ไม่แตะ */
+  hasBox?: boolean;
+  hasCharger?: boolean;
+  /** ผลตรวจสภาพมือสอง (FIX-220) — ส่ง = แทนที่ทั้งชุด · ไม่ส่ง = ไม่แตะ */
+  check?: DeviceCheck;
+}
+
+// ─── ผลตรวจสภาพเครื่องมือสอง (FIX-220) — โชว์ลูกค้าบนเว็บ (กล่อง "ข้อมูลสภาพเครื่อง") ───
+export type DeviceCheckStatus = 'OK' | 'MINOR' | 'ISSUE';
+export type DeviceGrade = 'A' | 'B' | 'C' | 'D';
+
+/** ทุกช่องไม่บังคับ · ผลตรวจ: OK = ปกติ · MINOR = มีรอยเล็กน้อย · ISSUE = มีปัญหา */
+export interface DeviceCheck {
+  grade?: DeviceGrade | null;
+  screen?: DeviceCheckStatus | null;
+  screenNote?: string | null;
+  body?: DeviceCheckStatus | null;
+  bodyNote?: string | null;
+  camera?: DeviceCheckStatus | null;
+  cameraNote?: string | null;
+  faceId?: DeviceCheckStatus | null;
+  faceIdNote?: string | null;
+  /** ตำหนิ/หมายเหตุที่โชว์ลูกค้า (แยกจาก "อาการเสีย" งานซ่อม) */
+  conditionNote?: string | null;
+}
+
+export interface DeviceInspection extends DeviceCheck {
+  /** ตรวจเมื่อ (UTC) — ระบบประทับเองตอนบันทึกผลตรวจ/แบต */
+  inspectedAt: string | null;
 }
 
 // ─── Device Service Log (ประวัติซ่อม/อะไหล่รายเครื่อง — เครื่องมือสอง) ────
@@ -236,6 +265,8 @@ export interface WizardInitialItem {
   downPayment?: number;          // ผ่อนดาวน์ มือ2 (ต่อเครื่อง)
   installmentTerms?: string;     // JSON [{months,monthly}]
   installmentPromo?: string;
+  /** ผลตรวจสภาพมือสอง (FIX-220) */
+  check?: DeviceCheck;
 }
 
 export interface WizardVariantBlock {
@@ -480,6 +511,12 @@ export interface SerializedItemResponse {
   installmentPromo?: string | null;
   /** โปรที่กำลังทำงานกับเครื่องนี้ (FIX-217) — sellingPrice/ผ่อนด้านบนคือราคาปกติ */
   promotion?: PromoInfo | null;
+  /** อุปกรณ์ที่มากับเครื่องมือสอง — null = ไม่ระบุ (FIX-220) */
+  hasBox?: boolean | null;
+  hasCharger?: boolean | null;
+  grade?: DeviceGrade | null;
+  /** ผลตรวจสภาพ + ตำหนิ + ตรวจเมื่อ (FIX-220) — null = ยังไม่ตรวจ */
+  inspection?: DeviceInspection | null;
 }
 
 /** ยอดขายแยกสาขา (Phase 2C) */
@@ -1672,4 +1709,6 @@ export interface DepositArrivalRequest {
   installmentPromo?: string;
   source?: string;
   note?: string;
+  /** ผลตรวจสภาพมือสอง (FIX-220) — ชุดเดียวกับหน้ารับเข้า */
+  check?: DeviceCheck;
 }

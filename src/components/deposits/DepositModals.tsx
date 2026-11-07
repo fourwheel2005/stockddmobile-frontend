@@ -16,6 +16,8 @@ import { depositRemaining } from '@/lib/pos/deposit';
 import { ImeiInput } from '@/components/ImeiInput';
 import { useModalChrome, backdropCloseHandler } from '@/hooks/useModalChrome';
 import { useBranchStore } from '@/stores/branchStore';
+import { DeviceCheckFields } from '@/components/inventory/DeviceCheckFields';
+import { EMPTY_CHECK, checkRequest } from '@/lib/deviceCheck';
 import type {
   AcquisitionType, CartScanResponse, DepositMethod, DeviceDeposit, SerializedCondition, TradeInProductResponse,
 } from '@/types/api';
@@ -340,6 +342,7 @@ export function DepositArrivalModal({ deposit, onClose, onDone }: {
   const [warrantyExpire, setWarrantyExpire] = useState('');
   const [hasBox, setHasBox] = useState(false);
   const [hasCharger, setHasCharger] = useState(false);
+  const [check, setCheck] = useState(EMPTY_CHECK);   // ผลตรวจสภาพมือสอง (FIX-220)
   const [images, setImages] = useState<string[]>([]);
   const [downPayment, setDownPayment] = useState('');
   const [instPromo, setInstPromo] = useState('');
@@ -380,6 +383,7 @@ export function DepositArrivalModal({ deposit, onClose, onDone }: {
       warrantyExpire: warrantyExpire || undefined,
       hasBox: isSecond ? hasBox : undefined,
       hasCharger: isSecond ? hasCharger : undefined,
+      check: isSecond ? checkRequest(check) : undefined,
       imageUrls: images.length ? images : undefined,
       downPayment: isSecond && downPayment.trim() !== '' ? Number(downPayment) : undefined,
       installmentTerms: isSecond ? termsJson() : undefined,
@@ -465,6 +469,7 @@ export function DepositArrivalModal({ deposit, onClose, onDone }: {
           <label className="inline-flex items-center gap-1"><input type="checkbox" checked={hasCharger} onChange={(e) => setHasCharger(e.target.checked)} /> สายชาร์จ</label>
         </div>
       )}
+      {isSecond && <DeviceCheckFields value={check} onChange={setCheck} />}
       {isSecond && (
         <div className="space-y-1.5 rounded-md border border-amber-200 bg-amber-50/60 p-2">
           <div className="text-xs font-semibold text-amber-900">

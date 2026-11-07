@@ -17,6 +17,7 @@ import { ProductFastInboundModal } from '@/components/receive/ProductFastInbound
 import { formatDate, formatNumber, formatTHB } from '@/lib/format';
 import { InstallmentPlansEditor } from '@/components/products/InstallmentPlansEditor';
 import { PromoTag } from '@/components/promotions/PromoTag';
+import { checkSummary } from '@/lib/deviceCheck';
 import { parsePlans, serializePlans, type InstallmentPlan } from '@/lib/installment';
 import type { CreateVariantRequest, VariantResponse, ProductDetail, SerializedItemResponse } from '@/types/api';
 
@@ -539,6 +540,12 @@ function ProductSerialsSection({ product }: { product: ProductDetail }) {
                     {s.batteryHealth != null && (
                       <div className="mt-0.5 inline-flex items-center gap-0.5 text-xs text-slate-500">
                         <BatteryMedium className="h-3.5 w-3.5" />{s.batteryHealth}%
+                      </div>
+                    )}
+                    {/* ผลตรวจสภาพมือสอง (FIX-220) — ยังไม่กรอก = เตือนให้กรอก (เว็บจะขึ้น "ยังไม่ได้ระบุ") */}
+                    {s.condition !== 'NEW' && (
+                      <div className={`mt-0.5 text-[11px] ${checkSummary(s.inspection) ? 'text-slate-600' : 'text-amber-600'}`}>
+                        {checkSummary(s.inspection) ?? (s.inspection?.screen || s.inspection?.conditionNote ? 'ตรวจแล้ว' : 'ยังไม่กรอกผลตรวจ')}
                       </div>
                     )}
                   </td>

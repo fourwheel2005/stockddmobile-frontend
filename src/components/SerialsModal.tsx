@@ -9,7 +9,7 @@ import { productsApi } from '@/api/products';
 import { extractErrorMessage } from '@/api/client';
 import { useAuthStore } from '@/stores/authStore';
 import { useDeviceLabelPrinter } from '@/hooks/useDeviceLabelPrinter';
-import { formatDate, formatTHB } from '@/lib/format';
+import { formatDate, formatDateTime, formatTHB } from '@/lib/format';
 import { acqLabel, ACQ_ORDER, ACQ_INFO } from '@/lib/acquisition';
 import { RepairIntakeModal } from '@/components/RepairIntakeModal';
 import { ReturnDeviceModal } from '@/components/ReturnDeviceModal';
@@ -17,6 +17,8 @@ import { SecurityCodeModal } from '@/components/SecurityCodeModal';
 import { ImageEditor } from '@/components/MultiImageUpload';
 import { ImeiInput } from '@/components/ImeiInput';
 import { imeiProblem } from '@/lib/imei';
+import { DeviceCheckFields } from '@/components/inventory/DeviceCheckFields';
+import { checkFormFrom, checkRequest } from '@/lib/deviceCheck';
 import type { SerializedStatus, ServiceState, SerializedItemResponse, SerializedCondition, AcquisitionType, DeviceServiceType, VariantResponse, SalesOrderResponse, RefundMethod } from '@/types/api';
 
 interface Props {
@@ -596,6 +598,13 @@ export function EditSerialModal({ item, variantCondition, onClose, onSaved, onCo
   const [purchasePrice, setPurchasePrice] = useState(item.purchasePrice != null ? String(item.purchasePrice) : '');
   const [sellingPrice, setSellingPrice] = useState(item.sellingPrice != null ? String(item.sellingPrice) : '');
   const [imageUrls, setImageUrls] = useState<string[]>(item.imageUrls ?? []);
+  // อุปกรณ์ + ผลตรวจสภาพมือสอง (FIX-220) — โชว์ลูกค้าบนเว็บ
+  const [hasBox, setHasBox] = useState(!!item.hasBox);
+  const [hasCharger, setHasCharger] = useState(!!item.hasCharger);
+  // เดิม "ไม่ระบุ" (null) และไม่ได้แตะ → ไม่ส่ง (กันกลายเป็น "ตัวเครื่องเปล่า" เอง)
+  const [accessoriesTouched, setAccessoriesTouched] = useState(item.hasBox != null || item.hasCharger != null);
+  const [check, setCheck] = useState(() => checkFormFrom(item.inspection));
+  const isSecondHand = condition !== 'NEW';
   // ผ่อนดาวน์ มือ 2 (รายเครื่อง) — กรอกที่นี่ เว็บหน้าร้านดึงไปแสดง
   const [downPayment, setDownPayment] = useState(item.downPayment != null ? String(item.downPayment) : '');
   const [instPromo, setInstPromo] = useState(item.installmentPromo ?? '');
@@ -649,6 +658,9 @@ export function EditSerialModal({ item, variantCondition, onClose, onSaved, onCo
         return clean.length ? JSON.stringify(clean) : null;
       })(),
       installmentPromo: instPromo.trim() || null,
+      ...(isSecondHand && accessoriesTouched ? { hasBox, hasCharger } : {}),
+      // ชุดเต็มเสมอ (ล้างได้) · ไม่เปลี่ยน = backend ไม่ประทับ "ตรวจเมื่อ" ใหม่
+      ...(isSecondHand ? { check: checkRequest(check, true) } : {}),
     }),
     onSuccess: () => {
       toast.success('แก้ไขเครื่องแล้ว');
@@ -783,6 +795,28 @@ export function EditSerialModal({ item, variantCondition, onClose, onSaved, onCo
                      onChange={(e) => setSellingPrice(e.target.value)} placeholder="0" />
             </div>
           </div>
+          {isSecondHand && (
+            <div className="flex flex-wrap items-center gap-4 rounded-md bg-slate-100 px-3 py-2 text-sm">
+              <span className="text-xs font-semibold text-slate-600">อุปกรณ์ที่มากับเครื่อง:</span>
+              <label className="inline-flex items-center gap-1">
+                <input type="checkbox" checked={hasBox}
+                       onChange={(e) => { setHasBox(e.target.checked); setAccessoriesTouched(true); }} /> กล่อง
+              </label>
+              <label className="inline-flex items-center gap-1">
+                <input type="checkbox" checked={hasCharger}
+                       onChange={(e) => { setHasCharger(e.target.checked); setAccessoriesTouched(true); }} /> สายชาร์จ
+              </label>
+              {!accessoriesTouched && <span className="text-xs text-slate-400">(ยังไม่ระบุ)</span>}
+            </div>
+          )}
+          {isSecondHand && (
+            <div>
+              <DeviceCheckFields value={check} onChange={setCheck} />
+              {item.inspection?.inspectedAt && (
+                <p className="mt-1 text-[11px] text-slate-500">ตรวจล่าสุด {formatDateTime(item.inspection.inspectedAt)} · แก้ผลตรวจหรือแบตแล้วระบบลงเวลาใหม่ให้เอง</p>
+              )}
+            </div>
+          )}
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-600">
               รูปเครื่องนี้ <span className="font-normal text-slate-400">(เพิ่ม/ลบ/ตั้งปกได้)</span>

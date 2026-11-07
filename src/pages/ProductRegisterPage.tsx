@@ -25,6 +25,9 @@ import { cleanImei, imeiProblem } from '@/lib/imei';
 import { MultiImageUpload, ImageEditor } from '@/components/MultiImageUpload';
 import { InstallmentPlansEditor } from '@/components/products/InstallmentPlansEditor';
 import { serializePlans, type InstallmentPlan } from '@/lib/installment';
+import { DeviceCheckFields } from '@/components/inventory/DeviceCheckFields';
+import { EMPTY_CHECK, checkRequest, type DeviceCheckForm } from '@/lib/deviceCheck';
+import type { DeviceCheck } from '@/types/api';
 
 /* ─── ตัวเลือกแนะนำ ─────────────────────────────────────────────────── */
 /** ดึงสินค้าหน้าเดียวพอ (ร้านมีรุ่นหลักสิบ) มาทำ autocomplete เลขรุ่น */
@@ -72,6 +75,8 @@ interface ItemRow {
   // อุปกรณ์เครื่องมือสอง (FIX-108) — ตัวเครื่องเปล่า = ทั้งคู่ false
   hasBox: boolean;
   hasCharger: boolean;
+  /** ผลตรวจสภาพมือสอง (FIX-220) — โชว์ลูกค้าบนเว็บ */
+  check: DeviceCheckForm;
   deviceColor: string;
   modelNumber: string;
   deviceStorage: string;
@@ -121,7 +126,7 @@ interface FormValues {
 
 const EMPTY_ITEM: ItemRow = {
   serialNumber: '', imei: '',
-  condition: 'NEW', batteryHealth: '', hasBox: false, hasCharger: false, deviceColor: '', modelNumber: '',
+  condition: 'NEW', batteryHealth: '', hasBox: false, hasCharger: false, check: EMPTY_CHECK, deviceColor: '', modelNumber: '',
   deviceStorage: '', deviceNetwork: '', warrantyTerms: '', warrantyExpire: '',
   acquisitionType: 'PURCHASE', purchasePrice: '', sellingPrice: '', imageUrls: [],
   downPayment: '', installmentTerms: [], installmentPromo: '', installmentPlans: [],
@@ -580,7 +585,7 @@ export function ProductRegisterPage() {
 
     let validItems: Array<{
       serialNumber: string; stockCode?: string; imei?: string; condition?: Condition;
-      batteryHealth?: number; hasBox?: boolean; hasCharger?: boolean; deviceColor?: string; modelNumber?: string;
+      batteryHealth?: number; hasBox?: boolean; hasCharger?: boolean; check?: DeviceCheck; deviceColor?: string; modelNumber?: string;
       deviceStorage?: string; deviceNetwork?: string;
       acquisitionType?: AcquisitionType; purchasePrice?: number; sellingPrice?: number;
       warrantyTerms?: string; warrantyExpire?: string; imageUrls?: string[];
@@ -604,6 +609,8 @@ export function ProductRegisterPage() {
           // อุปกรณ์เครื่องมือสอง (FIX-108) — ส่งเฉพาะมือ 2
           hasBox: it.condition !== 'NEW' ? !!it.hasBox : undefined,
           hasCharger: it.condition !== 'NEW' ? !!it.hasCharger : undefined,
+          // ผลตรวจสภาพมือสอง (FIX-220) — ร่างเก่าไม่มี check → ไม่ส่ง
+          check: it.condition !== 'NEW' && it.check ? checkRequest(it.check) : undefined,
           // สี/ความจุ/เครือข่าย/เลขรุ่น/ประกัน = รายเครื่อง (รับคละในล็อตเดียวได้)
           // เลขรุ่นเว้น = ใช้ค่าระดับรุ่น (Product.modelNumber) เป็น default
           deviceColor: blank(it.deviceColor),
@@ -1325,6 +1332,7 @@ function ItemCard({
   // อุปกรณ์เครื่องมือสอง (FIX-108) — ตัวเครื่องเปล่า = ไม่มีทั้งกล่องและสายชาร์จ
   const hasBox = useWatch({ control, name: `items.${idx}.hasBox` }) ?? false;
   const hasCharger = useWatch({ control, name: `items.${idx}.hasCharger` }) ?? false;
+  const check = useWatch({ control, name: `items.${idx}.check` }) ?? EMPTY_CHECK;   // FIX-220
   const warrantyTerms = useWatch({ control, name: `items.${idx}.warrantyTerms` }) ?? '';
   const imeiValue = useWatch({ control, name: `items.${idx}.imei` }) ?? '';   // ตัวนับ 14/15 (FIX-211)
   /* มือ 2 ระบุวันจริงได้เสมอ; มือ 1 โชว์เมื่อ activate แล้ว (ก่อน activate ยังไม่มีวันหมดที่แม่นยำ). */
@@ -1598,6 +1606,14 @@ function ItemCard({
                    }} />
             ตัวเครื่องเปล่า
           </label>
+        </div>
+      )}
+
+      {/* ผลตรวจสภาพมือสอง (FIX-220) — เฉพาะเครื่อง ไม่คัดลอกจากเครื่องก่อนหน้า */}
+      {condition !== 'NEW' && (
+        <div className="mt-2">
+          <DeviceCheckFields value={check}
+                             onChange={(next) => setValue(`items.${idx}.check`, next, { shouldDirty: true })} />
         </div>
       )}
 
