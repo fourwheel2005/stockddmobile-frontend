@@ -4,6 +4,7 @@ import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/rea
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import { ArrowLeft, Plus, X, ArrowDownToLine, Copy, FolderOpen, PackageOpen, Pencil, Trash2, Smartphone, BatteryMedium, Info, Store, TriangleAlert, Wallet } from 'lucide-react';
+import { SecurityCodeModal } from '@/components/SecurityCodeModal';
 import { productsApi, categoriesApi } from '@/api/products';
 import { inventoryApi } from '@/api/inventory';
 import { extractErrorMessage } from '@/api/client';
@@ -17,7 +18,7 @@ import { formatDate, formatNumber, formatTHB } from '@/lib/format';
 import { InstallmentPlansEditor } from '@/components/products/InstallmentPlansEditor';
 import { PromoTag } from '@/components/promotions/PromoTag';
 import { parsePlans, serializePlans, type InstallmentPlan } from '@/lib/installment';
-import type { CreateVariantRequest, VariantResponse, ProductDetail } from '@/types/api';
+import type { CreateVariantRequest, VariantResponse, ProductDetail, SerializedItemResponse } from '@/types/api';
 
 export function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -426,6 +427,25 @@ function ProductSerialsSection({ product }: { product: ProductDetail }) {
   const [status, setStatus] = useState('IN_STOCK');   // ค่าเริ่มต้น: เครื่องพร้อมขาย
   const [page, setPage] = useState(0);
   const [serialsFor, setSerialsFor] = useState<{ variantId: string; sku: string; highlightId: string } | null>(null);
+  const [deleting, setDeleting] = useState<SerializedItemResponse | null>(null);
+  const qc = useQueryClient();
+  const canDelete = useAuthStore((s) => s.hasRole('ADMIN', 'MANAGER'));
+
+  // ลบเครื่อง (FIX-218) — backend แจ้ง event หลัง commit: จอ Stock อื่น (WebSocket) + เว็บหน้าร้าน (revalidate สต็อก)
+  const removeDevice = useMutation({
+    mutationFn: ({ s, code }: { s: SerializedItemResponse; code: string }) =>
+      inventoryApi.removeSerial(s.id, code, 'ลบจากหน้ารุ่น (สินค้า + คลัง)'),
+    onSuccess: (_r, { s }) => {
+      toast.success(`ลบเครื่อง ${s.stockCode ?? s.imei ?? s.serialNumber} แล้ว — เว็บหน้าร้านอัปเดตสต็อกให้อัตโนมัติ`);
+      setDeleting(null);
+      qc.invalidateQueries({ queryKey: ['inventory-serials'] });
+      qc.invalidateQueries({ queryKey: ['inventory'] });
+      qc.invalidateQueries({ queryKey: ['product', product.id] });
+      qc.invalidateQueries({ queryKey: ['serials', s.variantId] });
+      qc.invalidateQueries({ queryKey: ['variant-search'] });
+    },
+    onError: (e) => toast.error(extractErrorMessage(e)),
+  });
 
   const { data, isLoading } = useQuery({
     // prefix 'inventory-serials' เดียวกับหน้า Stock → invalidate หลังรับเข้า/แก้ไข/ขาย ครอบถึงกันอัตโนมัติ
@@ -535,6 +555,16 @@ function ProductSerialsSection({ product }: { product: ProductDetail }) {
                             onClick={() => setSerialsFor({ variantId: s.variantId, sku: s.sku, highlightId: s.id })}>
                       <Smartphone className="h-4 w-4" />
                     </button>
+                    {/* ลบได้เฉพาะเครื่องพร้อมขาย — ที่ขาย/จอง/โอนแล้วต้องเก็บประวัติ (backend ตรวจซ้ำ) */}
+                    {canDelete && s.status === 'IN_STOCK' && (
+                      <button type="button"
+                              className="ml-1 rounded p-1.5 text-red-600 hover:bg-red-50"
+                              title="ลบเครื่องนี้ (เช่น รับซ้ำ/รับผิด)"
+                              aria-label={`ลบเครื่อง ${s.stockCode ?? s.imei ?? ''}`}
+                              onClick={() => setDeleting(s)}>
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
                   </td>
                 </tr>
               );
@@ -555,6 +585,16 @@ function ProductSerialsSection({ product }: { product: ProductDetail }) {
             <button className="btn-secondary" disabled={data.last} onClick={() => setPage((p) => p + 1)}>ถัดไป</button>
           </div>
         </div>
+      )}
+
+      {deleting && (
+        <SecurityCodeModal
+          action={`ลบเครื่อง ${deleting.stockCode ?? ''} ${[deleting.deviceColor, deleting.deviceStorage].filter(Boolean).join(' / ')}`.trim()}
+          warning={`IMEI ${deleting.imei ?? deleting.serialNumber} จะถูกลบออกจากสต็อกและหน้าเว็บทันที — ย้อนกลับไม่ได้ (เครื่องที่เคยขาย/เทิร์น/โอน/มัดจำ ลบไม่ได้)`}
+          pending={removeDevice.isPending}
+          onClose={() => setDeleting(null)}
+          onConfirm={(code) => removeDevice.mutate({ s: deleting, code })}
+        />
       )}
 
       {serialsFor && (

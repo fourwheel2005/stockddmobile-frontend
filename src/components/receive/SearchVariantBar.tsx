@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Search, ScanLine, Loader2 } from 'lucide-react';
+import { nextBurst, scanReplace, type ScanBurst } from '@/lib/scanInput';
 
 interface Props {
   value: string;
@@ -16,7 +17,8 @@ interface Props {
 /**
  * Search input ที่:
  *  - debounce การพิมพ์ (default 300ms)
- *  - paste/scan (เครื่อง barcode reader emit เป็น paste) → trigger ทันที
+ *  - paste/scan (เครื่อง barcode reader emit เป็น paste) → แทนที่ข้อความเดิม + trigger ทันที
+ *  - เครื่องยิงแบบคีย์บอร์ดยิงซ้ำตอนช่องยังค้างคำค้นเดิม → แทนที่ ไม่ต่อท้าย (FIX-218 กันเลขเบิ้ล)
  *  - Enter → trigger ทันที
  *  - ESC → clear + refocus
  */
@@ -25,6 +27,8 @@ export function SearchVariantBar({
 }: Props) {
   const [local, setLocal] = useState(value);
   const inputRef = useRef<HTMLInputElement>(null);
+  const lastInputAt = useRef(0);
+  const burst = useRef<ScanBurst | null>(null);
 
   useEffect(() => { setLocal(value); }, [value]);
 
@@ -51,11 +55,19 @@ export function SearchVariantBar({
         id={inputId}
         type="text"
         value={local}
-        onChange={(e) => setLocal(e.target.value)}
+        onChange={(e) => {
+          const now = performance.now();
+          burst.current = nextBurst(burst.current, now - lastInputAt.current, local);
+          lastInputAt.current = now;
+          setLocal(scanReplace(e.target.value, burst.current, value));
+        }}
         onPaste={(e) => {
-          // scan barcode reader = paste = fire ทันที
-          const text = e.clipboardData.getData('text');
+          // scan barcode reader = paste = แทนที่ทั้งช่อง + fire ทันที
+          // ต้อง preventDefault — ไม่งั้นเบราว์เซอร์วางซ้ำต่อท้ายข้อความเดิมอีกรอบ (DD00451DD00451)
+          const text = e.clipboardData.getData('text').trim();
           if (text) {
+            e.preventDefault();
+            burst.current = null;
             setLocal(text);
             onChange(text);
           }

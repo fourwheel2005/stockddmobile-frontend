@@ -79,6 +79,13 @@ export const inventoryApi = {
     api.put<SerializedItemResponse>(`/inventory/serials/${serialItemId}`, req).then((r) => r.data),
 
   /** ย้ายเครื่อง (พร้อมขาย) ไป SKU อื่นของรุ่นเดียวกัน — แก้ลงผิดมือ 1/มือ 2 */
+  /** ลบเครื่อง (FIX-218) — เฉพาะเครื่องพร้อมขายที่ไม่มีประวัติขาย/เทิร์น/โอน/มัดจำ · ต้องใช้รหัสความปลอดภัยร้าน */
+  removeSerial: (serialItemId: string, securityCode: string, reason?: string) =>
+    api.delete(`/inventory/serials/${serialItemId}`, {
+      params: reason ? { reason } : {},
+      headers: { 'X-Security-Code': securityCode },
+    }),
+
   moveSerialToVariant: (serialItemId: string, targetVariantId: string) =>
     api.post<void>(`/inventory/serials/${serialItemId}/move-variant`, null,
       { params: { targetVariantId } }).then((r) => r.data),
