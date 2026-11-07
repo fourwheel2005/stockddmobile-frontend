@@ -1,18 +1,23 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { Bookmark, PackageCheck, PackagePlus, Search, Wallet, X, XCircle } from 'lucide-react';
+import { Bookmark, PackageCheck, PackagePlus, Pencil, Search, Wallet, X, XCircle } from 'lucide-react';
+import { SourceInput } from './SourceInput';
 import { deviceDepositsApi } from '@/api/deviceDeposits';
 import { posApi } from '@/api/pos';
 import { extractErrorMessage } from '@/api/client';
 import { formatTHB } from '@/lib/format';
 import { imeiProblem } from '@/lib/imei';
+import { ACQ_INFO, ACQ_ORDER } from '@/lib/acquisition';
+import { COLOR_OPTIONS, NETWORK_OPTIONS, STORAGE_OPTIONS, WARRANTY_NEW, WARRANTY_OPTIONS, warrantyNeedsExpire } from '@/lib/deviceOptions';
+import { isImeiLessName } from '@/lib/productKind';
+import { ImageEditor } from '@/components/MultiImageUpload';
 import { depositRemaining } from '@/lib/pos/deposit';
 import { ImeiInput } from '@/components/ImeiInput';
 import { useModalChrome, backdropCloseHandler } from '@/hooks/useModalChrome';
 import { useBranchStore } from '@/stores/branchStore';
 import type {
-  CartScanResponse, DepositMethod, DeviceDeposit, SerializedCondition, TradeInProductResponse,
+  AcquisitionType, CartScanResponse, DepositMethod, DeviceDeposit, SerializedCondition, TradeInProductResponse,
 } from '@/types/api';
 
 /**
@@ -35,6 +40,7 @@ function useInvalidateDeposits() {
     qc.invalidateQueries({ queryKey: ['device-deposits'] });
     qc.invalidateQueries({ queryKey: ['cash-session'] });
     qc.invalidateQueries({ queryKey: ['inventory'] });
+    qc.invalidateQueries({ queryKey: ['purchase-sources'] });   // FIX-215: ชื่อแหล่งที่มาใหม่ถูกจำแล้ว
   };
 }
 
@@ -200,6 +206,7 @@ export function OrderDeviceModal({ onClose, onDone }: { onClose: () => void; onD
   const [method, setMethod] = useState<DepositMethod>('CASH');
   const [expectedDate, setExpectedDate] = useState('');
   const [note, setNote] = useState('');
+  const [source, setSource] = useState('');
 
   useEffect(() => {
     const q = productQuery.trim();
@@ -210,20 +217,22 @@ export function OrderDeviceModal({ onClose, onDone }: { onClose: () => void; onD
     return () => clearTimeout(t);
   }, [productQuery, product]);
 
+  const orderImeiLess = isImeiLessName(product?.name);   // iPad ไม่มี IMEI (เหมือนหน้ารับเข้า)
   const error = !product ? 'เลือกรุ่น'
     : !color.trim() ? 'กรอกสี'
     : !storage.trim() ? 'กรอกความจุ'
-    : imeiProblem(imei)
+    : (orderImeiLess ? null : imeiProblem(imei))
     ?? (!customerName.trim() ? 'กรอกชื่อลูกค้า' : amountError(num(agreed), num(amount)));
 
   const save = useMutation({
     mutationFn: () => deviceDepositsApi.order({
       productId: product!.id, color: color.trim(), storage: storage.trim(), condition,
-      imei: imei || undefined, serialNumber: serialNumber.trim() || undefined,
+      imei: orderImeiLess ? undefined : (imei || undefined), serialNumber: serialNumber.trim() || undefined,
       customerName: customerName.trim(), customerPhone: customerPhone.trim() || undefined,
       agreedPrice: num(agreed), amount: num(amount), method,
       expectedDate: expectedDate || undefined, note: note.trim() || undefined,
       branchId: useBranchStore.getState().activeBranchId ?? undefined,
+      source: source.trim() || undefined,
     }),
     onSuccess: (d) => {
       toast.success(`รับมัดจำสั่งเครื่องแล้ว ${d.depositNo} · มัดจำ ${formatTHB(d.balance)} · คงเหลือ ${formatTHB(d.remaining)}`);
@@ -263,8 +272,10 @@ export function OrderDeviceModal({ onClose, onDone }: { onClose: () => void; onD
         )}
       </Field>
       <div className="grid grid-cols-2 gap-2">
-        <Field label="สี *"><input className="input" value={color} onChange={(e) => setColor(e.target.value)} /></Field>
-        <Field label="ความจุ *"><input className="input" placeholder="256GB" value={storage} onChange={(e) => setStorage(e.target.value)} /></Field>
+        <Field label="สี *"><input className="input" list="dep-colors" maxLength={50} value={color} onChange={(e) => setColor(e.target.value)} /></Field>
+        <Field label="ความจุ *"><input className="input" list="dep-storages" maxLength={20} placeholder="256GB" value={storage} onChange={(e) => setStorage(e.target.value)} /></Field>
+        <datalist id="dep-colors">{COLOR_OPTIONS.map((c) => <option key={c} value={c} />)}</datalist>
+        <datalist id="dep-storages">{STORAGE_OPTIONS.map((c) => <option key={c} value={c} />)}</datalist>
       </div>
       <Field label="สภาพ">
         <div className="flex gap-1.5">
@@ -277,10 +288,11 @@ export function OrderDeviceModal({ onClose, onDone }: { onClose: () => void; onD
         </div>
       </Field>
       <div className="grid grid-cols-2 gap-2">
-        <Field label="IMEI (ถ้ารู้แล้ว)" hint="ไม่รู้ตอนนี้ → กรอกตอนกด เครื่องถึงแล้ว">
-          <ImeiInput value={imei} onChange={setImei} placeholder="ไม่บังคับ" />
+        <Field label="IMEI (ถ้ารู้แล้ว)" hint={orderImeiLess ? 'iPad ไม่มี IMEI — ใช้ Serial' : 'ไม่รู้ตอนนี้ → กรอกตอนกด เครื่องถึงแล้ว'}>
+          <ImeiInput value={orderImeiLess ? '' : imei} onChange={setImei} disabled={orderImeiLess}
+                     placeholder={orderImeiLess ? 'iPad ไม่มี IMEI' : 'ไม่บังคับ'} />
         </Field>
-        <Field label="Serial (ถ้ามี)"><input className="input font-mono" value={serialNumber} onChange={(e) => setSerialNumber(e.target.value)} /></Field>
+        <Field label="Serial (ถ้ามี)"><input className="input font-mono" maxLength={30} value={serialNumber} onChange={(e) => setSerialNumber(e.target.value)} /></Field>
       </div>
       <div className="grid grid-cols-2 gap-2">
         <Field label="ชื่อลูกค้า *"><input className="input" value={customerName} onChange={(e) => setCustomerName(e.target.value)} /></Field>
@@ -289,6 +301,9 @@ export function OrderDeviceModal({ onClose, onDone }: { onClose: () => void; onD
         <Field label="มัดจำวันนี้ *"><input type="number" min={0} className="input text-right" value={amount} onChange={(e) => setAmount(e.target.value)} /></Field>
         <Field label="คาดว่าเครื่องถึง"><input type="date" className="input" value={expectedDate} onChange={(e) => setExpectedDate(e.target.value)} /></Field>
       </div>
+      <Field label="แหล่งที่มา (เครื่องมาจากไหน)" hint="ไม่บังคับ · ชื่อที่พิมพ์ใหม่ ระบบจำไว้ให้เลือกครั้งหน้า">
+        <SourceInput value={source} onChange={setSource} />
+      </Field>
       <Field label="รับมัดจำเป็น"><MethodPicker value={method} onChange={setMethod} /></Field>
       <Field label="หมายเหตุ"><input className="input" value={note} onChange={(e) => setNote(e.target.value)} /></Field>
       <MoneySummary agreed={num(agreed)} deposit={num(amount)} />
@@ -298,24 +313,79 @@ export function OrderDeviceModal({ onClose, onDone }: { onClose: () => void; onD
 
 // ─── เครื่องถึงร้าน ──────────────────────────────────────────────────────
 
+/**
+ * เครื่องถึงร้าน (FIX-216) — ช่องชุดเดียวกับเครื่อง 1 แถวใน "รับสินค้าเข้า" (ProductFastInboundModal):
+ * IMEI/Serial · สี/ความจุ/มือ · แบต (มือ 2) · ทุน · ราคาขาย · เลขรุ่น · เครือข่าย · ที่มา · ประกัน/วันหมด ·
+ * กล่อง/สายชาร์จ (มือ 2) · ผ่อนรายเครื่อง (มือ 2) · รูป · ซื้อมาจาก · หมายเหตุล็อต
+ * backend รับเข้าด้วยเส้นทางเดียวกัน (จับ SKU · ล็อต · รหัส DD · ผ่อนจากตาราง) แล้วกันเครื่องไว้ให้ลูกค้า
+ */
 export function DepositArrivalModal({ deposit, onClose, onDone }: {
   deposit: DeviceDeposit; onClose: () => void; onDone?: (d: DeviceDeposit) => void;
 }) {
   const invalidate = useInvalidateDeposits();
+  const imeiLess = isImeiLessName(deposit.productName);   // iPad ไม่มี IMEI → Serial เป็นช่องหลัก (เหมือนหน้ารับเข้า)
   const [imei, setImei] = useState(deposit.imei ?? '');
   const [serialNumber, setSerialNumber] = useState(deposit.serialNumber ?? '');
-  const [cost, setCost] = useState('');
   const [color, setColor] = useState(deposit.deviceColor ?? '');
   const [storage, setStorage] = useState(deposit.deviceStorage ?? '');
+  const [condition, setCondition] = useState<SerializedCondition>(deposit.condition === 'NEW' ? 'NEW' : 'SECOND_HAND');
+  const isSecond = condition !== 'NEW';
+  const [battery, setBattery] = useState('');
+  const [cost, setCost] = useState('');
+  const [sell, setSell] = useState(deposit.condition !== 'NEW' ? String(deposit.agreedPrice) : '');
+  const [modelNumber, setModelNumber] = useState('');
+  const [network, setNetwork] = useState('');
+  const [acq, setAcq] = useState<AcquisitionType>('PURCHASE');
+  const [warrantyTerms, setWarrantyTerms] = useState('');
+  const [warrantyExpire, setWarrantyExpire] = useState('');
+  const [hasBox, setHasBox] = useState(false);
+  const [hasCharger, setHasCharger] = useState(false);
+  const [images, setImages] = useState<string[]>([]);
+  const [downPayment, setDownPayment] = useState('');
+  const [instPromo, setInstPromo] = useState('');
+  const [instTerms, setInstTerms] = useState<{ months: string; monthly: string; down: string }[]>([]);
+  const [source, setSource] = useState(deposit.sourceName ?? '');
+  const [note, setNote] = useState('');
 
-  const error = imeiProblem(imei)
-    ?? (!imei && !serialNumber.trim() ? 'กรอก IMEI (15 หลัก) หรือ Serial ของเครื่องที่ถึง' : null)
-    ?? (!color.trim() || !storage.trim() ? 'กรอกสีและความจุ' : null);
+  const effectiveSerial = (serialNumber.trim() || (imeiLess ? '' : imei)).trim();
+  const error = (!imeiLess ? imeiProblem(imei) : null)
+    ?? (!effectiveSerial ? (imeiLess ? 'กรอก Serial ของเครื่อง (iPad ไม่มี IMEI)' : 'กรอก IMEI (15 หลัก) หรือ Serial ของเครื่องที่ถึง') : null)
+    ?? (!color.trim() || !storage.trim() ? 'กรอกสีและความจุ' : null)
+    ?? (battery.trim() !== '' && !(Number(battery) >= 0 && Number(battery) <= 100) ? 'แบตต้องอยู่ระหว่าง 0–100' : null);
+
+  // ผ่อนรายเครื่อง (มือ 2) → JSON แบบเดียวกับหน้ารับเข้า (กรองแถวไม่ครบทิ้ง)
+  const termsJson = (): string | undefined => {
+    const clean = instTerms
+      .map((t) => {
+        const down = t.down.trim() === '' ? undefined : Number(t.down);
+        return { months: Number(t.months), monthly: Number(t.monthly),
+                 ...(down != null && Number.isFinite(down) && down >= 0 ? { down } : {}) };
+      })
+      .filter((t) => Number.isFinite(t.months) && t.months > 0 && Number.isFinite(t.monthly) && t.monthly >= 0);
+    return clean.length ? JSON.stringify(clean) : undefined;
+  };
 
   const save = useMutation({
     mutationFn: () => deviceDepositsApi.arrive(deposit.id, {
-      imei: imei || undefined, serialNumber: serialNumber.trim() || undefined,
-      purchasePrice: cost.trim() === '' ? undefined : Number(cost), color: color.trim(), storage: storage.trim(),
+      imei: imeiLess ? undefined : (imei || undefined),
+      serialNumber: serialNumber.trim() || undefined,
+      color: color.trim(), storage: storage.trim(), condition,
+      batteryHealth: isSecond && battery.trim() !== '' ? Number(battery) : undefined,
+      purchasePrice: cost.trim() === '' ? undefined : Number(cost),
+      sellingPrice: sell.trim() === '' ? undefined : Number(sell),
+      modelNumber: modelNumber.trim() || undefined,
+      deviceNetwork: network.trim() || undefined,
+      acquisitionType: acq,
+      warrantyTerms: warrantyTerms.trim() || (isSecond ? undefined : WARRANTY_NEW),
+      warrantyExpire: warrantyExpire || undefined,
+      hasBox: isSecond ? hasBox : undefined,
+      hasCharger: isSecond ? hasCharger : undefined,
+      imageUrls: images.length ? images : undefined,
+      downPayment: isSecond && downPayment.trim() !== '' ? Number(downPayment) : undefined,
+      installmentTerms: isSecond ? termsJson() : undefined,
+      installmentPromo: isSecond ? (instPromo.trim() || undefined) : undefined,
+      source: source.trim() || undefined,
+      note: note.trim() || undefined,
     }),
     onSuccess: (d) => {
       toast.success(`รับเครื่องเข้าสต็อกแล้ว (${d.stockCode ?? d.imei ?? ''}) — กันไว้ให้ ${d.customerName} · คงเหลือ ${formatTHB(d.remaining)}`);
@@ -336,17 +406,100 @@ export function DepositArrivalModal({ deposit, onClose, onDone }: {
              </button>
            </>}>
       <div className="rounded-lg bg-slate-50 p-3 text-sm">
-        <div className="font-semibold">{deposit.productName} · {deposit.condition === 'NEW' ? 'มือ 1' : 'มือ 2'}</div>
-        <div className="text-xs text-slate-600">ลูกค้า {deposit.customerName} · มัดจำ {formatTHB(deposit.balance)} · คงเหลือ {formatTHB(deposit.remaining)}</div>
+        <div className="font-semibold">{deposit.productName}</div>
+        <div className="text-xs text-slate-600">ลูกค้า {deposit.customerName} · ราคาตกลง {formatTHB(deposit.agreedPrice)} · มัดจำ {formatTHB(deposit.balance)} · คงเหลือ {formatTHB(deposit.remaining)}</div>
       </div>
       <div className="grid grid-cols-2 gap-2">
-        <Field label="IMEI *"><ImeiInput value={imei} onChange={setImei} autoFocus /></Field>
-        <Field label="Serial" hint="เว้น = ใช้ IMEI"><input className="input font-mono" value={serialNumber} onChange={(e) => setSerialNumber(e.target.value)} /></Field>
-        <Field label="สี"><input className="input" value={color} onChange={(e) => setColor(e.target.value)} /></Field>
-        <Field label="ความจุ"><input className="input" value={storage} onChange={(e) => setStorage(e.target.value)} /></Field>
-        <Field label="ราคาทุน (บาท)"><input type="number" min={0} className="input text-right" value={cost} onChange={(e) => setCost(e.target.value)} /></Field>
+        <Field label={imeiLess ? 'IMEI (iPad ไม่มี)' : 'IMEI *'}>
+          <ImeiInput value={imei} onChange={setImei} disabled={imeiLess} autoFocus={!imeiLess}
+                     placeholder={imeiLess ? 'iPad ไม่มี IMEI' : 'IMEI'} />
+        </Field>
+        <Field label={imeiLess ? 'Serial *' : 'Serial'} hint={imeiLess ? undefined : 'เว้น = ใช้ IMEI'}>
+          <input className={`input font-mono ${imeiLess ? 'border-emerald-400' : ''}`} maxLength={30} autoFocus={imeiLess}
+                 value={serialNumber} onChange={(e) => setSerialNumber(e.target.value)} />
+        </Field>
+        <Field label="สี *"><input className="input" list="dep-colors" maxLength={50} value={color} onChange={(e) => setColor(e.target.value)} /></Field>
+        <Field label="ความจุ *"><input className="input" list="dep-storages" maxLength={20} value={storage} onChange={(e) => setStorage(e.target.value)} /></Field>
+        <Field label="มือ">
+          <select className="input" value={condition} onChange={(e) => setCondition(e.target.value as SerializedCondition)}>
+            <option value="NEW">มือ 1</option>
+            <option value="SECOND_HAND">มือ 2</option>
+          </select>
+        </Field>
+        <Field label="แบต %">
+          {isSecond ? (
+            <input type="number" min={0} max={100} className="input" placeholder="แบต %" value={battery} onChange={(e) => setBattery(e.target.value)} />
+          ) : (
+            <div className="rounded-md bg-emerald-50 px-2 py-2 text-center text-sm text-emerald-700">100%</div>
+          )}
+        </Field>
+        <Field label="ราคาทุน (บาท)"><input type="number" step="0.01" min={0} className="input text-right" value={cost} onChange={(e) => setCost(e.target.value)} /></Field>
+        <Field label={isSecond ? 'ราคาขาย (มือ 2)' : 'ราคาขาย'} hint={isSecond ? 'ค่าเริ่มต้น = ราคาที่ตกลง' : 'เว้น = ราคา SKU'}>
+          <input type="number" step="0.01" min={0} className={`input text-right ${isSecond ? 'border-amber-300' : ''}`}
+                 placeholder={isSecond ? 'ราคาขาย (มือ2)' : 'ราคาขาย (=SKU)'} value={sell} onChange={(e) => setSell(e.target.value)} />
+        </Field>
+        <Field label="เลขรุ่น" hint="เว้น = เลขรุ่นของรุ่น"><input className="input font-mono" maxLength={30} value={modelNumber} onChange={(e) => setModelNumber(e.target.value)} /></Field>
+        <Field label="เครือข่าย"><input className="input" list="dep-networks" maxLength={20} value={network} onChange={(e) => setNetwork(e.target.value)} /></Field>
+        <Field label="ที่มา">
+          <select className="input" value={acq} onChange={(e) => setAcq(e.target.value as AcquisitionType)}>
+            {ACQ_ORDER.filter((k) => k !== 'RETURN_CREDIT').map((k) => <option key={k} value={k}>{ACQ_INFO[k].th}</option>)}
+          </select>
+        </Field>
+        <Field label="ประกัน">
+          <input className="input" list="dep-warranty" maxLength={100}
+                 placeholder={isSecond ? 'เช่น ประกันศูนย์เหลือ / ประกันร้าน 1 เดือน' : `เว้น = ${WARRANTY_NEW}`}
+                 value={warrantyTerms} onChange={(e) => setWarrantyTerms(e.target.value)} />
+        </Field>
+        {(isSecond || warrantyNeedsExpire(warrantyTerms || WARRANTY_NEW)) && (
+          <Field label="ประกันถึงวันที่"><input type="date" className="input" value={warrantyExpire} onChange={(e) => setWarrantyExpire(e.target.value)} /></Field>
+        )}
       </div>
-      <p className="text-[11px] text-slate-500">เครื่องเข้าสต็อกเหมือนรับเครื่องเข้าปกติ (ใช้ SKU ที่ สี+ความจุ+มือ ตรงกัน ไม่มีระบบสร้างให้) แล้วเป็น "วางมัดจำแล้ว" รอขายให้ลูกค้าคนนี้</p>
+      <datalist id="dep-colors">{COLOR_OPTIONS.map((c) => <option key={c} value={c} />)}</datalist>
+      <datalist id="dep-storages">{STORAGE_OPTIONS.map((c) => <option key={c} value={c} />)}</datalist>
+      <datalist id="dep-networks">{NETWORK_OPTIONS.map((c) => <option key={c} value={c} />)}</datalist>
+      <datalist id="dep-warranty">{WARRANTY_OPTIONS.map((c) => <option key={c} value={c} />)}</datalist>
+      {isSecond && (
+        <div className="flex items-center gap-4 rounded-md bg-slate-100 px-3 py-2 text-sm">
+          <span className="font-semibold text-slate-600">อุปกรณ์ที่มากับเครื่อง:</span>
+          <label className="inline-flex items-center gap-1"><input type="checkbox" checked={hasBox} onChange={(e) => setHasBox(e.target.checked)} /> กล่อง</label>
+          <label className="inline-flex items-center gap-1"><input type="checkbox" checked={hasCharger} onChange={(e) => setHasCharger(e.target.checked)} /> สายชาร์จ</label>
+        </div>
+      )}
+      {isSecond && (
+        <div className="space-y-1.5 rounded-md border border-amber-200 bg-amber-50/60 p-2">
+          <div className="text-xs font-semibold text-amber-900">
+            ผ่อนเครื่องนี้ (มือ 2) <span className="font-normal text-amber-700">— เว้นว่าง = ใช้ "ตารางผ่อนมือ 2" ของรุ่นอัตโนมัติ</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <input type="number" min={0} className="input text-sm" placeholder="เงินดาวน์ (บาท)" value={downPayment} onChange={(e) => setDownPayment(e.target.value)} />
+            <input className="input text-sm" placeholder="โปรโมชัน เช่น ฟรีเคส" maxLength={255} value={instPromo} onChange={(e) => setInstPromo(e.target.value)} />
+          </div>
+          {instTerms.map((t, ti) => (
+            <div key={ti} className="flex flex-wrap items-center gap-1.5 text-xs">
+              <input type="number" min={1} className="input w-16 text-xs" placeholder="งวด" value={t.months}
+                     onChange={(e) => setInstTerms(instTerms.map((x, j) => j === ti ? { ...x, months: e.target.value } : x))} />
+              <span className="text-slate-500">เดือน ×</span>
+              <input type="number" min={0} className="input w-24 text-xs" placeholder="บาท/เดือน" value={t.monthly}
+                     onChange={(e) => setInstTerms(instTerms.map((x, j) => j === ti ? { ...x, monthly: e.target.value } : x))} />
+              <span className="text-slate-500">· ดาวน์</span>
+              <input type="number" min={0} className="input w-24 text-xs" placeholder="เว้น=ค่าบน" value={t.down}
+                     onChange={(e) => setInstTerms(instTerms.map((x, j) => j === ti ? { ...x, down: e.target.value } : x))} />
+              <button type="button" className="rounded p-0.5 text-red-500 hover:bg-red-50"
+                      onClick={() => setInstTerms(instTerms.filter((_, j) => j !== ti))}><X className="h-3.5 w-3.5" /></button>
+            </div>
+          ))}
+          <button type="button" className="text-xs font-medium text-amber-700 hover:text-amber-900"
+                  onClick={() => setInstTerms([...instTerms, { months: '', monthly: '', down: '' }])}>+ เพิ่มงวด</button>
+        </div>
+      )}
+      <Field label="รูปเครื่องนี้" hint="รูปแรก = ปก · SKU ใหม่ใช้เป็นรูปปกด้วย">
+        <ImageEditor value={images} onChange={setImages} />
+      </Field>
+      <Field label="ซื้อมาจาก / แหล่งที่มา (ไม่บังคับ)" hint="ลงล็อตเดียวกับหน้ารับเข้า · ชื่อใหม่ระบบจำไว้">
+        <SourceInput value={source} onChange={setSource} />
+      </Field>
+      <Field label="หมายเหตุล็อต"><input className="input" maxLength={300} placeholder="เช่น เลขใบกำกับ" value={note} onChange={(e) => setNote(e.target.value)} /></Field>
+      <p className="text-[11px] text-slate-500">รับเข้าเหมือน "รับสินค้าเข้า" ทุกอย่าง (จับ SKU มือ+สี+ความจุ · ไม่มีระบบสร้างให้ · ออกรหัส DD · ลงล็อต) แล้วเป็น "วางมัดจำแล้ว" รอขายให้ลูกค้าคนนี้</p>
     </Shell>
   );
 }
@@ -420,6 +573,95 @@ export function DepositCancelModal({ deposit, onClose }: { deposit: DeviceDeposi
       <Field label="เหตุผล"><input className="input" value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
       <Field label="รหัสความปลอดภัยร้าน *"><input type="password" className="input" value={code} onChange={(e) => setCode(e.target.value)} /></Field>
       {deposit.serialItemId && <p className="text-[11px] text-slate-500">เครื่องจะกลับเป็น "พร้อมขาย" ทันที</p>}
+    </Shell>
+  );
+}
+
+// ─── แก้ไขใบ (FIX-215) ─────────────────────────────────────────────────────
+
+export function DepositEditModal({ deposit, onClose }: { deposit: DeviceDeposit; onClose: () => void }) {
+  const invalidate = useInvalidateDeposits();
+  const isOrder = deposit.kind === 'ORDER';
+  const specEditable = isOrder && deposit.status === 'WAITING_ARRIVAL';   // เครื่องจริงยังไม่มา
+  const [customerName, setCustomerName] = useState(deposit.customerName);
+  const [customerPhone, setCustomerPhone] = useState(deposit.customerPhone ?? '');
+  const [agreed, setAgreed] = useState(String(deposit.agreedPrice));
+  const [note, setNote] = useState(deposit.note ?? '');
+  const [color, setColor] = useState(deposit.deviceColor ?? '');
+  const [storage, setStorage] = useState(deposit.deviceStorage ?? '');
+  const [condition, setCondition] = useState<SerializedCondition>(deposit.condition ?? 'NEW');
+  const [imei, setImei] = useState(deposit.imei ?? '');
+  const [serialNumber, setSerialNumber] = useState(deposit.serialNumber ?? '');
+  const [expectedDate, setExpectedDate] = useState(deposit.expectedDate ?? '');
+  const [source, setSource] = useState(deposit.sourceName ?? '');
+
+  const agreedNum = num(agreed);
+  const error = !customerName.trim() ? 'กรอกชื่อลูกค้า'
+    : !(agreedNum > 0) ? 'กรอกราคาที่ตกลง'
+    : agreedNum < deposit.balance ? `ราคาตกลงต่ำกว่ามัดจำที่รับไว้ (${formatTHB(deposit.balance)})`
+    : specEditable && (!color.trim() || !storage.trim()) ? 'กรอกสีและความจุ'
+    : specEditable ? imeiProblem(imei) : null;
+
+  const save = useMutation({
+    mutationFn: () => deviceDepositsApi.update(deposit.id, {
+      customerName: customerName.trim(), customerPhone: customerPhone.trim() || undefined,
+      agreedPrice: agreedNum, note: note.trim() || undefined,
+      ...(specEditable ? {
+        color: color.trim(), storage: storage.trim(), condition,
+        imei: imei || undefined, serialNumber: serialNumber.trim() || undefined,
+        expectedDate: expectedDate || undefined,
+      } : {}),
+      ...(isOrder ? { source: source.trim() || undefined } : {}),
+    }),
+    onSuccess: (d) => { toast.success(`บันทึก ${d.depositNo} แล้ว · คงเหลือ ${formatTHB(d.remaining)}`); invalidate(); onClose(); },
+    onError: (e) => toast.error(extractErrorMessage(e)),
+  });
+
+  return (
+    <Shell title={`แก้ไข — ${deposit.depositNo}`} icon={<Pencil className="h-5 w-5 text-slate-600" />} onClose={onClose}
+           footer={<>
+             <button className="btn-secondary" onClick={onClose}>ยกเลิก</button>
+             <button className="btn-primary" disabled={!!error || save.isPending} title={error ?? undefined}
+                     onClick={() => save.mutate()}>{save.isPending ? 'กำลังบันทึก...' : 'บันทึก'}</button>
+           </>}>
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="ชื่อลูกค้า *"><input className="input" value={customerName} onChange={(e) => setCustomerName(e.target.value)} /></Field>
+        <Field label="เบอร์โทร"><input className="input" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} /></Field>
+        <Field label="ราคาที่ตกลง *" hint={`มัดจำที่รับไว้ ${formatTHB(deposit.balance)}`}>
+          <input type="number" min={0} className="input text-right" value={agreed} onChange={(e) => setAgreed(e.target.value)} />
+        </Field>
+        {specEditable && (
+          <Field label="คาดว่าเครื่องถึง"><input type="date" className="input" value={expectedDate} onChange={(e) => setExpectedDate(e.target.value)} /></Field>
+        )}
+      </div>
+      {specEditable && (
+        <>
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="สี *"><input className="input" list="dep-colors" maxLength={50} value={color} onChange={(e) => setColor(e.target.value)} /></Field>
+            <Field label="ความจุ *"><input className="input" list="dep-storages" maxLength={20} value={storage} onChange={(e) => setStorage(e.target.value)} /></Field>
+            <Field label="IMEI"><ImeiInput value={imei} onChange={setImei} placeholder="ไม่บังคับ" /></Field>
+            <Field label="Serial"><input className="input font-mono" maxLength={30} value={serialNumber} onChange={(e) => setSerialNumber(e.target.value)} /></Field>
+            <datalist id="dep-colors">{COLOR_OPTIONS.map((c) => <option key={c} value={c} />)}</datalist>
+            <datalist id="dep-storages">{STORAGE_OPTIONS.map((c) => <option key={c} value={c} />)}</datalist>
+          </div>
+          <Field label="สภาพ">
+            <div className="flex gap-1.5">
+              {(['NEW', 'SECOND_HAND'] as SerializedCondition[]).map((c) => (
+                <button key={c} type="button" onClick={() => setCondition(c)}
+                        className={`rounded-md border px-3 py-1.5 text-sm ${condition === c ? 'border-brand-500 bg-brand-50 font-semibold text-brand-700' : 'border-slate-200'}`}>
+                  {c === 'NEW' ? 'มือ 1' : 'มือ 2'}
+                </button>
+              ))}
+            </div>
+          </Field>
+        </>
+      )}
+      {!specEditable && (
+        <p className="text-[11px] text-slate-500">เครื่องอยู่ในร้านแล้ว — สเปก/IMEI ยึดตามเครื่องจริง (แก้ที่หน้าเครื่อง)</p>
+      )}
+      {isOrder && <Field label="แหล่งที่มา (ไม่บังคับ)"><SourceInput value={source} onChange={setSource} /></Field>}
+      <Field label="หมายเหตุ"><input className="input" value={note} onChange={(e) => setNote(e.target.value)} /></Field>
+      <MoneySummary agreed={agreedNum} deposit={deposit.balance} />
     </Shell>
   );
 }

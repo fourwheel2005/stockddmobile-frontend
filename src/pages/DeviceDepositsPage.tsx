@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Bookmark, PackageCheck, PackagePlus, Search, ShoppingCart, Wallet, XCircle } from 'lucide-react';
+import { Bookmark, PackageCheck, PackagePlus, Pencil, Search, ShoppingCart, Wallet, XCircle } from 'lucide-react';
 import { deviceDepositsApi } from '@/api/deviceDeposits';
 import { formatTHB, formatDateTime } from '@/lib/format';
 import {
-  DepositArrivalModal, DepositCancelModal, DepositPaymentModal, OrderDeviceModal, ReserveDeviceModal,
+  DepositArrivalModal, DepositCancelModal, DepositEditModal, DepositPaymentModal, OrderDeviceModal, ReserveDeviceModal,
 } from '@/components/deposits/DepositModals';
 import type { DeviceDeposit, DeviceDepositStatus } from '@/types/api';
 
@@ -28,7 +28,7 @@ export function DeviceDepositsPage() {
   const [q, setQ] = useState('');
   const [modal, setModal] = useState<
     | { kind: 'reserve' } | { kind: 'order' }
-    | { kind: 'arrive' | 'pay' | 'cancel'; deposit: DeviceDeposit } | null
+    | { kind: 'arrive' | 'pay' | 'cancel' | 'edit'; deposit: DeviceDeposit } | null
   >(null);
 
   const open = useQuery({ queryKey: ['device-deposits', 'OPEN'], queryFn: () => deviceDepositsApi.list('OPEN') });
@@ -42,7 +42,7 @@ export function DeviceDepositsPage() {
   const rows = useMemo(() => {
     const term = q.trim().toLowerCase();
     if (!term) return source;
-    return source.filter((d) => [d.depositNo, d.customerName, d.customerPhone, d.productName, d.imei, d.serialNumber, d.stockCode]
+    return source.filter((d) => [d.depositNo, d.customerName, d.customerPhone, d.productName, d.imei, d.serialNumber, d.stockCode, d.sourceName]
       .some((v) => (v ?? '').toLowerCase().includes(term)));
   }, [source, q]);
 
@@ -104,6 +104,7 @@ export function DeviceDepositsPage() {
                 </div>
                 <div className="font-mono text-xs text-slate-500">IMEI {d.imei ?? 'ยังไม่ระบุ'}</div>
                 {d.expectedDate && d.status === 'WAITING_ARRIVAL' && <div className="text-xs text-violet-700">คาดว่าถึง {d.expectedDate}</div>}
+                {d.sourceName && <div className="text-xs text-slate-600">แหล่งที่มา: {d.sourceName}</div>}
               </div>
               <div className="grid grid-cols-3 gap-2 text-center">
                 <Money label="ราคาตกลง" value={d.agreedPrice} />
@@ -131,6 +132,9 @@ export function DeviceDepositsPage() {
                       <Wallet className="h-4 w-4" /> รับเงินเพิ่ม
                     </button>
                   )}
+                  <button className="btn-secondary" onClick={() => setModal({ kind: 'edit', deposit: d })}>
+                    <Pencil className="h-4 w-4" /> แก้ไข
+                  </button>
                   <button className="btn-secondary text-rose-700" onClick={() => setModal({ kind: 'cancel', deposit: d })}>
                     <XCircle className="h-4 w-4" /> ยกเลิก
                   </button>
@@ -146,6 +150,7 @@ export function DeviceDepositsPage() {
       {modal?.kind === 'arrive' && <DepositArrivalModal deposit={modal.deposit} onClose={() => setModal(null)} />}
       {modal?.kind === 'pay' && <DepositPaymentModal deposit={modal.deposit} onClose={() => setModal(null)} />}
       {modal?.kind === 'cancel' && <DepositCancelModal deposit={modal.deposit} onClose={() => setModal(null)} />}
+      {modal?.kind === 'edit' && <DepositEditModal deposit={modal.deposit} onClose={() => setModal(null)} />}
     </div>
   );
 }

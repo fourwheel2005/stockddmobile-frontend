@@ -14,4 +14,8 @@ export const purchaseSourcesApi = {
   /** idempotent — ชื่อซ้ำ (ไม่สนตัวพิมพ์) คืนรายการเดิม */
   create: (name: string) =>
     api.post<PurchaseSourceResponse>('/purchase-sources', { name }).then((r) => r.data),
+
+  /** แก้ชื่อ (FIX-215) — ทุก role · ชื่อซ้ำกับรายการอื่น = 409 */
+  rename: (id: string, name: string) =>
+    api.put<PurchaseSourceResponse>(`/purchase-sources/${id}`, { name }).then((r) => r.data),
 };

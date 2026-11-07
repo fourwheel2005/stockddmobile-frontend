@@ -1,6 +1,6 @@
 import { api } from './client';
 import type {
-  DepositArrivalRequest, DepositMethod, DeviceDeposit, OrderDeviceRequest, ReserveDeviceRequest,
+  DepositArrivalRequest, DepositMethod, DeviceDeposit, OrderDeviceRequest, ReserveDeviceRequest, UpdateDepositRequest,
 } from '@/types/api';
 
 /** จองเครื่อง / มัดจำสั่งเครื่อง (FIX-214) */
@@ -16,6 +16,10 @@ export const deviceDepositsApi = {
 
   order: (req: OrderDeviceRequest) =>
     api.post<DeviceDeposit>('/device-deposits/order', req).then((r) => r.data),
+
+  /** แก้ไขใบที่ยังเปิดอยู่ — ทุก role (FIX-215) */
+  update: (id: string, req: UpdateDepositRequest) =>
+    api.put<DeviceDeposit>(`/device-deposits/${id}`, req).then((r) => r.data),
 
   addPayment: (id: string, amount: number, method: DepositMethod, note?: string) =>
     api.post<DeviceDeposit>(`/device-deposits/${id}/payments`, { amount, method, note }).then((r) => r.data),

@@ -1477,6 +1477,8 @@ export interface DeviceDeposit {
   /** ยอดคงเหลือที่ลูกค้าต้องจ่าย = ราคาตกลง − balance */
   remaining: number;
   expectedDate: string | null;
+  /** แหล่งที่มาของเครื่องที่สั่ง (มัดจำสั่งเครื่อง) — FIX-215 */
+  sourceName: string | null;
   note: string | null;
   createdBy: string | null;
   createdAt: string;
@@ -1516,13 +1518,49 @@ export interface OrderDeviceRequest {
   expectedDate?: string;
   note?: string;
   branchId?: string;
+  /** แหล่งที่มา — ไม่บังคับ · ชื่อใหม่ถูกจำเข้ารายการให้อัตโนมัติ (FIX-215) */
+  source?: string;
 }
 
-export interface DepositArrivalRequest {
-  variantId?: string;
-  imei?: string;
-  serialNumber?: string;
-  purchasePrice?: number;
+/** แก้ใบมัดจำ/จอง (FIX-215) — สเปก/IMEI/วันที่/แหล่งที่มา มีผลเฉพาะมัดจำสั่งเครื่องที่รอเครื่องถึง */
+export interface UpdateDepositRequest {
+  customerName: string;
+  customerPhone?: string;
+  agreedPrice: number;
+  note?: string;
   color?: string;
   storage?: string;
+  condition?: SerializedCondition;
+  imei?: string;
+  serialNumber?: string;
+  expectedDate?: string;
+  source?: string;
+}
+
+/**
+ * เครื่องถึงร้าน (FIX-216) — field ชุดเดียวกับเครื่อง 1 แถวในหน้ารับเข้า · backend รับเข้าด้วยเส้นทางเดียวกัน
+ * source = "ซื้อมาจาก" ของล็อต
+ */
+export interface DepositArrivalRequest {
+  imei?: string;
+  serialNumber?: string;
+  color?: string;
+  storage?: string;
+  condition?: SerializedCondition;
+  batteryHealth?: number;
+  purchasePrice?: number;
+  sellingPrice?: number;
+  modelNumber?: string;
+  deviceNetwork?: string;
+  acquisitionType?: AcquisitionType;
+  warrantyTerms?: string;
+  warrantyExpire?: string;
+  hasBox?: boolean;
+  hasCharger?: boolean;
+  imageUrls?: string[];
+  downPayment?: number;
+  installmentTerms?: string;
+  installmentPromo?: string;
+  source?: string;
+  note?: string;
 }
