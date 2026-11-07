@@ -63,6 +63,19 @@ describe('ReceiptPrintView document marking', () => {
     expect(html).toMatch(/ยอดที่ต้องชำระวันนี้:<\/strong><strong>฿0\.00/);
   });
 
+  it('shows the deposit taken off and what was paid today (FIX-214)', () => {
+    const withDeposit = {
+      ...order, grandTotal: 30000, subtotal: 30000, paidAmount: 30000, cashAmount: 25000,
+      depositAppliedAmount: 5000, depositNo: 'DP-20261107-ABC123',
+    } as unknown as SalesOrderResponse;
+
+    const html = renderToStaticMarkup(<ReceiptPrintView order={withDeposit} />);
+
+    expect(html).toContain('หักมัดจำ (DP-20261107-ABC123)');
+    expect(html).toContain('- ฿5,000.00');
+    expect(html).toMatch(/ชำระวันนี้:<\/span><span>฿25,000\.00/);
+  });
+
   it('shows who pays the installment trade-in difference', () => {
     const tradeOrder = {
       ...order,

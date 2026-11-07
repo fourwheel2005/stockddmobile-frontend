@@ -75,6 +75,12 @@ export function PaymentBreakdownCard({ breakdown, refundCashTotal = 0, refundTra
           <span className="font-semibold tabular-nums">{formatTHB(breakdown.repairTotal ?? 0)}</span>
         </div>
       )}
+      {(breakdown.depositTotal ?? 0) > 0 && (
+        <div className="flex items-center justify-between border-t border-slate-100 px-4 py-2 text-xs text-slate-600">
+          <span>ในยอดด้านบนเป็นมัดจำ/จองเครื่อง ({breakdown.depositCount ?? 0} ใบ) — ยอดขายนับวันที่ขายเครื่อง</span>
+          <span className="font-semibold tabular-nums">{formatTHB(breakdown.depositTotal ?? 0)}</span>
+        </div>
+      )}
       {hasRefund && (
         <div className="flex items-center justify-between border-t border-slate-100 px-4 py-2 text-xs text-slate-600">
           <span>รับก่อนหักคืน {formatTHB(net.receivedTotal)}</span>

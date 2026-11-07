@@ -42,6 +42,10 @@ export const posApi = {
     api.post<SavedShippingAddress>('/pos/shipping-addresses', recipient).then((r) => r.data),
 
   /** รุ่นเครื่องที่ลูกค้านำมา — catalog only, ไม่อ่าน Stock/SKU. */
+  /** เครื่องของใบจอง/มัดจำที่พร้อมขาย → รายการตะกร้า (ราคาที่ตกลง) — FIX-214 */
+  depositCartItem: (depositId: string) =>
+    api.get<CartScanResponse>(`/pos/deposits/${depositId}/cart-item`).then((r) => r.data),
+
   searchTradeInProducts: (q: string, page = 0, size = 20) =>
     api.get<PageResponse<TradeInProductResponse>>('/pos/trade-in-products/search', {
       params: { q, page, size },

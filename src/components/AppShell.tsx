@@ -13,8 +13,7 @@ import {
   LayoutDashboard, Boxes, Package, ArrowUpFromLine,
   History, BellRing, LogOut, SlidersHorizontal, ScanLine, Users, Layers, Receipt,
   BarChart3, ShieldCheck, Tag, Wrench, Menu, X, Wallet, Landmark, Building2, ArrowLeftRight, UserCog,
-  CreditCard, PackageOpen, PackageCheck,
-} from 'lucide-react';
+  CreditCard, PackageOpen, PackageCheck, Bookmark } from 'lucide-react';
 
 /**
  * สิทธิ์เมนู (FIX-102) — STAFF = "ขายหน้าร้านอย่างเดียว"
@@ -30,6 +29,7 @@ export const navItems = [
   { to: '/shipping-labels', label: 'พิมพ์ใบจัดส่ง', icon: PackageCheck,      roles: ALL_ROLES },
   { to: '/cash-register', label: 'เก๊ะเงินสด',      icon: Wallet,            roles: ALL_ROLES },
   { to: '/repairs',      label: 'งานซ่อม',        icon: Wrench,            roles: ALL_ROLES },
+  { to: '/deposits',     label: 'มัดจำ/จองเครื่อง', icon: Bookmark,          roles: ALL_ROLES },   // FIX-214
   { to: '/inventory',    label: 'คลังสต็อก',     icon: Boxes,             roles: BACK_OFFICE },
   { to: '/pending-intake', label: 'รอลงสต็อก',   icon: PackageOpen,       roles: BACK_OFFICE },
   { to: '/products',     label: 'สินค้า + คลัง', icon: Package,           roles: BACK_OFFICE },

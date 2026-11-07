@@ -177,6 +177,27 @@ describe('buildDDMobileReceipt', () => {
     expect(text).not.toContain('5,590.00');
   });
 
+  it('prints the deposit paid earlier and only the remaining as paid today (FIX-214)', () => {
+    const bytes = buildDDMobileReceipt(makeReceipt({
+      grandTotal: 30000, subtotal: 30000, paidAmount: 30000,
+      depositAppliedAmount: 5000, depositNo: 'DP-20261107-ABC123',
+    }));
+    const text = String.fromCharCode(...bytes);
+
+    expect(text).toContain('DP-20261107-ABC123');
+    expect(text).toContain('-5,000.00');
+    expect(text).toContain('25,000.00');
+  });
+
+  it('installment with deposit: today = down − deposit (FIX-214)', () => {
+    const text = String.fromCharCode(...buildDDMobileReceipt(makeReceipt({
+      paymentMethod: 'INSTALLMENT', installmentMonths: 10, downPaymentAmount: 8000,
+      depositAppliedAmount: 5000, depositNo: 'DP-1',
+    })));
+    expect(text).toContain('-5,000.00');
+    expect(text).toContain('3,000.00');
+  });
+
   it('prints installment trade-in settlement when the store pays the customer', () => {
     const bytes = buildDDMobileReceipt(makeReceipt({
       paymentMethod: 'INSTALLMENT',

@@ -859,6 +859,9 @@ export interface PaymentBreakdown {
   /** ในยอดรับนี้เป็นค่าซ่อมเท่าไหร่ / กี่งาน (FIX-207) — รวมอยู่ในช่องทางด้านบนแล้ว · backend เก่าไม่ส่ง */
   repairTotal?:       number;
   repairCount?:       number;
+  /** ในยอดรับนี้เป็นเงินมัดจำ/จองเครื่องเท่าไหร่ / กี่ใบ (FIX-214) — รวมอยู่ในช่องทางด้านบนแล้ว */
+  depositTotal?:      number;
+  depositCount?:      number;
 }
 
 export interface CashSessionResponse {
@@ -971,6 +974,8 @@ export interface OwnerLedgerResponse {
 export interface CheckoutRequest {
   /** F-03 (FIX-132): idempotency key ต่อตะกร้า — กันปิดบิลซ้ำจาก retry/timeout/กดซ้ำ */
   clientRequestId?: string;
+  /** ขายเครื่องที่ลูกค้าจอง/วางมัดจำไว้ (FIX-214) — backend หักยอดมัดจำคงเหลือของใบนี้ */
+  depositId?: string;
   /** เงินสดที่ลูกค้ายื่น (FIX-156) — เฉพาะบิลมีส่วนเงินสด · backend คำนวณทอนเอง */
   tenderedAmount?: number;
   customerId?: string;
@@ -1081,6 +1086,9 @@ export interface SalesOrderResponse {
   addOnTodayAmount?: number | null;
   /** บิลผ่อน: ส่วนลดที่หักจากยอดจ่ายวันนี้ (FIX-209) · บิลเก่า = 0 */
   todayDiscountAmount?: number | null;
+  /** มัดจำ/จองเครื่องที่ลูกค้าจ่ายไว้ก่อน หักในบิลนี้ (FIX-214) · null = ไม่มี */
+  depositAppliedAmount?: number | null;
+  depositNo?: string | null;
   paymentSlipUrl: string | null;
   shippingPartner: ShippingPartner | null;
   shippingTrackingNo: string | null;
@@ -1183,7 +1191,7 @@ export interface TopProductRow {
 }
 
 // ─── สรุปใบเสร็จส่งบัญชี (FIX-192) ───────────────────────────────────────
-export type ReceiptType = 'DOWN_PAYMENT' | 'INSTALLMENT' | 'SALE' | 'REPAIR';
+export type ReceiptType = 'DOWN_PAYMENT' | 'INSTALLMENT' | 'SALE' | 'REPAIR' | 'DEPOSIT';
 /** ช่องทางที่กรองได้ในรายงานส่งบัญชี — null = ทั้งหมด */
 export type ReceiptMethodFilter = 'CASH' | 'TRANSFER' | 'CARD' | 'QR';
 
@@ -1425,3 +1433,96 @@ export interface StoreProfile {
 }
 
 export type UpdateStoreProfileRequest = Omit<StoreProfile, 'updatedBy' | 'updatedAt'>;
+
+// ─── จองเครื่อง / มัดจำสั่งเครื่อง (FIX-214) ───────────────────────────────
+export type DeviceDepositKind = 'RESERVE' | 'ORDER';
+export type DeviceDepositStatus = 'WAITING_ARRIVAL' | 'READY' | 'COMPLETED' | 'CANCELLED';
+
+export interface DeviceDepositPaymentLine {
+  kind: 'RECEIVE' | 'REFUND';
+  amount: number;
+  method: PaymentMethod;
+  paidAt: string;
+  createdBy: string | null;
+  note: string | null;
+}
+
+export interface DeviceDeposit {
+  id: string;
+  depositNo: string;
+  kind: DeviceDepositKind;
+  /** "จองแล้ว" / "วางมัดจำแล้ว" */
+  kindLabel: string;
+  status: DeviceDepositStatus;
+  branchName: string | null;
+  customerName: string;
+  customerPhone: string | null;
+  productId: string;
+  productName: string;
+  variantId: string | null;
+  sku: string | null;
+  serialItemId: string | null;
+  stockCode: string | null;
+  deviceColor: string | null;
+  deviceStorage: string | null;
+  condition: SerializedCondition | null;
+  imei: string | null;
+  serialNumber: string | null;
+  /** ราคาที่ตกลงกับลูกค้า */
+  agreedPrice: number;
+  paidTotal: number;
+  refundedTotal: number;
+  /** มัดจำที่ร้านถืออยู่ = รับ − คืน */
+  balance: number;
+  /** ยอดคงเหลือที่ลูกค้าต้องจ่าย = ราคาตกลง − balance */
+  remaining: number;
+  expectedDate: string | null;
+  note: string | null;
+  createdBy: string | null;
+  createdAt: string;
+  arrivedAt: string | null;
+  completedAt: string | null;
+  cancelledAt: string | null;
+  cancelReason: string | null;
+  billNo: string | null;
+  appliedAmount: number | null;
+  payments: DeviceDepositPaymentLine[];
+}
+
+export type DepositMethod = 'CASH' | 'TRANSFER' | 'CARD' | 'QR';
+
+export interface ReserveDeviceRequest {
+  serialItemId: string;
+  customerName: string;
+  customerPhone?: string;
+  agreedPrice?: number;
+  amount: number;
+  method: DepositMethod;
+  note?: string;
+}
+
+export interface OrderDeviceRequest {
+  productId: string;
+  color: string;
+  storage: string;
+  condition: SerializedCondition;
+  imei?: string;
+  serialNumber?: string;
+  customerName: string;
+  customerPhone?: string;
+  agreedPrice: number;
+  amount: number;
+  method: DepositMethod;
+  expectedDate?: string;
+  note?: string;
+  branchId?: string;
+}
+
+export interface DepositArrivalRequest {
+  variantId?: string;
+  imei?: string;
+  serialNumber?: string;
+  purchasePrice?: number;
+  color?: string;
+  storage?: string;
+}

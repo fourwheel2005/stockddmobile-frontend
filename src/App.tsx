@@ -13,6 +13,7 @@ import { AlertsPage } from '@/pages/AlertsPage';
 import { AdjustmentPage } from '@/pages/AdjustmentPage';
 import { PosTerminalPage } from '@/pages/PosTerminalPage';
 import { RepairListPage } from '@/pages/RepairListPage';
+import { DeviceDepositsPage } from '@/pages/DeviceDepositsPage';
 import { CustomersPage } from '@/pages/CustomersPage';
 import { LotsPage } from '@/pages/LotsPage';
 import { InstallmentPresetsPage } from '@/pages/InstallmentPresetsPage';
@@ -52,6 +53,7 @@ export default function App() {
           <Route path="/shipping-labels" element={<ShippingLabelsPage />} />
           <Route path="/cash-register" element={<CashRegisterPage />} />
           <Route path="/repairs" element={<RepairListPage />} />
+          <Route path="/deposits" element={<DeviceDepositsPage />} />
           <Route path="/sales" element={<SalesHistoryPage />} />
           <Route path="/pos/orders/:id" element={<OrderDetailPage />} />
         </Route>

@@ -54,3 +54,13 @@ describe('PaymentBreakdownCard', () => {
     expect(html).not.toContain('รับก่อนหักคืน');
   });
 });
+
+describe('PaymentBreakdownCard deposits (FIX-214)', () => {
+  it('says how much of the receipts was deposit money', () => {
+    const html = renderToStaticMarkup(
+      <PaymentBreakdownCard breakdown={{ ...breakdown, depositTotal: 5000, depositCount: 1 }} />,
+    );
+    expect(html).toContain('มัดจำ/จองเครื่อง (1 ใบ)');
+    expect(html).toContain('฿5,000.00');
+  });
+});

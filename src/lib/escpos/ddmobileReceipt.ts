@@ -51,6 +51,8 @@ export interface ReceiptData {
   downPaymentAmount?: number | null;
   addOnTotal?: number | null;      // อุปกรณ์เสริมจ่ายสดวันนี้ในบิลผ่อน เช่น หัวชาร์จ (FIX-090)
   todayDiscountAmount?: number | null; // บิลผ่อน: ส่วนลดหักจากยอดจ่ายวันนี้ (FIX-209)
+  depositAppliedAmount?: number | null; // มัดจำ/จองที่ลูกค้าจ่ายไว้ก่อน หักในบิลนี้ (FIX-214)
+  depositNo?: string | null;
   downCash?: number | null;        // เงินดาวน์ส่วนที่จ่ายสด
   downTransfer?: number | null;    // เงินดาวน์ส่วนที่โอน
   monthlyAmount?: number | null;
@@ -270,6 +272,14 @@ export function buildDDMobileReceipt(
     }
   }
 
+  // FIX-214: มัดจำ/จองเครื่องที่ลูกค้าจ่ายไว้ก่อน → หักออก แล้วบอกยอดที่จ่ายวันนี้จริง
+  const depositApplied = data.depositAppliedAmount ?? 0;
+  if (depositApplied > 0) {
+    b.justify(`หักมัดจำ${data.depositNo ? ` (${data.depositNo})` : ''}:`, '-' + fmtTHB(depositApplied), W);
+    b.size(2, 1).justify('ชำระวันนี้:', fmtTHB(Math.max(0, receiptDueBeforeDeposit(data) - depositApplied)), W / 2).size(1, 1);
+    b.separator('=', W);
+  }
+
   // ─── Payment ────────────────────────────────────
   if (data.paymentMethod) {
     b.justify('วิธีชำระ:', PAYMENT_TH[data.paymentMethod] ?? data.paymentMethod, W);
@@ -328,4 +338,19 @@ export function buildDDMobileReceipt(
   }
 
   return b.build();
+}
+
+/**
+ * ยอดที่ลูกค้าต้องจ่ายวันขายก่อนหักมัดจำ (FIX-214) — บิลผ่อน = ดาวน์ + อุปกรณ์ − ส่วนลด · บิลอื่น = ยอดบิล
+ * มีเทิร์น = ส่วนต่างหลังหักเทิร์น (snapshot จาก backend)
+ */
+export function receiptDueBeforeDeposit(data: ReceiptData): number {
+  const installment = data.paymentMethod === 'INSTALLMENT';
+  const base = installment
+    ? Math.max(0, (data.downPaymentAmount ?? 0) + (data.addOnTotal ?? 0) - (data.todayDiscountAmount ?? 0))
+    : data.grandTotal;
+  if ((data.tradeInValue ?? 0) > 0) {
+    return data.tradeInDifferenceAmount ?? ((installment ? (data.tradeInSettlementAmount ?? base) : base) - (data.tradeInValue ?? 0));
+  }
+  return base;
 }

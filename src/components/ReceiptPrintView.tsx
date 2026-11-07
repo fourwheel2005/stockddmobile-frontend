@@ -182,6 +182,23 @@ export function ReceiptPrintView({ order, shopName = 'Stockdd Mobile', duplicate
             </div>
           );
         })()}
+        {/* FIX-214: มัดจำ/จองที่ลูกค้าจ่ายไว้ก่อน */}
+        {(order.depositAppliedAmount ?? 0) > 0 && (() => {
+          const before = (order.tradeInValue ?? 0) > 0
+            ? (order.tradeInDifferenceAmount ?? ((hidePrice ? payToday : order.grandTotal) - (order.tradeInValue ?? 0)))
+            : (hidePrice ? payToday : order.grandTotal);
+          return (
+            <div className="my-2 space-y-1 border-y border-dashed border-sky-300 py-2">
+              <div className="flex justify-between text-sky-700">
+                <span>หักมัดจำ{order.depositNo ? ` (${order.depositNo})` : ''}:</span>
+                <span>- {formatTHB(order.depositAppliedAmount ?? 0)}</span>
+              </div>
+              <div className="flex justify-between text-base font-bold">
+                <span>ชำระวันนี้:</span><span>{formatTHB(Math.max(0, before - (order.depositAppliedAmount ?? 0)))}</span>
+              </div>
+            </div>
+          );
+        })()}
         <div className="flex justify-between">
           <span>วิธีชำระ:</span>
           <span>{order.paymentMethod ? PAYMENT_TH[order.paymentMethod] : '-'}</span>

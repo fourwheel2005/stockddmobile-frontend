@@ -16,9 +16,9 @@ interface Props {
  */
 export function DrawerReconciliationCard({ movements, accountingCashTotal, className = '' }: Props) {
   const r = reconcileDrawer(movements);
-  // ยอด "ตามวันที่บัญชี" รวมขาย + ค่างวด + ค่าซ่อม (FIX-207) → เทียบกับเงินสดที่เข้าเก๊ะจากทั้ง 3 ทาง
+  // ยอด "ตามวันที่บัญชี" รวมขาย + ค่างวด + ค่าซ่อม (FIX-207) + มัดจำ (FIX-214) → เทียบกับเงินสดที่เข้าเก๊ะจากทุกทาง
   const salesCash = r.inflows
-    .filter((l) => l.key === 'SALE_CASH' || l.key === 'INSTALLMENT_CASH' || l.key === 'REPAIR_CASH')
+    .filter((l) => l.key === 'SALE_CASH' || l.key === 'INSTALLMENT_CASH' || l.key === 'REPAIR_CASH' || l.key === 'DEPOSIT_CASH')
     .reduce((sum, l) => sum + l.amount, 0);
   const accountingDiff = accountingCashTotal == null ? 0 : Math.round((salesCash - accountingCashTotal) * 100) / 100;
 

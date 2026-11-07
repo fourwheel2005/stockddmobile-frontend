@@ -7,7 +7,7 @@ import type { CashMovementLine, CashMovementType } from '@/types/api';
  * โอน/บัตร/QR/ไฟแนนซ์/ตา-ยายจ่ายแทน มี amount = 0 จึงแยกไปกลุ่ม "ไม่อยู่ในเก๊ะ" ให้เห็นว่าไม่ได้นับรวม.
  */
 export type DrawerLineKey =
-  | 'OPENING_FLOAT' | 'SALE_CASH' | 'REPAIR_CASH' | 'INSTALLMENT_CASH'
+  | 'OPENING_FLOAT' | 'SALE_CASH' | 'REPAIR_CASH' | 'INSTALLMENT_CASH' | 'DEPOSIT_CASH'
   | 'CASH_IN' | 'ADJUSTMENT_PLUS'
   | 'REFUND_CASH' | 'PAYOUT' | 'SAFE_DROP' | 'ADJUSTMENT_MINUS';
 
@@ -42,6 +42,7 @@ const LABELS: Record<DrawerLineKey, string> = {
   SALE_CASH:        'ขายหน้าร้าน รับเป็นเงินสด',
   REPAIR_CASH:      'ค่าซ่อม รับเป็นเงินสด',
   INSTALLMENT_CASH: 'ค่างวดผ่อน รับเป็นเงินสด',
+  DEPOSIT_CASH:     'มัดจำ/จองเครื่อง รับเป็นเงินสด',
   CASH_IN:          'เติมเงินสดเข้าเก๊ะ (รวมตา/ยายใส่เงิน)',
   ADJUSTMENT_PLUS:  'ปรับปรุงเพิ่ม',
   REFUND_CASH:      'คืนเงินสดให้ลูกค้า',
@@ -50,13 +51,14 @@ const LABELS: Record<DrawerLineKey, string> = {
   ADJUSTMENT_MINUS: 'ปรับปรุงลด',
 };
 
-const INFLOW_ORDER: DrawerLineKey[] = ['SALE_CASH', 'REPAIR_CASH', 'INSTALLMENT_CASH', 'CASH_IN', 'ADJUSTMENT_PLUS'];
+const INFLOW_ORDER: DrawerLineKey[] = ['SALE_CASH', 'REPAIR_CASH', 'INSTALLMENT_CASH', 'DEPOSIT_CASH', 'CASH_IN', 'ADJUSTMENT_PLUS'];
 const OUTFLOW_ORDER: DrawerLineKey[] = ['REFUND_CASH', 'PAYOUT', 'SAFE_DROP', 'ADJUSTMENT_MINUS'];
 
 const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
 function saleCashKey(m: CashMovementLine): DrawerLineKey {
   if (m.referenceType === 'REPAIR_TICKET') return 'REPAIR_CASH';
+  if (m.referenceType === 'DEVICE_DEPOSIT') return 'DEPOSIT_CASH';   // FIX-214
   if ((m.note ?? '').startsWith('ค่างวด')) return 'INSTALLMENT_CASH';
   return 'SALE_CASH';
 }

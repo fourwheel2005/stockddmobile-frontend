@@ -119,6 +119,9 @@ export function OrderDetailPage() {
               {o.cashAmount > 0 && <Row label="เงินสด" value={formatTHB(o.cashAmount)} />}
               {o.transferAmount > 0 && <Row label="โอน / QR" value={formatTHB(o.transferAmount + o.qrAmount)} />}
               {o.cardAmount > 0 && <Row label="บัตร" value={formatTHB(o.cardAmount)} />}
+              {(o.depositAppliedAmount ?? 0) > 0 && (
+                <Row label={`มัดจำที่จ่ายไว้ก่อน${o.depositNo ? ` (${o.depositNo})` : ''}`} value={formatTHB(o.depositAppliedAmount ?? 0)} />
+              )}
               <Row label="ยอดที่จ่ายแล้ว" value={formatTHB(o.paidAmount)} strong />
 
               {isInstallment && (
