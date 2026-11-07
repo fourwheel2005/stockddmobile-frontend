@@ -10,6 +10,8 @@ export interface InstallmentPresetResponse {
   installmentTerms: string;   // JSON [{"months":10,"monthly":1990}, ...]
   cashPrice: number | null;   // ราคาซื้อสดมาตรฐาน (FIX-202)
   updatedAt: string;
+  /** ตอบกลับการบันทึก: เครื่องมือ 2 ที่ยังไม่ขายถูกแก้ตามตารางกี่เครื่อง (FIX-213) */
+  syncedDevices?: number | null;
 }
 
 export interface UpsertInstallmentPresetRequest {
@@ -26,6 +28,10 @@ export const installmentPresetsApi = {
 
   upsert: (req: UpsertInstallmentPresetRequest) =>
     api.put<InstallmentPresetResponse>('/installment-presets', req).then((r) => r.data),
+
+  /** ให้เครื่องมือ 2 ที่ยังไม่ขายตามทันตารางปัจจุบันทุกแถว (FIX-213) */
+  syncDevices: () =>
+    api.post<{ updated: number }>('/installment-presets/sync-devices').then((r) => r.data),
 
   delete: (id: string) =>
     api.delete<void>(`/installment-presets/${id}`).then((r) => r.data),

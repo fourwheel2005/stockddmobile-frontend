@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { CreditCard, Plus, Save, Trash2, Info, History } from 'lucide-react';
+import { CreditCard, Plus, Save, Trash2, Info, History, RefreshCw } from 'lucide-react';
 import {
   installmentPresetsApi, type InstallmentPresetResponse,
 } from '@/api/installmentPresets';
@@ -15,7 +15,8 @@ import { PriceHistoryModal } from '@/components/products/PriceHistoryModal';
 /**
  * ตารางดาวน์/ผ่อน "มือ 2" ต่อ รุ่น×ความจุ (FIX-123) — แก้ที่นี่ที่เดียว
  * เครื่องมือ 2 ที่ "รับเข้าใหม่" และรุ่น+ความจุตรง จะได้ดาวน์/ค่างวดจากตารางนี้อัตโนมัติ
- * (พนักงานกรอกผ่อนรายเครื่องเองตอนรับเข้า = ค่าที่กรอกชนะ · เครื่องในสต๊อกเดิมไม่ถูกแก้ย้อน)
+ * (พนักงานกรอกผ่อนรายเครื่องเองตอนรับเข้า = ค่าที่กรอกชนะ)
+ * FIX-213: บันทึกแล้วเครื่องมือ 2 ที่ยังไม่ขายเปลี่ยนตาม เฉพาะช่องที่แก้และเครื่องยังใช้ราคาตาราง
  */
 
 
@@ -52,12 +53,23 @@ export function InstallmentPresetsPage() {
   const upsert = useMutation({
     mutationFn: installmentPresetsApi.upsert,
     onSuccess: (row) => {
-      toast.success(`บันทึก ${row.productName} ${row.storage}GB แล้ว — มีผลกับเครื่องที่รับเข้าหลังจากนี้`);
+      const synced = row.syncedDevices ?? 0;
+      toast.success(`บันทึก ${row.productName} ${row.storage}GB แล้ว`
+        + (synced > 0 ? ` — เครื่องมือ 2 ในสต็อกเปลี่ยนตาม ${synced} เครื่อง (เว็บ/POS อัปเดต)` : ' — ไม่มีเครื่องในสต็อกที่ต้องเปลี่ยน'));
       setDrafts((d) => { const n = { ...d }; delete n[row.id]; return n; });
       qc.invalidateQueries({ queryKey: ['installment-presets'] });
     },
     onError: (e) => toast.error(extractErrorMessage(e)),
   });
+  // FIX-213: เครื่องที่ถือราคาตารางชุดเก่า (ตารางถูกแก้ก่อนมีการส่งต่อ) → ให้ตามทันทั้งตาราง
+  const syncDevices = useMutation({
+    mutationFn: installmentPresetsApi.syncDevices,
+    onSuccess: (res) => toast.success(res.updated > 0
+      ? `อัปเดตเครื่องมือ 2 ในสต็อกให้ตรงตาราง ${res.updated} เครื่อง (เว็บ/POS อัปเดต)`
+      : 'เครื่องมือ 2 ในสต็อกตรงกับตารางอยู่แล้ว'),
+    onError: (e) => toast.error(extractErrorMessage(e)),
+  });
+
   const del = useMutation({
     mutationFn: (id: string) => installmentPresetsApi.delete(id),
     onSuccess: () => {
@@ -112,8 +124,15 @@ export function InstallmentPresetsPage() {
         </h1>
         <p className="text-sm text-slate-500">
           ดาวน์/ค่างวดมาตรฐานต่อ รุ่น×ความจุ — เครื่องมือ 2 ที่<strong>รับเข้าใหม่</strong>และรุ่นตรง
-          จะได้ราคาชุดนี้อัตโนมัติ · กรอกเองตอนรับเข้า = ค่าที่กรอกชนะ · เครื่องในสต๊อกเดิมไม่ถูกแก้ย้อน
+          จะได้ราคาชุดนี้อัตโนมัติ · กรอกเองตอนรับเข้า = ค่าที่กรอกชนะ ·
+          บันทึกแล้ว<strong>เครื่องมือ 2 ที่ยังไม่ขาย</strong>เปลี่ยนตามเฉพาะช่องที่แก้ (เครื่องที่ตั้งราคาเองช่องนั้นไม่ถูกแตะ · เครื่องที่ขายแล้วไม่แตะ)
         </p>
+        <button type="button" className="btn-secondary mt-2" disabled={syncDevices.isPending}
+                title="ให้เครื่องมือ 2 ที่ยังไม่ขาย ซึ่งยังถือราคาตารางชุดเก่า เปลี่ยนตามตารางปัจจุบันทุกแถว"
+                onClick={() => { if (confirm('อัปเดตเครื่องมือ 2 ที่ยังไม่ขายให้ตรงกับตารางปัจจุบันทุกแถว?\n(เปลี่ยนเฉพาะเครื่องที่ยังใช้ราคาตารางชุดเก่า · เครื่องที่ตั้งราคาเองไม่ถูกแตะ)')) syncDevices.mutate(); }}>
+          <RefreshCw className={`h-4 w-4 ${syncDevices.isPending ? 'animate-spin' : ''}`} />
+          {syncDevices.isPending ? 'กำลังอัปเดต...' : 'อัปเดตเครื่องในสต็อกให้ตรงตาราง'}
+        </button>
       </div>
 
       {/* เพิ่มแถวใหม่ */}
