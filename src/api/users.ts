@@ -11,6 +11,13 @@ export interface AppUser {
   lastLogin: string | null;
 }
 
+/** แก้โปรไฟล์ (FIX-221) — newPassword เว้น = ไม่เปลี่ยน */
+export interface UpdateProfileRequest {
+  username: string;
+  fullName: string;
+  newPassword?: string;
+}
+
 export interface CreateUserRequest {
   username: string;
   fullName: string;
@@ -31,6 +38,10 @@ export const usersApi = {
 
   changeRole: (id: string, role: Role) =>
     api.patch<AppUser>(`/users/${id}/role`, null, { params: { role } }).then((r) => r.data),
+
+  /** แก้ชื่อผู้ใช้/ชื่อ-นามสกุล/รหัสผ่าน — ADMIN + FREEDOM · บัญชี FREEDOM แก้ได้เฉพาะ FREEDOM (FIX-221) */
+  updateProfile: (id: string, req: UpdateProfileRequest) =>
+    api.put<AppUser>(`/users/${id}`, req).then((r) => r.data),
 
   resetPassword: (id: string, newPassword: string) =>
     api.post<AppUser>(`/users/${id}/reset-password`, { newPassword }).then((r) => r.data),
