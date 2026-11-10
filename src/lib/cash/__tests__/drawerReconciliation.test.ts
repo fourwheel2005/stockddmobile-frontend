@@ -57,4 +57,22 @@ describe('reconcileDrawer', () => {
     expect(reconcileDrawer(null).balance).toBe(0);
     expect(reconcileDrawer([]).inflows).toEqual([]);
   });
+
+  // FIX-223: รับมัดจำสด 4,000 แล้วยกเลิกคืนสด 4,000 → เก๊ะกลับเท่าเดิม และเห็นเป็นบรรทัดมัดจำแยกจากบิลขาย
+  it('a cancelled reservation refunded in cash nets to zero and is shown on its own lines', () => {
+    const movements = [
+      mv('OPENING_FLOAT', 5000, { referenceType: 'SESSION' }),
+      mv('SALE_CASH', 5405),
+      mv('SALE_CASH', 4000, { referenceType: 'DEVICE_DEPOSIT', referenceNo: 'DP-1' }),
+      mv('REFUND_CASH', -4000, { referenceType: 'DEVICE_DEPOSIT', referenceNo: 'DP-1' }),
+      mv('REFUND_CASH', -300, { referenceType: 'REFUND' }),
+    ];
+    const r = reconcileDrawer(movements);
+
+    expect(r.inflows.find((l) => l.key === 'DEPOSIT_CASH')?.amount).toBe(4000);
+    expect(r.outflows.find((l) => l.key === 'DEPOSIT_REFUND_CASH')?.amount).toBe(-4000);
+    expect(r.outflows.find((l) => l.key === 'REFUND_CASH')?.amount).toBe(-300);
+    expect(r.balance).toBe(5000 + 5405 - 300);
+    expect(r.balance).toBe(movements.reduce((s, m) => s + m.amount, 0));
+  });
 });

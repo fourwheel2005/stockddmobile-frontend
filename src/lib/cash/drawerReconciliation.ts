@@ -9,7 +9,7 @@ import type { CashMovementLine, CashMovementType } from '@/types/api';
 export type DrawerLineKey =
   | 'OPENING_FLOAT' | 'SALE_CASH' | 'REPAIR_CASH' | 'INSTALLMENT_CASH' | 'DEPOSIT_CASH'
   | 'CASH_IN' | 'ADJUSTMENT_PLUS'
-  | 'REFUND_CASH' | 'PAYOUT' | 'SAFE_DROP' | 'ADJUSTMENT_MINUS';
+  | 'REFUND_CASH' | 'DEPOSIT_REFUND_CASH' | 'PAYOUT' | 'SAFE_DROP' | 'ADJUSTMENT_MINUS';
 
 export interface DrawerLine {
   key: DrawerLineKey;
@@ -45,14 +45,15 @@ const LABELS: Record<DrawerLineKey, string> = {
   DEPOSIT_CASH:     'มัดจำ/จองเครื่อง รับเป็นเงินสด',
   CASH_IN:          'เติมเงินสดเข้าเก๊ะ (รวมตา/ยายใส่เงิน)',
   ADJUSTMENT_PLUS:  'ปรับปรุงเพิ่ม',
-  REFUND_CASH:      'คืนเงินสดให้ลูกค้า',
+  REFUND_CASH:      'คืนเงินสดให้ลูกค้า (บิลขาย/ค่าซ่อม)',
+  DEPOSIT_REFUND_CASH: 'คืนมัดจำ/จองเครื่อง เป็นเงินสด (ยกเลิก)',
   PAYOUT:           'จ่ายออกจากเก๊ะ (ค่าส่ง/ค่าใช้จ่าย/ส่วนต่างเทิร์น)',
   SAFE_DROP:        'เก็บเงินเข้าตู้นิรภัย',
   ADJUSTMENT_MINUS: 'ปรับปรุงลด',
 };
 
 const INFLOW_ORDER: DrawerLineKey[] = ['SALE_CASH', 'REPAIR_CASH', 'INSTALLMENT_CASH', 'DEPOSIT_CASH', 'CASH_IN', 'ADJUSTMENT_PLUS'];
-const OUTFLOW_ORDER: DrawerLineKey[] = ['REFUND_CASH', 'PAYOUT', 'SAFE_DROP', 'ADJUSTMENT_MINUS'];
+const OUTFLOW_ORDER: DrawerLineKey[] = ['REFUND_CASH', 'DEPOSIT_REFUND_CASH', 'PAYOUT', 'SAFE_DROP', 'ADJUSTMENT_MINUS'];
 
 const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
@@ -72,7 +73,7 @@ function drawerKey(m: CashMovementLine): DrawerLineKey | null {
     SALE_CASH: saleCashKey(m),
     CASH_IN: 'CASH_IN',
     PETTY_CASH_FROM_OWNER: 'CASH_IN',
-    REFUND_CASH: 'REFUND_CASH',
+    REFUND_CASH: m.referenceType === 'DEVICE_DEPOSIT' ? 'DEPOSIT_REFUND_CASH' : 'REFUND_CASH',   // FIX-223
     PAYOUT_SHIPPING: 'PAYOUT',
     PAYOUT_EXPENSE: 'PAYOUT',
     TRADEIN_PAYOUT: 'PAYOUT',
@@ -96,9 +97,9 @@ function nonDrawerKey(m: CashMovementLine): NonDrawerLine['key'] | null {
 }
 
 const NON_DRAWER_LABELS: Record<NonDrawerLine['key'], string> = {
-  TRANSFER:        'ขายรับโอน (เข้าบัญชีร้าน)',
-  CARD:            'ขายรูดบัตร (เข้าบัญชีร้าน)',
-  QR:              'ขายรับ QR (เข้าบัญชีร้าน)',
+  TRANSFER:        'รับโอน — ขาย/ค่าซ่อม/มัดจำ (เข้าบัญชีร้าน)',
+  CARD:            'รูดบัตร — ขาย/ค่าซ่อม/มัดจำ (เข้าบัญชีร้าน)',
+  QR:              'รับ QR — ขาย/ค่าซ่อม/มัดจำ (เข้าบัญชีร้าน)',
   FINANCE:         'ไฟแนนซ์โอนคืน (เข้าบัญชีร้าน)',
   REFUND_TRANSFER: 'คืนเงินผ่านโอน (ออกจากบัญชี)',
   OWNER_PAID:      'ตา/ยายจ่ายแทนเก๊ะ',

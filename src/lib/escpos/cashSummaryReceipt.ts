@@ -141,6 +141,10 @@ function printSales(b: EscPosBuilder, data: SummaryReceiptData): void {
   if ((payment.depositTotal ?? 0) > 0) {
     b.justify(`  ในนี้เป็นมัดจำ/จอง (${payment.depositCount ?? 0} ใบ)`, money(payment.depositTotal), W);   // FIX-214
   }
+  if ((payment.depositRefundTotal ?? 0) > 0) {
+    b.justify('  คืนมัดจำ (อยู่ในคืนเงิน)', `-${money(payment.depositRefundTotal ?? 0)}`, W);   // FIX-223
+    b.justify('  มัดจำสุทธิ', money((payment.depositTotal ?? 0) - (payment.depositRefundTotal ?? 0)), W);
+  }
   b.justify(`คืนเงิน (${data.refundCount})`, `-${money(net.refundTotal)}`, W);
   b.bold(true).justify('ยอดรับสุทธิ', money(net.netTotal), W).bold(false);
 }

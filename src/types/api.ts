@@ -1003,6 +1003,8 @@ export interface PaymentBreakdown {
   /** ในยอดรับนี้เป็นเงินมัดจำ/จองเครื่องเท่าไหร่ / กี่ใบ (FIX-214) — รวมอยู่ในช่องทางด้านบนแล้ว */
   depositTotal?:      number;
   depositCount?:      number;
+  /** มัดจำที่คืนลูกค้าในกะ/ช่วงนี้ (FIX-223) — อยู่ในยอดคืนเงินแล้ว · มัดจำสุทธิ = depositTotal − depositRefundTotal */
+  depositRefundTotal?: number | null;
 }
 
 export interface CashSessionResponse {

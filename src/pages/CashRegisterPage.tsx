@@ -33,6 +33,20 @@ const TYPE_TH: Record<CashMovementType, string> = {
   ADJUSTMENT:              'ปรับปรุง',
 };
 
+/** เงินมัดจำ/จองเครื่องใช้ประเภทเดียวกับการขาย (เข้า/ออกเก๊ะเหมือนกัน) — ป้ายต้องบอกว่าเป็นมัดจำ ไม่ใช่ "ขาย" (FIX-223) */
+const DEPOSIT_TYPE_TH: Partial<Record<CashMovementType, string>> = {
+  SALE_CASH:       'รับมัดจำ (เงินสด)',
+  SALE_TRANSFER:   'รับมัดจำ (โอน)',
+  SALE_CARD:       'รับมัดจำ (บัตร)',
+  SALE_QR:         'รับมัดจำ (QR)',
+  REFUND_CASH:     'คืนมัดจำ (เงินสด)',
+  REFUND_TRANSFER: 'คืนมัดจำ (โอน)',
+};
+
+export function movementLabel(type: CashMovementType, referenceType?: string | null): string {
+  return (referenceType === 'DEVICE_DEPOSIT' ? DEPOSIT_TYPE_TH[type] : undefined) ?? TYPE_TH[type];
+}
+
 const PAID_FROM_TH: Record<PaidFrom, string> = {
   REGISTER:      'เก๊ะ',
   OWNER_GRANDPA: 'ตา',
@@ -202,7 +216,7 @@ export function CashRegisterPage() {
                     return (
                       <tr key={m.id} className="hover:bg-slate-50">
                         <td className="px-4 py-2 text-xs text-slate-500">{formatDateTime(m.createdAt)}</td>
-                        <td className="px-4 py-2">{TYPE_TH[m.type]}</td>
+                        <td className="px-4 py-2">{movementLabel(m.type, m.referenceType)}</td>
                         <td className="px-4 py-2">{PAID_FROM_TH[m.paidFrom]}</td>
                         <td className="px-4 py-2 text-xs font-mono text-slate-600">
                           {m.referenceNo ?? '-'}

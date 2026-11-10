@@ -26,7 +26,7 @@ describe('DrawerReconciliationCard', () => {
     expect(html).toContain('ค่างวดผ่อน รับเป็นเงินสด');
     expect(html).toContain('จ่ายออกจากเก๊ะ');
     expect(html).toContain('฿13,810.00');            // 1000 + 12800 + 100 − 90
-    expect(html).toContain('ขายรับโอน (เข้าบัญชีร้าน)');
+    expect(html).toContain('รับโอน — ขาย/ค่าซ่อม/มัดจำ (เข้าบัญชีร้าน)');
     // ยอดตามวันที่บัญชีรวมขาย 12,800 + ค่างวด 100 = 12,900 ตรงกับเงินสดที่เข้าเก๊ะ → ไม่เตือน (FIX-207)
     expect(html).not.toContain('สรุปยอดรับตามวันที่บัญชี&quot; นับเงินสด');
   });

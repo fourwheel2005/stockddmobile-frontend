@@ -60,7 +60,19 @@ describe('PaymentBreakdownCard deposits (FIX-214)', () => {
     const html = renderToStaticMarkup(
       <PaymentBreakdownCard breakdown={{ ...breakdown, depositTotal: 5000, depositCount: 1 }} />,
     );
-    expect(html).toContain('มัดจำ/จองเครื่อง (1 ใบ)');
+    expect(html).toContain('มัดจำ/จองเครื่อง รับในกะนี้ (1 ใบ)');
     expect(html).toContain('฿5,000.00');
+    expect(html).not.toContain('มัดจำสุทธิ');
+  });
+
+  // FIX-223: ยกเลิกแล้วคืนมัดจำ → การ์ดต้องบอกว่าคืนไปเท่าไหร่ และมัดจำสุทธิเหลือเท่าไหร่ (ไม่ใช่โชว์แต่ยอดรับ)
+  it('shows the deposit refund and what is left after a cancelled reservation', () => {
+    const html = renderToStaticMarkup(
+      <PaymentBreakdownCard refundCashTotal={4000}
+        breakdown={{ ...breakdown, depositTotal: 4000, depositCount: 1, depositRefundTotal: 4000 }} />,
+    );
+    expect(html).toContain('คืนมัดจำ (ยกเลิก)');
+    expect(html).toContain('−฿4,000.00');
+    expect(html).toMatch(/มัดจำสุทธิของกะนี้<\/span><span[^>]*>฿0\.00/);
   });
 });

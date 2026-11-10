@@ -33,6 +33,7 @@ export function PaymentBreakdownCard({ breakdown, refundCashTotal = 0, refundTra
 
   const net = netPayments(breakdown, refundCashTotal, refundTransferTotal);
   const hasRefund = net.refundTotal > 0;
+  const depositRefund = Number(breakdown.depositRefundTotal ?? 0);
 
   return (
     <div className={`overflow-hidden rounded-lg border border-slate-200 bg-white ${className}`}>
@@ -75,10 +76,25 @@ export function PaymentBreakdownCard({ breakdown, refundCashTotal = 0, refundTra
           <span className="font-semibold tabular-nums">{formatTHB(breakdown.repairTotal ?? 0)}</span>
         </div>
       )}
-      {(breakdown.depositTotal ?? 0) > 0 && (
-        <div className="flex items-center justify-between border-t border-slate-100 px-4 py-2 text-xs text-slate-600">
-          <span>ในยอดด้านบนเป็นมัดจำ/จองเครื่อง ({breakdown.depositCount ?? 0} ใบ) — ยอดขายนับวันที่ขายเครื่อง</span>
-          <span className="font-semibold tabular-nums">{formatTHB(breakdown.depositTotal ?? 0)}</span>
+      {/* มัดจำ/จองเครื่อง: รับ − คืน = ที่ร้านถืออยู่ (FIX-223 — ยกเลิกแล้วคืนเงิน ยอดนี้ต้องลดให้เห็น) */}
+      {((breakdown.depositTotal ?? 0) > 0 || depositRefund > 0) && (
+        <div className="border-t border-slate-100 px-4 py-2 text-xs text-slate-600">
+          <div className="flex items-center justify-between">
+            <span>มัดจำ/จองเครื่อง รับในกะนี้ ({breakdown.depositCount ?? 0} ใบ) — ยอดขายนับวันที่ขายเครื่อง</span>
+            <span className="font-semibold tabular-nums">{formatTHB(breakdown.depositTotal ?? 0)}</span>
+          </div>
+          {depositRefund > 0 && (
+            <>
+              <div className="flex items-center justify-between text-rose-700">
+                <span>คืนมัดจำ (ยกเลิก) — รวมอยู่ใน “คืนเงิน” ด้านล่างแล้ว</span>
+                <span className="font-semibold tabular-nums">−{formatTHB(depositRefund)}</span>
+              </div>
+              <div className="flex items-center justify-between font-semibold text-slate-700">
+                <span>มัดจำสุทธิของกะนี้</span>
+                <span className="tabular-nums">{formatTHB((breakdown.depositTotal ?? 0) - depositRefund)}</span>
+              </div>
+            </>
+          )}
         </div>
       )}
       {hasRefund && (
