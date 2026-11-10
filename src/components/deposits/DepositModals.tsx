@@ -16,6 +16,7 @@ import { depositRemaining } from '@/lib/pos/deposit';
 import { ImeiInput } from '@/components/ImeiInput';
 import { useModalChrome, backdropCloseHandler } from '@/hooks/useModalChrome';
 import { useBranchStore } from '@/stores/branchStore';
+import { cancelEffects, cancelPlan, defaultRefundMethod, type CancelMode } from '@/lib/depositCancel';
 import { DeviceCheckFields } from '@/components/inventory/DeviceCheckFields';
 import { EMPTY_CHECK, checkRequest } from '@/lib/deviceCheck';
 import type {
@@ -539,25 +540,32 @@ export function DepositPaymentModal({ deposit, onClose, onDone }: { deposit: Dev
 
 export function DepositCancelModal({ deposit, onClose, onDone }: { deposit: DeviceDeposit; onClose: () => void; onDone?: (d: DeviceDeposit) => void }) {
   const invalidate = useInvalidateDeposits();
-  const [refund, setRefund] = useState(String(deposit.balance));
-  const [method, setMethod] = useState<'CASH' | 'TRANSFER'>('CASH');
+  // FIX-224: เลือกแบบกดง่าย ๆ — ระบบคิดยอดให้เอง (ค่าเริ่มต้น = คืนเต็ม) · เดิมต้องกรอกยอดเอง "0 = ริบ" ทำให้คืนไม่ครบโดยไม่ตั้งใจ
+  const [mode, setMode] = useState<CancelMode>('FULL');
+  const [partial, setPartial] = useState('');
+  // คืนทางเดียวกับที่ลูกค้าจ่ายมาเป็นค่าเริ่มต้น (รับสด → คืนสด · นอกนั้น → โอนคืน)
+  const [method, setMethod] = useState<'CASH' | 'TRANSFER'>(() => defaultRefundMethod(deposit));
   const [reason, setReason] = useState('');
   const [code, setCode] = useState('');
-  const value = num(refund);
-  const forfeited = Number.isFinite(value) ? Math.max(0, deposit.balance - value) : 0;
-  const error = !(value >= 0) ? 'กรอกยอดคืน (0 = ไม่คืน)'
-    : value > deposit.balance ? 'คืนเกินมัดจำที่รับไว้'
-    : !code.trim() ? 'กรอกรหัสความปลอดภัยร้าน' : null;
+  const plan = cancelPlan(deposit.balance, mode, num(partial));
+  const error = plan.error ?? (!code.trim() ? 'กรอกรหัสความปลอดภัยร้าน' : null);
   const save = useMutation({
-    mutationFn: () => deviceDepositsApi.cancel(deposit.id, value, method, reason.trim(), code.trim()),
+    mutationFn: () => deviceDepositsApi.cancel(deposit.id, plan.refund, method, reason.trim(), code.trim()),
     onSuccess: (d) => {
-      toast.success(`ยกเลิก ${deposit.depositNo} แล้ว · คืน ${formatTHB(value)}${forfeited > 0 ? ` · ริบ ${formatTHB(forfeited)}` : ''}`);
+      toast.success(`ยกเลิก ${deposit.depositNo} แล้ว · คืน ${formatTHB(plan.refund)}${plan.kept > 0 ? ` · ร้านเก็บไว้ ${formatTHB(plan.kept)}` : ''}`);
       invalidate();
       onDone?.(d);
       onClose();
     },
     onError: (e) => toast.error(extractErrorMessage(e)),
   });
+  const option = (m: CancelMode, title: string, hint: string) => (
+    <button type="button" onClick={() => setMode(m)} aria-pressed={mode === m}
+            className={`w-full rounded-lg border px-3 py-2 text-left ${mode === m ? 'border-rose-500 bg-rose-50 ring-1 ring-rose-300' : 'border-slate-300 hover:bg-slate-50'}`}>
+      <div className="text-sm font-semibold text-slate-800">{title}</div>
+      <div className="text-xs text-slate-500">{hint}</div>
+    </button>
+  );
   return (
     <Shell title={`ยกเลิก — ${deposit.depositNo}`} icon={<XCircle className="h-5 w-5 text-rose-600" />} onClose={onClose}
            footer={<>
@@ -565,20 +573,41 @@ export function DepositCancelModal({ deposit, onClose, onDone }: { deposit: Devi
              <button className="btn-primary bg-rose-600 hover:bg-rose-700" disabled={!!error || save.isPending}
                      title={error ?? undefined} onClick={() => save.mutate()}>ยืนยันยกเลิก</button>
            </>}>
-      <div className="text-sm text-slate-600">มัดจำที่รับไว้ {formatTHB(deposit.balance)} · {deposit.customerName}</div>
-      <Field label="คืนเงินลูกค้า (บาท)" hint="0 = ไม่คืน (ร้านริบมัดจำ)">
-        <input type="number" min={0} className="input text-right" value={refund} onChange={(e) => setRefund(e.target.value)} />
-      </Field>
-      {value > 0 && (
-        <Field label="คืนเป็น">
-          <MethodPicker value={method} onChange={(m) => setMethod(m as 'CASH' | 'TRANSFER')}
-                        options={[{ value: 'CASH', label: 'เงินสด (ออกจากเก๊ะ)' }, { value: 'TRANSFER', label: 'โอนคืน' }]} />
+      <div className="text-sm text-slate-600">{deposit.customerName} · มัดจำที่ร้านรับไว้ <strong>{formatTHB(deposit.balance)}</strong></div>
+      {deposit.balance > 0 ? (
+        <Field label="เงินมัดจำจะทำอย่างไร">
+          <div className="space-y-1.5">
+            {option('FULL', `คืนเงินลูกค้าทั้งหมด ${formatTHB(deposit.balance)}`, 'ใช้เมื่อร้านยกเลิกเอง หรือตกลงคืนเต็มจำนวน (แนะนำ)')}
+            {option('PARTIAL', 'คืนบางส่วน', 'ระบุยอดที่คืน ส่วนที่เหลือร้านเก็บไว้')}
+            {option('NONE', 'ไม่คืนเงิน (ร้านเก็บมัดจำไว้ทั้งหมด)', 'ใช้เมื่อลูกค้าผิดนัด/สละสิทธิ์ตามเงื่อนไขร้าน')}
+          </div>
+        </Field>
+      ) : (
+        <div className="rounded bg-slate-50 px-3 py-2 text-sm text-slate-600">ใบนี้ไม่มีเงินมัดจำค้าง — ยกเลิกได้เลย ไม่มีเงินเข้า/ออก</div>
+      )}
+      {mode === 'PARTIAL' && deposit.balance > 0 && (
+        <Field label="ยอดที่คืนลูกค้า (บาท)">
+          <input type="number" min={0} max={deposit.balance} className="input text-right" value={partial} autoFocus
+                 onChange={(e) => setPartial(e.target.value)} />
         </Field>
       )}
-      {forfeited > 0 && <div className="rounded bg-amber-50 px-3 py-2 text-sm text-amber-800">ร้านริบมัดจำ {formatTHB(forfeited)}</div>}
-      <Field label="เหตุผล"><input className="input" value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
+      {plan.refund > 0 && (
+        <Field label="คืนเงินทางไหน">
+          <MethodPicker value={method} onChange={(m) => setMethod(m as 'CASH' | 'TRANSFER')}
+                        options={[{ value: 'CASH', label: 'เงินสด (หยิบจากเก๊ะ)' }, { value: 'TRANSFER', label: 'โอนคืน' }]} />
+        </Field>
+      )}
+      {/* สรุปสิ่งที่จะเกิดขึ้นกับเงิน — อ่านก่อนกดยืนยัน */}
+      {!plan.error && deposit.balance > 0 && (
+        <div className="space-y-0.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+          <div className="text-xs font-semibold text-slate-500">เมื่อกดยืนยัน ระบบจะทำให้อัตโนมัติ</div>
+          {cancelEffects(plan, method).map((line) => <div key={line} className="text-slate-700">• {line}</div>)}
+          {deposit.serialItemId && <div className="text-slate-700">• เครื่องกลับเป็น “พร้อมขาย” ทันที (เว็บหน้าร้านอัปเดตตาม)</div>}
+          <div className="text-slate-700">• พิมพ์ใบยกเลิก/คืนเงินมัดจำให้ลูกค้า</div>
+        </div>
+      )}
+      <Field label="เหตุผล (ไม่บังคับ)"><input className="input" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="เช่น ลูกค้าเปลี่ยนใจ" /></Field>
       <Field label="รหัสความปลอดภัยร้าน *"><input type="password" className="input" value={code} onChange={(e) => setCode(e.target.value)} /></Field>
-      {deposit.serialItemId && <p className="text-[11px] text-slate-500">เครื่องจะกลับเป็น "พร้อมขาย" ทันที</p>}
     </Shell>
   );
 }
