@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Bookmark, PackageCheck, PackagePlus, Pencil, Search, ShoppingCart, Wallet, XCircle } from 'lucide-react';
+import { Bookmark, PackageCheck, PackagePlus, Pencil, Printer, Search, ShoppingCart, Wallet, XCircle } from 'lucide-react';
+import { useDepositPrinter } from '@/hooks/useDepositPrinter';
+import { depositForfeited, depositPaymentText } from '@/lib/escpos/depositEscpos';
 import { deviceDepositsApi } from '@/api/deviceDeposits';
 import { formatTHB, formatDateTime } from '@/lib/format';
 import {
@@ -24,6 +26,7 @@ const STATUS_LABEL: Record<DeviceDepositStatus, string> = {
 
 export function DeviceDepositsPage() {
   const navigate = useNavigate();
+  const printer = useDepositPrinter();   // FIX-222
   const [tab, setTab] = useState<Tab>('READY');
   const [q, setQ] = useState('');
   const [modal, setModal] = useState<
@@ -115,6 +118,30 @@ export function DeviceDepositsPage() {
               {d.cancelReason && <div className="text-xs text-rose-700">ยกเลิก: {d.cancelReason}</div>}
               {d.note && <div className="text-xs text-slate-500">หมายเหตุ: {d.note}</div>}
 
+              {/* ประวัติเงินของใบ — รับ/คืน ทีละรายการ (FIX-222) */}
+              {d.payments.length > 0 && (
+                <div className="rounded-md border border-slate-100 px-3 py-1.5 text-xs text-slate-600">
+                  {d.payments.map((p, i) => (
+                    <div key={i} className="flex justify-between gap-2">
+                      <span>{formatDateTime(p.paidAt)} · {depositPaymentText(p)}</span>
+                      <span className={`tabular-nums ${p.kind === 'REFUND' ? 'text-rose-700' : 'text-emerald-700'}`}>
+                        {p.kind === 'REFUND' ? '−' : '+'}{formatTHB(p.amount)}
+                      </span>
+                    </div>
+                  ))}
+                  {depositForfeited(d) > 0 && (
+                    <div className="mt-0.5 flex justify-between gap-2 border-t border-slate-100 pt-0.5 font-medium text-amber-700">
+                      <span>ร้านเก็บไว้ (ไม่คืน)</span><span className="tabular-nums">{formatTHB(depositForfeited(d))}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+              <div className="flex flex-wrap gap-2 pt-1">
+                <button className="btn-secondary" onClick={() => printer.print(d)} title="พิมพ์ใบรับเงินมัดจำให้ลูกค้า">
+                  <Printer className="h-4 w-4" /> พิมพ์ใบมัดจำ
+                </button>
+              </div>
+
               {(d.status === 'WAITING_ARRIVAL' || d.status === 'READY') && (
                 <div className="flex flex-wrap gap-2 pt-1">
                   {d.status === 'WAITING_ARRIVAL' && (
@@ -145,11 +172,12 @@ export function DeviceDepositsPage() {
         ))}
       </div>
 
-      {modal?.kind === 'reserve' && <ReserveDeviceModal onClose={() => setModal(null)} />}
-      {modal?.kind === 'order' && <OrderDeviceModal onClose={() => setModal(null)} />}
+      {modal?.kind === 'reserve' && <ReserveDeviceModal onClose={() => setModal(null)} onDone={printer.print} />}
+      {modal?.kind === 'order' && <OrderDeviceModal onClose={() => setModal(null)} onDone={printer.print} />}
       {modal?.kind === 'arrive' && <DepositArrivalModal deposit={modal.deposit} onClose={() => setModal(null)} />}
-      {modal?.kind === 'pay' && <DepositPaymentModal deposit={modal.deposit} onClose={() => setModal(null)} />}
-      {modal?.kind === 'cancel' && <DepositCancelModal deposit={modal.deposit} onClose={() => setModal(null)} />}
+      {modal?.kind === 'pay' && <DepositPaymentModal deposit={modal.deposit} onClose={() => setModal(null)} onDone={printer.print} />}
+      {modal?.kind === 'cancel' && <DepositCancelModal deposit={modal.deposit} onClose={() => setModal(null)} onDone={printer.print} />}
+      {printer.view}
       {modal?.kind === 'edit' && <DepositEditModal deposit={modal.deposit} onClose={() => setModal(null)} />}
     </div>
   );

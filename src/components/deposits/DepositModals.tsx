@@ -511,7 +511,7 @@ export function DepositArrivalModal({ deposit, onClose, onDone }: {
 
 // ─── รับมัดจำเพิ่ม ────────────────────────────────────────────────────────
 
-export function DepositPaymentModal({ deposit, onClose }: { deposit: DeviceDeposit; onClose: () => void }) {
+export function DepositPaymentModal({ deposit, onClose, onDone }: { deposit: DeviceDeposit; onClose: () => void; onDone?: (d: DeviceDeposit) => void }) {
   const invalidate = useInvalidateDeposits();
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState<DepositMethod>('CASH');
@@ -519,7 +519,7 @@ export function DepositPaymentModal({ deposit, onClose }: { deposit: DeviceDepos
   const error = !(value > 0) ? 'กรอกยอดรับเพิ่ม' : value > deposit.remaining ? 'เกินยอดคงเหลือ' : null;
   const save = useMutation({
     mutationFn: () => deviceDepositsApi.addPayment(deposit.id, value, method),
-    onSuccess: (d) => { toast.success(`รับเพิ่มแล้ว · มัดจำรวม ${formatTHB(d.balance)} · คงเหลือ ${formatTHB(d.remaining)}`); invalidate(); onClose(); },
+    onSuccess: (d) => { toast.success(`รับเพิ่มแล้ว · มัดจำรวม ${formatTHB(d.balance)} · คงเหลือ ${formatTHB(d.remaining)}`); invalidate(); onDone?.(d); onClose(); },
     onError: (e) => toast.error(extractErrorMessage(e)),
   });
   return (
@@ -537,7 +537,7 @@ export function DepositPaymentModal({ deposit, onClose }: { deposit: DeviceDepos
 
 // ─── ยกเลิก (คืน/ริบมัดจำ) ─────────────────────────────────────────────────
 
-export function DepositCancelModal({ deposit, onClose }: { deposit: DeviceDeposit; onClose: () => void }) {
+export function DepositCancelModal({ deposit, onClose, onDone }: { deposit: DeviceDeposit; onClose: () => void; onDone?: (d: DeviceDeposit) => void }) {
   const invalidate = useInvalidateDeposits();
   const [refund, setRefund] = useState(String(deposit.balance));
   const [method, setMethod] = useState<'CASH' | 'TRANSFER'>('CASH');
@@ -550,9 +550,10 @@ export function DepositCancelModal({ deposit, onClose }: { deposit: DeviceDeposi
     : !code.trim() ? 'กรอกรหัสความปลอดภัยร้าน' : null;
   const save = useMutation({
     mutationFn: () => deviceDepositsApi.cancel(deposit.id, value, method, reason.trim(), code.trim()),
-    onSuccess: () => {
+    onSuccess: (d) => {
       toast.success(`ยกเลิก ${deposit.depositNo} แล้ว · คืน ${formatTHB(value)}${forfeited > 0 ? ` · ริบ ${formatTHB(forfeited)}` : ''}`);
       invalidate();
+      onDone?.(d);
       onClose();
     },
     onError: (e) => toast.error(extractErrorMessage(e)),

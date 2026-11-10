@@ -53,6 +53,7 @@ import { printAndConfirmReceipt } from '@/lib/printer/browserPrintConfirmation';
 import { Link, useSearchParams } from 'react-router-dom';
 import { deviceDepositsApi } from '@/api/deviceDeposits';
 import { OrderDeviceModal, ReserveDeviceModal } from '@/components/deposits/DepositModals';
+import { useDepositPrinter } from '@/hooks/useDepositPrinter';
 import { depositDue } from '@/lib/pos/deposit';
 
 const SHIPPING_PARTNER_OPTIONS: { value: ShippingPartner; label: string }[] = [
@@ -199,6 +200,7 @@ export function PosTerminalPage() {
   // FIX-214: ขายเครื่องที่จอง/วางมัดจำไว้ — หักมัดจำคงเหลือของใบนี้จากยอดที่ต้องจ่าย
   const [activeDeposit, setActiveDeposit] = useState<DeviceDeposit | null>(null);
   const [showReserve, setShowReserve] = useState(false);
+  const depositPrinter = useDepositPrinter();   // FIX-222: ใบรับเงินมัดจำหลังจอง/มัดจำสั่งเครื่อง
   const [showOrderDeposit, setShowOrderDeposit] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH');
   const [paymentRef, setPaymentRef] = useState('');
@@ -1972,8 +1974,8 @@ export function PosTerminalPage() {
         />
       )}
       {showLookup && <DeviceLookupModal onClose={() => setShowLookup(false)} />}
-      {showReserve && <ReserveDeviceModal onClose={() => setShowReserve(false)} />}
-      {showOrderDeposit && <OrderDeviceModal onClose={() => setShowOrderDeposit(false)} />}
+      {showReserve && <ReserveDeviceModal onClose={() => setShowReserve(false)} onDone={depositPrinter.print} />}
+      {showOrderDeposit && <OrderDeviceModal onClose={() => setShowOrderDeposit(false)} onDone={depositPrinter.print} />}
       {showRepair && (
         <RepairIntakeModal
           onClose={() => setShowRepair(false)}
@@ -2014,7 +2016,7 @@ export function PosTerminalPage() {
 
       {/* Hidden printouts — only visible when window.print() fires.
           แสดงครั้งละหนึ่งใบเท่านั้น (ใบเสร็จขาย หรือ ใบรับซ่อม) เพื่อกันพิมพ์ซ้อน */}
-      {repairToPrint
+      {depositPrinter.view ? depositPrinter.view : repairToPrint
         ? <RepairBillPrintView ticket={repairToPrint} />
         : receiptToPrint
           ? <ReceiptPrintView order={receiptToPrint.order} duplicate={receiptToPrint.duplicate} />
