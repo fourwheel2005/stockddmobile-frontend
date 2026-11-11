@@ -1481,6 +1481,10 @@ export interface RepairTicket {
   pickedUpAt: string | null;
   note: string | null;
   createdAt: string;
+  /** การรับประกัน (FIX-225): รหัส / ข้อความ / หมดวันไหน (ยังไม่รับเครื่อง = null) */
+  warranty?: 'NONE' | 'M1' | 'M3' | 'M6' | 'Y1' | null;
+  warrantyLabel?: string | null;
+  warrantyUntil?: string | null;
 }
 
 export interface CreateRepairRequest {
@@ -1502,6 +1506,8 @@ export interface CreateRepairRequest {
   technicianName?: string;
   outsourceCost?: number;
   note?: string;
+  /** การรับประกัน (FIX-225) */
+  warranty?: 'NONE' | 'M1' | 'M3' | 'M6' | 'Y1';
 }
 
 export interface UpdateRepairStatusRequest {
@@ -1535,6 +1541,8 @@ export interface UpdateRepairRequest {
   technicianName?: string;
   outsourceCost?: number;
   note?: string;
+  /** การรับประกัน (FIX-225) */
+  warranty?: 'NONE' | 'M1' | 'M3' | 'M6' | 'Y1';
 }
 
 export interface WarrantyLookup {

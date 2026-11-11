@@ -1,4 +1,7 @@
 import { Fragment, useMemo, useState } from 'react';
+import { RepairWarrantyPicker } from '@/components/RepairWarrantyPicker';
+import { repairWarrantyText } from '@/lib/repairWarranty';
+import type { RepairWarranty } from '@/lib/repairWarranty';
 import { cancelRequest, depositDelta, repairPickupSettlement, REPAIR_MONEY_METHODS, type CancelDepositChoice } from '@/lib/repairMoney';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -198,6 +201,11 @@ export function RepairListPage() {
                         ส่งช่าง{t.technicianName ? `: ${t.technicianName}` : ''}
                       </div>
                     )}
+                    {repairWarrantyText(t) && (
+                      <div className={`mt-0.5 text-[11px] ${t.warranty === 'NONE' ? 'text-slate-400' : 'text-emerald-700'}`}>
+                        {repairWarrantyText(t)}
+                      </div>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="font-semibold">{formatTHB(t.repairCost)}</div>
@@ -394,8 +402,10 @@ function EditRepairDialog({ ticket, pending, onClose, onSave }: {
     imei: ticket.imei ?? '', serialNumber: ticket.serialNumber ?? '', screenCode: ticket.screenCode ?? '',
     reportedSymptom: ticket.reportedSymptom, workDescription: ticket.workDescription ?? '',
     estimatedCost: ticket.estimatedCost ?? 0, repairCost: ticket.repairCost, depositAmount: ticket.depositAmount,
-    outsourced: ticket.outsourced, technicianName: ticket.technicianName ?? '', outsourceCost: ticket.outsourceCost ?? 0,
+    // FIX-225: STAFF ไม่เห็นค่าช่างที่บันทึกไว้ (null) → ช่องว่าง และไม่ส่งถ้าไม่ได้กรอก (backend ไม่ทับค่าเดิมอยู่แล้ว)
+    outsourced: ticket.outsourced, technicianName: ticket.technicianName ?? '', outsourceCost: (ticket.outsourceCost ?? '') as number | '',
     note: ticket.note ?? '',
+    warranty: (ticket.warranty ?? 'NONE') as RepairWarranty,
   });
   // FIX-207: แก้มัดจำ = มีเงินเข้า/ออกจริง → เลือกช่องทาง (ลงเก๊ะ/สมุดเงินงานซ่อม)
   const [depositMethod, setDepositMethod] = useState<PaymentMethod>('CASH');
@@ -457,6 +467,7 @@ function EditRepairDialog({ ticket, pending, onClose, onSave }: {
             <ImeiInput className="input text-sm" placeholder="IMEI" value={f.imei ?? ''} onChange={(imei) => set({ imei })} />
             <input className="input text-sm" placeholder="รหัสหน้าจอ" value={f.screenCode} onChange={(e) => set({ screenCode: e.target.value })} />
           </div>
+          <RepairWarrantyPicker value={f.warranty} onChange={(warranty) => set({ warranty })} />
           {/* ส่งซ่อมช่างนอก (FIX-093) */}
           <div className="rounded-md border border-amber-200 bg-amber-50/60 p-2.5">
             <label className="flex items-center gap-2 text-sm font-medium text-amber-900">
@@ -469,7 +480,7 @@ function EditRepairDialog({ ticket, pending, onClose, onSave }: {
                 <input className="input text-sm" placeholder="ชื่อช่าง" value={f.technicianName}
                        onChange={(e) => set({ technicianName: e.target.value })} />
                 <input type="number" min={0} className="input text-sm" placeholder="ราคาส่งซ่อม (จ่ายช่าง)"
-                       value={f.outsourceCost} onChange={(e) => set({ outsourceCost: Number(e.target.value) || 0 })} />
+                       value={f.outsourceCost} onChange={(e) => set({ outsourceCost: e.target.value === '' ? '' : Number(e.target.value) || 0 })} />
               </div>
             )}
           </div>
@@ -491,8 +502,9 @@ function EditRepairDialog({ ticket, pending, onClose, onSave }: {
                     depositPaymentMethod: depositMethod,
                     outsourced: f.outsourced,
                     technicianName: f.outsourced ? f.technicianName : '',
-                    outsourceCost: f.outsourced ? f.outsourceCost : 0,
+                    outsourceCost: f.outsourced ? (f.outsourceCost === '' ? undefined : f.outsourceCost) : 0,
                     note: f.note,
+                    warranty: f.warranty,
                   })}>
             {pending ? 'กำลังบันทึก…' : 'บันทึก'}
           </button>

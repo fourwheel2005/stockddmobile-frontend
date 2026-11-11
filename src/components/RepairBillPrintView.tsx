@@ -1,5 +1,6 @@
 import { formatTHB, formatDateTime } from '@/lib/format';
 import type { RepairTicket } from '@/types/api';
+import { repairWarrantyText } from '@/lib/repairWarranty';
 
 interface Props { ticket: RepairTicket; shopName?: string; mode?: 'INTAKE' | 'RECEIPT'; }
 
@@ -71,6 +72,9 @@ export function RepairBillPrintView({ ticket, shopName = 'Stockdd Mobile', mode 
         )}
         {isReceipt && ticket.paymentMethod && (
           <div className="flex justify-between"><span>วิธีชำระ:</span><span>{ticket.paymentMethod}</span></div>
+        )}
+        {repairWarrantyText(ticket) && (
+          <div className="flex justify-between"><span>การรับประกัน:</span><span>{repairWarrantyText(ticket)}</span></div>
         )}
       </div>
 

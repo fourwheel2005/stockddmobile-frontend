@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { RepairWarrantyPicker } from '@/components/RepairWarrantyPicker';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { X, Wrench, UserCircle2, Save } from 'lucide-react';
@@ -25,6 +26,7 @@ const EMPTY: CreateRepairRequest = {
   reportedSymptom: '',
   estimatedCost: undefined, depositAmount: undefined, depositPaymentMethod: 'CASH', note: '',
   outsourced: false, technicianName: '', outsourceCost: undefined,
+  warranty: 'NONE',
 };
 
 /**
@@ -71,6 +73,7 @@ export function RepairIntakeModal({ onClose, onCreated, initial }: Props) {
         technicianName: form.outsourced ? (form.technicianName?.trim() || undefined) : undefined,
         outsourceCost: form.outsourced ? (form.outsourceCost || undefined) : undefined,
         note: form.note?.trim() || undefined,
+        warranty: form.warranty ?? 'NONE',   // FIX-225
       };
       return repairApi.create(payload);
     },
@@ -186,6 +189,8 @@ export function RepairIntakeModal({ onClose, onCreated, initial }: Props) {
                       value={form.reportedSymptom}
                       onChange={(e) => set('reportedSymptom', e.target.value)} />
           </div>
+
+          <RepairWarrantyPicker value={form.warranty} onChange={(w) => set('warranty', w)} />
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>

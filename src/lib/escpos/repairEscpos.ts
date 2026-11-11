@@ -1,5 +1,6 @@
 import { EscPosBuilder } from './EscPosBuilder';
 import type { RepairTicket } from '@/types/api';
+import { repairWarrantyText } from '../repairWarranty';
 import { formatInShopZone, parseServerDateTime } from '../datetime';
 
 export type RepairSlipMode = 'INTAKE' | 'RECEIPT';
@@ -48,6 +49,9 @@ export function buildRepairSlip(t: RepairTicket, mode: RepairSlipMode): Uint8Arr
   }
 
   b.separator('-', 48);
+  // FIX-225: การรับประกันงานซ่อม — ใบเสร็จบอกวันหมด · ใบรับซ่อมบอกว่าเริ่มนับวันรับเครื่องคืน
+  const warranty = repairWarrantyText(t);
+  if (warranty) b.textln(`การรับประกัน: ${warranty}`);
   if (mode === 'RECEIPT') {
     b.textln(`ค่าซ่อม:        ${baht(t.repairCost)}`)
      .textln(`มัดจำ:          ${baht(t.depositAmount)}`)

@@ -17,7 +17,8 @@ interface Props {
 export function CustomerPickerModal({ onSelect, onClose }: Props) {
   const [q, setQ] = useState('');
   const [showCreate, setShowCreate] = useState(false);
-  const canCreateCustomer = useAuthStore((s) => s.hasRole('ADMIN', 'MANAGER'));
+  // FIX-225: ทุก role เพิ่มลูกค้าได้ (POS + งานซ่อม) — backend อนุญาต STAFF สร้างอยู่แล้ว · แก้/ลบลูกค้ายังเฉพาะหลังร้าน
+  const canCreateCustomer = useAuthStore((s) => s.hasRole('ADMIN', 'MANAGER', 'STAFF'));
 
   useModalChrome(onClose);
 
