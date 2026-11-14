@@ -28,6 +28,7 @@ import { TransfersPage } from '@/pages/TransfersPage';
 import { WarrantyPage } from '@/pages/WarrantyPage';
 import { ScannerTestPage } from '@/pages/ScannerTestPage';
 import { PrintLabelsPage } from '@/pages/PrintLabelsPage';
+import { StickerPrintPage } from '@/pages/StickerPrintPage';
 import { ShippingLabelsPage } from '@/pages/ShippingLabelsPage';
 import { CashRegisterPage } from '@/pages/CashRegisterPage';
 import { FinancePendingPage } from '@/pages/FinancePendingPage';
@@ -105,6 +106,8 @@ export default function App() {
       <Route element={<ProtectedRoute roles={['ADMIN']} />}>
         <Route element={<AppShell />}>
           <Route path="/users" element={<UsersPage />} />
+          {/* ปริ้นสติ๊กเกอร์เครื่องเข้าใหม่ — สิทธิ์เดียวกับปุ่มพิมพ์ป้ายใน "เครื่องในรุ่นนี้" (FIX-227) */}
+          <Route path="/stickers" element={<StickerPrintPage />} />
         </Route>
       </Route>
 

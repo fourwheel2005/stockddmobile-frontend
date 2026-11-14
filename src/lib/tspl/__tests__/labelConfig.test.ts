@@ -28,6 +28,20 @@ describe('labelConfig', () => {
     expect(validateLabelConfig({ ...DEFAULT_LABEL_CONFIG, gapX: 0, gapY: 0 })).toBeNull();
   });
 
+  it('defaults to no print offset and reads a saved calibration', () => {
+    expect(DEFAULT_LABEL_CONFIG).toMatchObject({ offsetX: 0, offsetY: 0 });
+    const values: Record<string, string> = {
+      'ddmobile.label.size': '50x40', 'ddmobile.label.offsetx': '1.5', 'ddmobile.label.offsety': '-0.5',
+    };
+    const storage = { getItem: (key: string) => values[key] ?? null } as Storage;
+    expect(getLabelConfig(storage)).toMatchObject({ offsetX: 1.5, offsetY: -0.5 });
+  });
+
+  it('rejects a print offset beyond the 3 mm safe margin', () => {
+    expect(validateLabelConfig({ ...DEFAULT_LABEL_CONFIG, offsetX: 3.5 })).toContain('±3');
+    expect(validateLabelConfig({ ...DEFAULT_LABEL_CONFIG, offsetY: -3 })).toBeNull();
+  });
+
   it('rejects non-finite geometry instead of emitting invalid TSPL', () => {
     expect(validateLabelConfig({ ...DEFAULT_LABEL_CONFIG, gapX: Number.NaN })).toContain('ตัวเลข');
   });

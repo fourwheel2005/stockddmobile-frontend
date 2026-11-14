@@ -38,6 +38,19 @@ export const inventoryApi = {
   listSerials: (params: { status?: string; condition?: 'NEW' | 'SECOND_HAND'; branchId?: string; productId?: string; stockGroup?: InventoryStockGroup; q?: string; page?: number; size?: number } = {}) =>
     api.get<PageResponse<SerializedItemResponse>>('/inventory/serials', { params }).then((r) => r.data),
 
+  /**
+   * เครื่องพร้อมขายเรียง "เข้าใหม่สุดก่อน" สำหรับหน้าปริ้นสติ๊กเกอร์ (FIX-227).
+   * sort 2 ชั้น (receivedAt แล้ว id) — เครื่องที่รับเข้าพร้อมกันเวลาเดียวกันจะไม่สลับ/หายข้ามหน้า.
+   */
+  listNewArrivals: (params: { branchId?: string; q?: string; page: number; size: number }) => {
+    const query = new URLSearchParams({ status: 'IN_STOCK', page: String(params.page), size: String(params.size) });
+    if (params.branchId) query.set('branchId', params.branchId);
+    if (params.q) query.set('q', params.q);
+    query.append('sort', 'receivedAt,desc');
+    query.append('sort', 'id,desc');
+    return api.get<PageResponse<SerializedItemResponse>>('/inventory/serials', { params: query }).then((r) => r.data);
+  },
+
   /** รายเครื่องที่ต้องตรงกับยอดบนการ์ดตรวจนับ: includeHeld=false พร้อมขาย, true ทุกเครื่องที่ยังอยู่จริงในร้าน */
   stockCheckDevices: (params: { condition: 'NEW' | 'SECOND_HAND'; branchId?: string; includeHeld?: boolean; q?: string; page?: number; size?: number }) =>
     api.get<PageResponse<SerializedItemResponse>>('/inventory/serials/stock-check', { params }).then((r) => r.data),

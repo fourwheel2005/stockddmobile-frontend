@@ -1,6 +1,8 @@
 const MAX_PRINT_WIDTH_MM = 108;
 const MIN_LABEL_LENGTH_MM = 10;
 const LABEL_CONFIG_VERSION = '157';
+/** ปรับตำแหน่งพิมพ์ได้ไม่เกิน ±3 มม. = ขอบปลอดภัยของป้าย (เลื่อนเกินนี้เนื้อหาจะหลุดดวง). */
+export const MAX_LABEL_OFFSET_MM = 3;
 const LEGACY_STANDARD_SIZES = new Set(['35x25', '50x30']);
 
 export type LabelCodeMode = 'barcode' | 'qr';
@@ -14,6 +16,10 @@ export interface LabelConfig {
   code: LabelCodeMode;
   speed: number;
   density: number;
+  /** เลื่อนทั้งดวง (มม.) ชดเชยม้วน/หัวพิมพ์ที่วางไม่ตรงศูนย์: + = ไปทางขวา, − = ไปทางซ้าย (FIX-227) */
+  offsetX: number;
+  /** เลื่อนทั้งดวง (มม.): + = ลงล่าง, − = ขึ้นบน */
+  offsetY: number;
 }
 
 export const DEFAULT_LABEL_CONFIG: LabelConfig = {
@@ -25,6 +31,8 @@ export const DEFAULT_LABEL_CONFIG: LabelConfig = {
   code: 'qr',
   speed: 3,
   density: 8,
+  offsetX: 0,
+  offsetY: 0,
 };
 
 export function parseLabelSize(value: string): Pick<LabelConfig, 'w' | 'h'> | null {
@@ -47,6 +55,9 @@ export function validateLabelConfig(config: LabelConfig): string | null {
   if (labelRowWidth(config) > MAX_PRINT_WIDTH_MM) return `ความกว้างรวม ${labelRowWidth(config)} มม. เกินพื้นที่พิมพ์ TTP-247 ที่ 108 มม.`;
   if (!Number.isInteger(config.speed) || config.speed < 1 || config.speed > 7) return 'ความเร็วต้องอยู่ระหว่าง 1–7 นิ้ว/วินาที';
   if (!Number.isInteger(config.density) || config.density < 0 || config.density > 15) return 'ความเข้มต้องอยู่ระหว่าง 0–15';
+  if (![config.offsetX, config.offsetY].every((offset) => Number.isFinite(offset) && Math.abs(offset) <= MAX_LABEL_OFFSET_MM)) {
+    return `ปรับตำแหน่งพิมพ์ได้ไม่เกิน ±${MAX_LABEL_OFFSET_MM} มม.`;
+  }
   return null;
 }
 
@@ -71,6 +82,8 @@ export function getLabelConfig(storage: Storage | null = typeof window !== 'unde
     code: storage?.getItem('ddmobile.label.code') === 'barcode' ? 'barcode' : 'qr',
     speed: Math.trunc(storedNumber(storage, 'ddmobile.label.speed', DEFAULT_LABEL_CONFIG.speed)),
     density: Math.trunc(storedNumber(storage, 'ddmobile.label.density', DEFAULT_LABEL_CONFIG.density)),
+    offsetX: storedNumber(storage, 'ddmobile.label.offsetx', DEFAULT_LABEL_CONFIG.offsetX),
+    offsetY: storedNumber(storage, 'ddmobile.label.offsety', DEFAULT_LABEL_CONFIG.offsetY),
   };
   return validateLabelConfig(config) == null ? config : DEFAULT_LABEL_CONFIG;
 }
@@ -85,5 +98,7 @@ export function saveLabelConfig(config: LabelConfig, storage: Storage = window.l
   storage.setItem('ddmobile.label.code', config.code);
   storage.setItem('ddmobile.label.speed', String(config.speed));
   storage.setItem('ddmobile.label.density', String(config.density));
+  storage.setItem('ddmobile.label.offsetx', String(config.offsetX));
+  storage.setItem('ddmobile.label.offsety', String(config.offsetY));
   storage.setItem('ddmobile.label.config-version', LABEL_CONFIG_VERSION);
 }

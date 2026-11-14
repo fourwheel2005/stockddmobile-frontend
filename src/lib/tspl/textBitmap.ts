@@ -6,6 +6,41 @@ export interface TextBitmapOptions {
   maxWidth: number;
 }
 
+/** ความสูงกล่องบรรทัด (dots) ของฟอนต์ขนาดนี้ — ค่าเดียวกับที่ textBitmap ใช้จริง จึงคำนวณ layout ล่วงหน้าได้. */
+export function lineHeight(fontSize: number): number {
+  return Math.ceil(fontSize * 1.35);
+}
+
+export interface InkBounds {
+  top: number;
+  bottom: number;   // exclusive
+  left: number;
+  right: number;    // exclusive
+}
+
+/** ขอบเขตหมึกจริงใน bitmap (ตัดขอบขาวรอบตัวอักษร) — ใช้จัดกึ่งกลางตาม "หมึกที่ตาเห็น" ไม่ใช่กล่องฟอนต์. */
+export function inkBounds(image: BitmapImage): InkBounds | null {
+  let top = -1;
+  let bottom = -1;
+  let left = image.wBytes * 8;
+  let right = -1;
+  for (let y = 0; y < image.h; y++) {
+    for (let byte = 0; byte < image.wBytes; byte++) {
+      const value = image.data[y * image.wBytes + byte];
+      if (value === 0xff) continue;
+      if (top < 0) top = y;
+      bottom = y;
+      for (let bit = 0; bit < 8; bit++) {
+        if (value & (0x80 >> bit)) continue;
+        const x = byte * 8 + bit;
+        if (x < left) left = x;
+        if (x > right) right = x;
+      }
+    }
+  }
+  return top < 0 ? null : { top, bottom: bottom + 1, left, right: right + 1 };
+}
+
 function font(options: TextBitmapOptions): string {
   return `${options.bold ? '700' : '400'} ${options.fontSize}px Tahoma, 'Leelawadee UI', sans-serif`;
 }
@@ -58,6 +93,14 @@ export function drawingBitmap(
   return toBitmap(context, width, height);
 }
 
+/** ความกว้างข้อความ (dots) ที่ฟอนต์นี้ — null เมื่อไม่มี canvas ให้วัด (เช่นตอนรันนอกเบราว์เซอร์). */
+export function measureTextWidth(text: string, options: Omit<TextBitmapOptions, 'maxWidth'>): number | null {
+  const context = canvasContext(1, 1);
+  if (!context) return null;
+  context.font = font({ ...options, maxWidth: 0 });
+  return context.measureText(text).width;
+}
+
 export function textBitmap(text: string, options: TextBitmapOptions): BitmapImage | null {
   if (!text.trim() || options.maxWidth <= 0) return null;
   const measure = canvasContext(1, 1);
@@ -65,7 +108,7 @@ export function textBitmap(text: string, options: TextBitmapOptions): BitmapImag
   measure.font = font(options);
   const fitted = fitText(measure, text, options.maxWidth);
   const width = Math.min(options.maxWidth, Math.ceil(measure.measureText(fitted).width) + 2);
-  const height = Math.ceil(options.fontSize * 1.35);
+  const height = lineHeight(options.fontSize);
   const context = canvasContext(width, height);
   if (!context) return null;
   context.fillStyle = '#fff';

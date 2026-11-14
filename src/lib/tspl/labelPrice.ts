@@ -1,68 +1,31 @@
 import type { SerializedItemResponse, VariantResponse } from '@/types/api';
 
-interface DownValue { down?: unknown }
-interface TermDownValue { down?: unknown }
+/**
+ * ราคาบนสติ๊กเกอร์ (FIX-227):
+ *  - เครื่อง (มือถือ/แท็บเล็ต/นาฬิกา ฯลฯ) → **ไม่พิมพ์ราคา** — เอาราคาดาวน์ออกจากป้ายติดหลังเครื่องแล้ว
+ *  - อุปกรณ์เสริมแบบมี Serial → ยังพิมพ์ "ราคา ฿…" (ราคาขายเต็ม) เหมือนเดิม (FIX-161)
+ */
+const ACCESSORY_ROOT = 'อุปกรณ์เสริม';
 
-export interface ResolvedLabelPrice {
-  kind: 'DOWN_PAYMENT' | 'SELLING_PRICE';
-  value: number;
+export function isAccessoryLabelItem(item: SerializedItemResponse): boolean {
+  return item.categoryRootName === ACCESSORY_ROOT;
 }
 
-function validDown(value: unknown): number | null {
+function validPrice(value: unknown): number | null {
   if (value == null || value === '') return null;
   const number = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(number) && number >= 0 ? number : null;
 }
 
-function downValuesFromJson(json?: string | null): number[] {
-  if (!json) return [];
-  try {
-    const parsed = JSON.parse(json);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.flatMap((value: DownValue & { terms?: TermDownValue[] }) => {
-      const planDown = validDown(value?.down);
-      const termDowns = Array.isArray(value?.terms)
-        ? value.terms.map((term) => validDown(term?.down)).filter((down): down is number => down != null)
-        : [];
-      return planDown == null ? termDowns : [planDown, ...termDowns];
-    });
-  } catch {
-    return [];
-  }
-}
-
-function firstValid(values: Array<number | null>): number | null {
-  return values.find((value): value is number => value != null) ?? null;
-}
-
-export function resolveLabelDownPayment(item: SerializedItemResponse, variants: VariantResponse[]): number | null {
-  const serialDowns = [validDown(item.downPayment), ...downValuesFromJson(item.installmentTerms)];
-  if (item.condition !== 'NEW') return firstValid(serialDowns);
-  const variant = variants.find((candidate) => candidate.id === item.variantId);
-  const variantDowns = variant
-    ? [validDown(variant.downPayment), ...downValuesFromJson(variant.installmentPlans), ...downValuesFromJson(variant.installmentTerms)]
-    : [];
-  return firstValid(variantDowns);
-}
-
-export function resolveDeviceLabelPrice(
+/** ราคาขายของอุปกรณ์เสริม: ราคารายชิ้นก่อน ไม่มีจึงใช้ราคา SKU · null = ยังไม่ได้ตั้งราคา */
+export function resolveAccessoryLabelPrice(
   item: SerializedItemResponse,
   variants: VariantResponse[],
-): ResolvedLabelPrice | null {
-  if (item.categoryRootName === 'อุปกรณ์เสริม') {
-    const variant = variants.find((candidate) => candidate.id === item.variantId);
-    const sellingPrice = validDown(item.sellingPrice ?? variant?.sellingPrice);
-    return sellingPrice == null ? null : { kind: 'SELLING_PRICE', value: sellingPrice };
-  }
-  const downPayment = resolveLabelDownPayment(item, variants);
-  return downPayment == null ? null : { kind: 'DOWN_PAYMENT', value: downPayment };
+): number | null {
+  const variant = variants.find((candidate) => candidate.id === item.variantId);
+  return validPrice(item.sellingPrice ?? variant?.sellingPrice);
 }
 
-export function formatLabelDownPayment(value: number): string {
-  return `ดาวน์ ฿${new Intl.NumberFormat('th-TH', { maximumFractionDigits: 2 }).format(value)}`;
-}
-
-export function formatDeviceLabelPrice(price: ResolvedLabelPrice): string {
-  const amount = new Intl.NumberFormat('th-TH', { maximumFractionDigits: 2 }).format(price.value);
-  return `${price.kind === 'SELLING_PRICE' ? 'ราคา' : 'ดาวน์'} ฿${amount}`;
+export function formatLabelSellingPrice(value: number): string {
+  return `ราคา ฿${new Intl.NumberFormat('th-TH', { maximumFractionDigits: 2 }).format(value)}`;
 }

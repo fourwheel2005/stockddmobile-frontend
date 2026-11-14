@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { SerializedItemResponse, VariantResponse } from '@/types/api';
-import {
-  formatDeviceLabelPrice,
-  formatLabelDownPayment,
-  resolveDeviceLabelPrice,
-  resolveLabelDownPayment,
-} from '../labelPrice';
+import { formatLabelSellingPrice, isAccessoryLabelItem, resolveAccessoryLabelPrice } from '../labelPrice';
 
 function item(overrides: Partial<SerializedItemResponse> = {}): SerializedItemResponse {
   return {
@@ -25,33 +20,29 @@ function variant(overrides: Partial<VariantResponse> = {}): VariantResponse {
   } as VariantResponse;
 }
 
-describe('resolveLabelDownPayment', () => {
-  it('uses the per-device down payment for a second-hand phone', () => {
-    expect(resolveLabelDownPayment(item({ downPayment: 3990 }), [variant({ downPayment: 8990 })])).toBe(3990);
+describe('label price (FIX-227: เครื่องไม่พิมพ์ราคา)', () => {
+  it('treats only the accessory root category as a priced label', () => {
+    expect(isAccessoryLabelItem(item({ categoryRootName: 'อุปกรณ์เสริม' }))).toBe(true);
+    expect(isAccessoryLabelItem(item({ categoryRootName: 'มือถือ' }))).toBe(false);
+    expect(isAccessoryLabelItem(item())).toBe(false);
   });
 
-  it('uses the matching first-hand variant down payment instead of full price', () => {
-    const newItem = item({ condition: 'NEW', downPayment: 3990, sellingPrice: 29900 });
-    expect(resolveLabelDownPayment(newItem, [variant({ downPayment: 8990 })])).toBe(8990);
+  it('uses the per-item selling price of a serialized accessory first', () => {
+    const accessory = item({ categoryRootName: 'อุปกรณ์เสริม', sellingPrice: 4290 });
+    expect(resolveAccessoryLabelPrice(accessory, [variant({ sellingPrice: 4990 })])).toBe(4290);
   });
 
-  it('uses the primary plan instead of inventing a lowest-down offer across plans', () => {
-    const plans = JSON.stringify([{ down: 8990, terms: [] }, { down: 6990, terms: [] }]);
-    expect(resolveLabelDownPayment(item({ condition: 'NEW' }), [variant({ installmentPlans: plans })])).toBe(8990);
+  it('falls back to the SKU selling price when the item has none', () => {
+    const accessory = item({ categoryRootName: 'อุปกรณ์เสริม', sellingPrice: null });
+    expect(resolveAccessoryLabelPrice(accessory, [variant({ sellingPrice: 4990 })])).toBe(4990);
   });
 
-  it('does not fall back to the selling price when installment data is missing', () => {
-    expect(resolveLabelDownPayment(item({ sellingPrice: 29900, downPayment: null }), [variant()])).toBeNull();
+  it('returns null instead of inventing a price when none is set', () => {
+    const accessory = item({ categoryRootName: 'อุปกรณ์เสริม', sellingPrice: null });
+    expect(resolveAccessoryLabelPrice(accessory, [])).toBeNull();
   });
 
-  it('formats the amount explicitly as a down payment', () => {
-    expect(formatLabelDownPayment(8990)).toContain('ดาวน์ ฿8,990');
-  });
-
-  it('uses the full selling price only for serialized accessories', () => {
-    const accessory = item({ categoryRootName: 'อุปกรณ์เสริม', sellingPrice: 4290, downPayment: null });
-    const price = resolveDeviceLabelPrice(accessory, [variant({ sellingPrice: 4990 })]);
-    expect(price).toEqual({ kind: 'SELLING_PRICE', value: 4290 });
-    expect(price && formatDeviceLabelPrice(price)).toBe('ราคา ฿4,290');
+  it('formats the accessory amount as a full selling price', () => {
+    expect(formatLabelSellingPrice(4290)).toBe('ราคา ฿4,290');
   });
 });

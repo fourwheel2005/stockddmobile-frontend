@@ -5,6 +5,7 @@ import { encodeCp874 } from '@/lib/escpos/cp874';
 import { Tag } from 'lucide-react';
 import {
   getLabelConfig,
+  MAX_LABEL_OFFSET_MM,
   parseLabelSize,
   saveLabelConfig,
   type LabelConfig,
@@ -31,6 +32,8 @@ export function TscLabelSettings() {
   const [code, setCode] = useState(initial.code);
   const [speed, setSpeed] = useState(String(initial.speed));
   const [density, setDensity] = useState(String(initial.density));
+  const [offsetX, setOffsetX] = useState(String(initial.offsetX));
+  const [offsetY, setOffsetY] = useState(String(initial.offsetY));
 
   const save = () => {
     const parsedSize = parseLabelSize(size);
@@ -46,6 +49,8 @@ export function TscLabelSettings() {
       code,
       speed: Number(speed),
       density: Number(density),
+      offsetX: Number(offsetX),
+      offsetY: Number(offsetY),
     };
     try {
       saveLabelConfig(config);
@@ -90,6 +95,10 @@ export function TscLabelSettings() {
         <NumberSetting label="ช่องระหว่างแถว Y" value={gapY} setValue={setGapY} max={25.4} step={0.1} />
         <NumberSetting label="ความเร็ว (1–7)" value={speed} setValue={setSpeed} min={1} max={7} />
         <NumberSetting label="ความเข้ม (0–15)" value={density} setValue={setDensity} max={15} />
+        <NumberSetting label="เลื่อนซ้าย(−)/ขวา(+) มม." value={offsetX} setValue={setOffsetX}
+                       min={-MAX_LABEL_OFFSET_MM} max={MAX_LABEL_OFFSET_MM} step={0.5} />
+        <NumberSetting label="เลื่อนขึ้น(−)/ลง(+) มม." value={offsetY} setValue={setOffsetY}
+                       min={-MAX_LABEL_OFFSET_MM} max={MAX_LABEL_OFFSET_MM} step={0.5} />
         <div className="col-span-2">
           <LabelSetting label="ดวงเล็กพิมพ์โค้ดแบบใด">
             <select className="input" value={code}
@@ -102,6 +111,9 @@ export function TscLabelSettings() {
       </div>
       <p className="mt-2 text-[11px] text-slate-500">
         ระบบตรวจความกว้างรวมไม่ให้เกินหัวพิมพ์ TTP-247 ที่ 108 มม. · ป้ายใหญ่พิมพ์ QR + Code128 ให้ครบ
+        <br />
+        ระบบวางเนื้อหากึ่งกลางดวงให้แล้ว (ขอบซ้าย = ขวา, บน = ล่าง) — ถ้าพิมพ์จริงแล้วเอียงไปข้างใด
+        ให้วัดส่วนที่เกินแล้วใส่ครึ่งหนึ่งในช่อง "เลื่อน" (เช่น ขอบซ้ายเหลือ 2 มม. ขอบขวา 4 มม. → เลื่อนขวา +1)
       </p>
       <div className="mt-2 flex gap-2">
         <button className="btn-primary" onClick={save}>บันทึก Format</button>
