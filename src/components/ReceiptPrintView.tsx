@@ -74,7 +74,10 @@ export function ReceiptPrintView({ order, shopName = 'Stockdd Mobile', duplicate
           ?? order.items.filter(isPayToday).reduce((s, it) => s + (it.lineTotal ?? 0), 0))
         : 0;
       const todayDiscount = hidePrice ? (order.todayDiscountAmount ?? 0) : 0;
-      const payToday = Math.max(0, (order.downPaymentAmount ?? 0) + addOn - todayDiscount);
+      // FIX-226: งวดแรกที่จ่ายพร้อมดาวน์ — รวมในยอดที่ชำระวันนี้ (ไม่ใช่ยอดผ่อนคงเหลือ)
+      const firstInst = hidePrice ? (order.firstInstallmentAmount ?? 0) : 0;
+      const salePayToday = Math.max(0, (order.downPaymentAmount ?? 0) + addOn - todayDiscount);
+      const payToday = salePayToday + firstInst;
       return (
       <>
       <table className="w-full text-sm">
@@ -148,11 +151,12 @@ export function ReceiptPrintView({ order, shopName = 'Stockdd Mobile', duplicate
             </div>
           </>
         )}
-        {hidePrice && todayDiscount > 0 && (order.tradeInValue ?? 0) <= 0 && (
+        {hidePrice && (todayDiscount > 0 || firstInst > 0) && (order.tradeInValue ?? 0) <= 0 && (
           <>
             <div className="flex justify-between"><span>เงินดาวน์:</span><span>{formatTHB(order.downPaymentAmount ?? 0)}</span></div>
+            {firstInst > 0 && <div className="flex justify-between"><span>ค่างวด งวดที่ 1:</span><span>{formatTHB(firstInst)}</span></div>}
             {addOn > 0 && <div className="flex justify-between"><span>อุปกรณ์จ่ายวันนี้:</span><span>{formatTHB(addOn)}</span></div>}
-            <div className="flex justify-between"><span>ส่วนลด:</span><span>- {formatTHB(todayDiscount)}</span></div>
+            {todayDiscount > 0 && <div className="flex justify-between"><span>ส่วนลด:</span><span>- {formatTHB(todayDiscount)}</span></div>}
           </>
         )}
         {hidePrice && (
@@ -170,6 +174,7 @@ export function ReceiptPrintView({ order, shopName = 'Stockdd Mobile', duplicate
           return (
             <div className="my-2 space-y-1 border-y border-dashed border-violet-300 py-2">
               {hidePrice && <div className="flex justify-between"><span>เงินดาวน์:</span><span>{formatTHB(order.downPaymentAmount ?? 0)}</span></div>}
+              {hidePrice && firstInst > 0 && <div className="flex justify-between"><span>ค่างวด งวดที่ 1:</span><span>{formatTHB(firstInst)}</span></div>}
               {hidePrice && addOn > 0 && <div className="flex justify-between"><span>อุปกรณ์จ่ายวันนี้:</span><span>{formatTHB(addOn)}</span></div>}
               {hidePrice && todayDiscount > 0 && <div className="flex justify-between"><span>ส่วนลด:</span><span>- {formatTHB(todayDiscount)}</span></div>}
               <div className="flex justify-between text-violet-700"><span>มูลค่ารับซื้อเครื่องเก่า:</span><span>- {formatTHB(order.tradeInValue ?? 0)}</span></div>
@@ -238,11 +243,17 @@ export function ReceiptPrintView({ order, shopName = 'Stockdd Mobile', duplicate
                   // ค่างวดที่พนักงานกำหนด (รวมดอกเบี้ย) ถ้ามี · ไม่งั้น fallback (ยอด−ดาวน์−อุปกรณ์เสริม)/งวด (FIX-090)
                   order.installmentMonthlyAmount != null && order.installmentMonthlyAmount > 0
                     ? order.installmentMonthlyAmount
-                    : Math.max(0, (order.grandTotal ?? 0) - payToday) /
+                    : Math.max(0, (order.grandTotal ?? 0) - salePayToday) /
                         Math.max(1, order.installmentMonths)
                 )} / เดือน
               </span>
             </div>
+            {firstInst > 0 && (
+              <div className="flex justify-between text-slate-600">
+                <span>จ่ายงวดที่ 1 แล้ว (ในบิลนี้):</span>
+                <span>เหลือ {Math.max(0, order.installmentMonths - 1)} งวด</span>
+              </div>
+            )}
           </>
         )}
         {(order.shippingTrackingNo || order.shippingAddress) && (

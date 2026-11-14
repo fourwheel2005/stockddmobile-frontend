@@ -74,10 +74,12 @@ export function OrderDetailPage() {
   const addOnToday = isInstallment
     ? o.items.filter((item) => item.payToday === true).reduce((sum, item) => sum + item.lineTotal, 0)
     : 0;
+  // FIX-226: งวดแรกที่จ่ายพร้อมดาวน์ — อยู่ใน settlement (เทียบเทิร์น) แต่ไม่ลดเงินต้นผ่อน
+  const firstInstallment = isInstallment ? (o.firstInstallmentAmount ?? 0) : 0;
   const installmentSettlement = o.tradeInSettlementAmount
-    ?? o.paidAmount
-    ?? ((o.downPaymentAmount ?? 0) + addOnToday);
-  const remaining = isInstallment ? Math.max(0, o.grandTotal - installmentSettlement) : 0;
+    ?? (o.paidAmount != null ? o.paidAmount + firstInstallment : null)
+    ?? ((o.downPaymentAmount ?? 0) + addOnToday + firstInstallment);
+  const remaining = isInstallment ? Math.max(0, o.grandTotal - (installmentSettlement - firstInstallment)) : 0;
   const tradeInSettlement = isInstallment ? installmentSettlement : o.grandTotal;
   const tradeInDifference = o.tradeInDifferenceAmount
     ?? (tradeInSettlement - (o.tradeInValue ?? 0));
@@ -122,12 +124,15 @@ export function OrderDetailPage() {
               {(o.depositAppliedAmount ?? 0) > 0 && (
                 <Row label={`มัดจำที่จ่ายไว้ก่อน${o.depositNo ? ` (${o.depositNo})` : ''}`} value={formatTHB(o.depositAppliedAmount ?? 0)} />
               )}
-              <Row label="ยอดที่จ่ายแล้ว" value={formatTHB(o.paidAmount)} strong />
+              <Row label="ยอดที่จ่ายแล้ว" value={formatTHB(o.paidAmount + firstInstallment)} strong />
 
               {isInstallment && (
                 <div className="mt-3 rounded-md bg-purple-50 p-3">
                   <div className="mb-1 text-xs font-semibold text-purple-800">รายละเอียดผ่อนชำระ</div>
                   <Row label="เงินดาวน์" value={formatTHB(o.downPaymentAmount ?? 0)} />
+                  {firstInstallment > 0 && (
+                    <Row label="ค่างวด งวดที่ 1 (จ่ายพร้อมดาวน์)" value={formatTHB(firstInstallment)} />
+                  )}
                   {(o.todayDiscountAmount ?? 0) > 0 && (
                     <Row label="ส่วนลด (หักจากยอดจ่ายวันนี้)" value={`- ${formatTHB(o.todayDiscountAmount ?? 0)}`} />
                   )}

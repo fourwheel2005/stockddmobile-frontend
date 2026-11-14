@@ -59,6 +59,23 @@ export function installmentPayToday(downPayment: number, addOnToday: number, dis
   return money(Math.max(0, Math.max(0, downPayment) + Math.max(0, addOnToday) - Math.max(0, discount)));
 }
 
+/**
+ * บิลผ่อน: ค่างวดงวดแรกที่ลูกค้าจ่ายพร้อมดาวน์วันนี้ (FIX-226) — 0 = ไม่ได้เลือก หรือยังใช้ไม่ได้.
+ * งวดแรก = ค่างวด/เดือนของบิล · ต้องผ่อน ≥ 2 เดือน (1 เดือน + งวดแรก = จ่ายครบ ใช้ขายสดแทน) · สูตรเดียวกับ backend.
+ */
+export function firstInstallmentToday(enabled: boolean, monthly: number, months: number): number {
+  if (!enabled || !(monthly > 0) || !(months >= 2)) return 0;
+  return money(monthly);
+}
+
+/** เหตุผลที่ยังปิดบิลไม่ได้เมื่อเลือกจ่ายงวดแรกพร้อมดาวน์ (FIX-226) · null = พร้อม */
+export function firstInstallmentBlockedReason(enabled: boolean, monthly: number, months: number): string | null {
+  if (!enabled) return null;
+  if (!(months >= 2)) return 'จ่ายงวดแรกพร้อมดาวน์: ต้องผ่อนอย่างน้อย 2 เดือน (1 เดือนให้ขายสดแทน)';
+  if (!(monthly > 0)) return 'จ่ายงวดแรกพร้อมดาวน์: กรอกค่างวด/เดือนก่อน';
+  return null;
+}
+
 export function isTradeInActive(
   enabled: boolean, productId: string | null | undefined, value: string | number,
 ): boolean {

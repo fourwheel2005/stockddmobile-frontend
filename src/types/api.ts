@@ -1141,6 +1141,8 @@ export interface CheckoutRequest {
   downPaymentAmount?: number;
   downPaymentCashAmount?: number;
   downPaymentTransferAmount?: number;
+  /** FIX-226: จ่ายงวดแรก (= installmentMonthlyAmount) พร้อมดาวน์ในบิลเดียว · ไม่ส่ง = ดาวน์อย่างเดียว */
+  firstInstallmentPaidToday?: boolean;
   /** V31 — ไฟแนนซ์ที่รับผ่อน (ใช้กับ INSTALLMENT เท่านั้น) */
   financePartner?: FinancePartner;
   note?: string;
@@ -1232,6 +1234,8 @@ export interface SalesOrderResponse {
   addOnTodayAmount?: number | null;
   /** บิลผ่อน: ส่วนลดที่หักจากยอดจ่ายวันนี้ (FIX-209) · บิลเก่า = 0 */
   todayDiscountAmount?: number | null;
+  /** บิลผ่อน: งวดแรกที่จ่ายพร้อมดาวน์ (FIX-226) · null = ไม่ได้จ่าย (ไม่รวมใน paidAmount) */
+  firstInstallmentAmount?: number | null;
   /** มัดจำ/จองเครื่องที่ลูกค้าจ่ายไว้ก่อน หักในบิลนี้ (FIX-214) · null = ไม่มี */
   depositAppliedAmount?: number | null;
   depositNo?: string | null;

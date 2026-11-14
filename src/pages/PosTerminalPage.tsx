@@ -27,6 +27,7 @@ import type {
 } from '@/types/api';
 import {
   calculateTradeInSettlement, getTradeInBlockedReason, installmentPayToday, isTradeInActive,
+  firstInstallmentBlockedReason, firstInstallmentToday,
   TRADE_IN_INTAKE_POLICY,
 } from '@/lib/pos/tradeIn';
 import { defaultPayToday } from '@/lib/pos/installmentLines';
@@ -236,6 +237,8 @@ export function PosTerminalPage() {
   const [installmentMonthly, setInstallmentMonthly] = useState<number>(0);  // ค่างวด/เดือน ที่พนักงานกำหนด
   const [installmentMonthlyTouched, setInstallmentMonthlyTouched] = useState(false);  // พนักงานแก้ค่างวดเองแล้ว (กัน auto ทับ)
   const [downAmount, setDownAmount] = useState<number>(0);
+  // FIX-226: จ่ายงวดแรกพร้อมดาวน์ในบิลเดียว (ปกติ = ดาวน์อย่างเดียว) — ไม่ต้องออกบิลค่างวดแยก
+  const [payFirstInstallment, setPayFirstInstallment] = useState(false);
   // ยอดรับวันนี้ (ดาวน์ + อุปกรณ์เสริม) ลูกค้าจ่ายเป็นเงินโอนเท่าไหร่ · ที่เหลือ = เงินสด (FIX-097)
   const [payTransfer, setPayTransfer] = useState<number>(0);
 
@@ -519,12 +522,16 @@ export function PosTerminalPage() {
   // FIX-209: บิลผ่อน ส่วนลด = ลดเงินที่ลูกค้าจ่ายวันนี้ (ดาวน์ + อุปกรณ์) ไม่ใช่ลดยอดผ่อน
   // (เดิมไม่หัก → เงินดาวน์เต็มเข้าเก๊ะทั้งที่ลูกค้าได้ส่วนลด)
   const installmentDiscount = isInstallmentSel ? discount : 0;
-  const payToday = installmentPayToday(downAmount, addOnToday, installmentDiscount);
+  // FIX-226: งวดแรกที่จ่ายพร้อมดาวน์ (0 = ไม่ได้เลือก) · ยอดวันนี้ = ดาวน์ + งวดแรก + อุปกรณ์ − ส่วนลด
+  const firstInstallment = isInstallmentSel
+    ? firstInstallmentToday(payFirstInstallment, installmentMonthly, installmentMonths) : 0;
+  const salePayToday = installmentPayToday(downAmount, addOnToday, installmentDiscount);   // ฝั่งราคาขาย (ไม่รวมงวดแรก)
+  const payToday = r2(salePayToday + firstInstallment);
   const installmentDiscountOver = isInstallmentSel && discount > r2(downAmount + addOnToday);
   const tradeInSettlement = calculateTradeInSettlement({
     paymentMethod,
     grandTotal,
-    downPayment: downAmount,
+    downPayment: r2(downAmount + firstInstallment),   // เทิร์น/มัดจำหักจากยอดวันนี้ทั้งก้อน (รวมงวดแรก)
     addOnToday,
     todayDiscount: installmentDiscount,
     tradeInValue: tradeInValueNum,
@@ -682,6 +689,8 @@ export function PosTerminalPage() {
           installmentMonths,
           installmentMonthlyAmount: installmentMonthly > 0 ? installmentMonthly : undefined,
           downPaymentAmount: downAmount,
+          // FIX-226: จ่ายงวดแรก (= ค่างวด/เดือน) พร้อมดาวน์ — backend รวมเข้ายอดรับวันนี้เอง
+          firstInstallmentPaidToday: firstInstallment > 0 ? true : undefined,
           // ยอดรับวันนี้แยก เงินสด/เงินโอน (หักเทิร์นดาวน์แล้ว — FIX-097/106)
           downPaymentCashAmount: isInstallment ? effCash : undefined,
           downPaymentTransferAmount: isInstallment ? effTransfer : undefined,
@@ -721,6 +730,7 @@ export function PosTerminalPage() {
       setPaymentRef('');
       setNote('');
       setDownAmount(0);
+      setPayFirstInstallment(false);   // FIX-226: บิลถัดไปกลับเป็นดาวน์อย่างเดียว
       setPayTransfer(0);
       // ผ่อน — reset ให้บิลถัดไปเริ่มใหม่ (กันค่างวด/เดือนของลูกค้าคนก่อนค้างมา)
       setInstallmentMonths(6);
@@ -863,6 +873,8 @@ export function PosTerminalPage() {
     onlineRecipientError ? `ออนไลน์: ${onlineRecipientError}` :
     labelRecipientError ? `ป้ายที่อยู่: ${labelRecipientError}` :
     installmentNeedsIdentity ? 'ผ่อนชำระ: ต้องระบุชื่อลูกค้า' :
+    (isInstallmentSel && firstInstallmentBlockedReason(payFirstInstallment, installmentMonthly, installmentMonths))
+      ? firstInstallmentBlockedReason(payFirstInstallment, installmentMonthly, installmentMonths)! :
     (documentMode === 'TAX_INVOICE' && !isValidTaxInvoiceBuyer(taxInvoiceDraft))
       ? 'ใบกำกับภาษี: กรอกข้อมูลผู้ซื้อให้ครบ' :
     mixedError ? `จ่ายแบบผสม: ${mixedError}` :
@@ -1438,6 +1450,8 @@ export function PosTerminalPage() {
           monthly={installmentMonthly} setMonthly={setInstallmentMonthly}
           monthlyTouched={installmentMonthlyTouched} setMonthlyTouched={setInstallmentMonthlyTouched}
           downAmount={downAmount} setDownAmount={setDownAmount}
+          payFirstInstallment={payFirstInstallment} setPayFirstInstallment={setPayFirstInstallment}
+          firstInstallment={firstInstallment}
           payTransfer={payTransfer} setPayTransfer={setPayTransfer}
           tradeInValue={tradeInActive ? tradeInValueNum : 0}
           shopPlans={plansForCart(cart)}
@@ -1791,7 +1805,7 @@ export function PosTerminalPage() {
               (() => {
                 const monthlyShow = installmentMonthly > 0
                   ? installmentMonthly
-                  : (installmentMonths > 0 ? Math.ceil(Math.max(0, grandTotal - payToday) / installmentMonths) : 0);
+                  : (installmentMonths > 0 ? Math.ceil(Math.max(0, grandTotal - salePayToday) / installmentMonths) : 0);
                 const payNetView = Math.max(0, r2((tradeInActive ? tradeInSettlement.customerPays : payToday) - depositCredit));
                 const payoutView = tradeInActive ? tradeInSettlement.storePays : 0;
                 const transferView = Math.min(payTransferClamped, payNetView);
@@ -1826,9 +1840,15 @@ export function PosTerminalPage() {
                         <span className="font-semibold text-slate-700">{formatTHB(transferView)}</span>
                       </div>
                     )}
-                    {(addOnToday > 0 || installmentDiscount > 0) && (
+                    {firstInstallment > 0 && (
+                      <div className="flex justify-between text-xs text-purple-700">
+                        <span>รวมงวดแรก (จ่ายพร้อมดาวน์)</span><span>{formatTHB(firstInstallment)}</span>
+                      </div>
+                    )}
+                    {(addOnToday > 0 || installmentDiscount > 0 || firstInstallment > 0) && (
                       <div className="flex justify-between text-[11px] text-slate-400">
                         <span>(ดาวน์ {formatTHB(downAmount)}
+                          {firstInstallment > 0 && <> + งวดแรก {formatTHB(firstInstallment)}</>}
                           {addOnToday > 0 && <> + อุปกรณ์เสริม {formatTHB(addOnToday)}</>}
                           {installmentDiscount > 0 && <> − ส่วนลด {formatTHB(installmentDiscount)}</>})</span>
                       </div>
@@ -1839,7 +1859,8 @@ export function PosTerminalPage() {
                     </div>
                     {monthlyShow > 0 && installmentMonths > 0 && (
                       <div className="flex justify-between text-xs text-slate-500">
-                        <span>ผ่อน {installmentMonths} เดือน</span>
+                        <span>ผ่อน {installmentMonths} เดือน
+                          {firstInstallment > 0 && <> (จ่ายงวดแรกแล้ว · เหลือ {installmentMonths - 1} งวด)</>}</span>
                         <span>{formatTHB(monthlyShow)} / เดือน</span>
                       </div>
                     )}
@@ -2039,6 +2060,9 @@ interface InstallmentPanelProps {
   monthly: number; setMonthly: (n: number) => void;   // ค่างวด/เดือน — ส่งเข้า checkout เพื่อใช้ใน LINE/บิล
   monthlyTouched: boolean; setMonthlyTouched: (b: boolean) => void;  // state อยู่ที่ parent (reset ได้หลังปิดบิล)
   downAmount: number; setDownAmount: (n: number) => void;
+  /** FIX-226: ติ๊ก "จ่ายงวดแรกพร้อมดาวน์" + ยอดงวดแรกที่คิดแล้ว (0 = ไม่ได้จ่าย/ยังใช้ไม่ได้) */
+  payFirstInstallment: boolean; setPayFirstInstallment: (b: boolean) => void;
+  firstInstallment: number;
   /** ยอดรับวันนี้จ่ายเป็นเงินโอนเท่าไหร่ · ที่เหลือ = เงินสด (FIX-097) */
   payTransfer: number; setPayTransfer: (n: number) => void;
   tradeInValue: number;
@@ -2048,7 +2072,8 @@ interface InstallmentPanelProps {
 
 function InstallmentPanel({
   grandTotalTarget, addOnToday = 0, discount = 0, months, setMonths, monthly, setMonthly, monthlyTouched, setMonthlyTouched,
-  downAmount, setDownAmount, payTransfer, setPayTransfer, tradeInValue, shopPlans,
+  downAmount, setDownAmount, payFirstInstallment, setPayFirstInstallment, firstInstallment,
+  payTransfer, setPayTransfer, tradeInValue, shopPlans,
 }: InstallmentPanelProps) {
   // FIX-200: เลือกแผน + เดือนจากตารางที่ร้านตั้ง → เติมดาวน์/ค่างวดของงวดนั้นให้ (พนักงานแก้ทับได้)
   const [planIdx, setPlanIdx] = useState(0);
@@ -2067,11 +2092,13 @@ function InstallmentPanel({
   };
   // ยอดจ่ายวันนี้ = ดาวน์ + อุปกรณ์เสริม − ส่วนลด (FIX-209)
   // ยอดผ่อนคงเหลือ = ยอดบิล − ยอดจ่ายวันนี้ → ส่วนลดไม่ไปลดเงินต้นผ่อน (FIX-090/209)
+  // FIX-226: งวดแรกไม่ใช่เงินต้นฝั่งราคาขาย → ไม่ลด remaining (กันค่างวดอัตโนมัติวนคำนวณตัวเอง)
   const payToday = installmentPayToday(downAmount, addOnToday, discount);
+  const todayDue = payToday + firstInstallment;
   const remaining = Math.max(0, grandTotalTarget - payToday);
   const settlement = calculateTradeInSettlement({
     paymentMethod: 'INSTALLMENT', grandTotal: grandTotalTarget,
-    downPayment: downAmount, addOnToday, todayDiscount: discount, tradeInValue,
+    downPayment: downAmount + firstInstallment, addOnToday, todayDiscount: discount, tradeInValue,
   });
   // รับเงินจริงเฉพาะเมื่อลูกค้าเป็นฝ่ายจ่ายส่วนต่าง; เครดิตเกินจะไปเป็น payout ฝั่งร้าน
   const transferPart = Math.min(Math.max(0, payTransfer), settlement.customerPays);
@@ -2214,15 +2241,37 @@ function InstallmentPanel({
           </div>
         </div>
 
+        {/* FIX-226: ปกติรับแค่ดาวน์ · ลูกค้าบางคนจ่ายงวดแรกพร้อมเลย → รวมในบิลนี้ ไม่ต้องออกบิลค่างวดแยก */}
+        <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="ยอดที่รับวันนี้">
+          <button type="button" role="radio" aria-checked={!payFirstInstallment}
+                  onClick={() => setPayFirstInstallment(false)}
+                  className={`rounded-md border px-4 py-2 text-sm font-medium ${!payFirstInstallment ? 'border-purple-500 bg-purple-100 text-purple-800' : 'border-slate-200 hover:border-slate-300'}`}>
+            รับเฉพาะเงินดาวน์
+          </button>
+          <button type="button" role="radio" aria-checked={payFirstInstallment}
+                  onClick={() => setPayFirstInstallment(true)}
+                  className={`rounded-md border px-4 py-2 text-sm font-medium ${payFirstInstallment ? 'border-purple-500 bg-purple-100 text-purple-800' : 'border-slate-200 hover:border-slate-300'}`}>
+            ดาวน์ + จ่ายงวดแรกพร้อมกัน
+          </button>
+        </div>
+        {payFirstInstallment && (
+          <p className={`-mt-2 text-xs ${firstInstallment > 0 ? 'text-purple-700' : 'text-red-600'}`}>
+            {firstInstallment > 0
+              ? <>รับงวดแรก {formatTHB(firstInstallment)} รวมในบิลนี้ · เหลือผ่อนอีก {months - 1} งวด</>
+              : months < 2 ? 'ต้องผ่อนอย่างน้อย 2 เดือนจึงจ่ายงวดแรกพร้อมดาวน์ได้' : 'กรอกค่างวด/เดือนก่อน'}
+          </p>
+        )}
+
         {/* ยอดที่ต้องชำระวันนี้ (ยอดเดียว) + แยกเงินสด/เงินโอน (FIX-097) */}
         <div className="rounded-md border-2 border-amber-300 bg-amber-50/70 p-3">
           <div className="flex items-center justify-between">
             <span className="text-sm font-semibold text-amber-900">ยอดวันนี้ก่อนหักเทิร์น</span>
-            <span className="text-lg font-bold text-amber-900">{formatTHB(payToday)}</span>
+            <span className="text-lg font-bold text-amber-900">{formatTHB(todayDue)}</span>
           </div>
-          {(addOnToday > 0 || discount > 0) && (
+          {(addOnToday > 0 || discount > 0 || firstInstallment > 0) && (
             <div className="mt-0.5 text-[11px] text-amber-700">
               = เงินดาวน์ {formatTHB(downAmount)}
+              {firstInstallment > 0 && <> + งวดแรก {formatTHB(firstInstallment)}</>}
               {addOnToday > 0 && <> + อุปกรณ์เสริม {formatTHB(addOnToday)}</>}
               {discount > 0 && <> − ส่วนลด {formatTHB(discount)}</>}
             </div>
@@ -2274,6 +2323,7 @@ function InstallmentPanel({
             : <> <strong>รับจากลูกค้า {formatTHB(settlement.customerPays)}</strong>
                 {' '}(<Banknote className="inline h-4 w-4 align-[-2px]" /> สด {formatTHB(cashPart)}{transferPart > 0 ? ` · โอน ${formatTHB(transferPart)}` : ''})</>}
           • <strong>{formatTHB(remaining)}</strong> ที่เหลือคือยอดผ่อน
+          {firstInstallment > 0 && <> • จ่ายงวดแรกแล้ว เหลือ <strong>{months - 1} งวด × {formatTHB(monthly)}</strong></>}
         </div>
       </div>
     </div>

@@ -63,6 +63,46 @@ describe('ReceiptPrintView document marking', () => {
     expect(html).toMatch(/ยอดที่ต้องชำระวันนี้:<\/strong><strong>฿0\.00/);
   });
 
+  it('adds the first installment paid with the down payment to today (FIX-226)', () => {
+    const withFirst = {
+      ...order,
+      paymentMethod: 'INSTALLMENT',
+      installmentMonths: 12,
+      grandTotal: 20000,
+      downPaymentAmount: 3000,
+      addOnTodayAmount: 0,
+      todayDiscountAmount: 0,
+      installmentMonthlyAmount: 1500,
+      firstInstallmentAmount: 1500,
+      cashAmount: 4500,
+    } as unknown as SalesOrderResponse;
+
+    const html = renderToStaticMarkup(<ReceiptPrintView order={withFirst} />);
+
+    expect(html).toContain('ค่างวด งวดที่ 1:');
+    expect(html).toMatch(/ยอดที่ต้องชำระวันนี้:<\/strong><strong>฿4,500\.00/);
+    expect(html).toContain('เหลือ 11 งวด');
+    expect(html).toContain('฿1,500.00</span>');
+  });
+
+  it('leaves an ordinary installment receipt at the down payment only', () => {
+    const downOnly = {
+      ...order,
+      paymentMethod: 'INSTALLMENT',
+      installmentMonths: 12,
+      grandTotal: 20000,
+      downPaymentAmount: 3000,
+      addOnTodayAmount: 0,
+      todayDiscountAmount: 0,
+      installmentMonthlyAmount: 1500,
+    } as unknown as SalesOrderResponse;
+
+    const html = renderToStaticMarkup(<ReceiptPrintView order={downOnly} />);
+
+    expect(html).not.toContain('งวดที่ 1');
+    expect(html).toMatch(/ยอดที่ต้องชำระวันนี้:<\/strong><strong>฿3,000\.00/);
+  });
+
   it('shows the deposit taken off and what was paid today (FIX-214)', () => {
     const withDeposit = {
       ...order, grandTotal: 30000, subtotal: 30000, paidAmount: 30000, cashAmount: 25000,

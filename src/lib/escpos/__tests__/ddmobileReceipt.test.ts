@@ -198,6 +198,27 @@ describe('buildDDMobileReceipt', () => {
     expect(text).toContain('3,000.00');
   });
 
+  it('prints down + first installment and the combined amount paid today (FIX-226)', () => {
+    const text = String.fromCharCode(...buildDDMobileReceipt(makeReceipt({
+      paymentMethod: 'INSTALLMENT', installmentMonths: 12, downPaymentAmount: 3000,
+      monthlyAmount: 1450, firstInstallmentAmount: 1450, downCash: 4450,
+    })));
+
+    expect(text).toContain('3,000.00');
+    expect(text).toContain('1,450.00');
+    expect(text).toContain('4,450.00');
+    expect(text).toMatch(/11/);   // เหลือ 11 งวด
+  });
+
+  it('first installment with deposit: paid today = down + first − deposit (FIX-226)', () => {
+    const text = String.fromCharCode(...buildDDMobileReceipt(makeReceipt({
+      paymentMethod: 'INSTALLMENT', installmentMonths: 10, downPaymentAmount: 3000,
+      firstInstallmentAmount: 1500, depositAppliedAmount: 1000, depositNo: 'DP-2',
+    })));
+    expect(text).toContain('4,500.00');
+    expect(text).toContain('3,500.00');
+  });
+
   it('prints installment trade-in settlement when the store pays the customer', () => {
     const bytes = buildDDMobileReceipt(makeReceipt({
       paymentMethod: 'INSTALLMENT',

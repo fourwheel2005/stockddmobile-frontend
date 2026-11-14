@@ -53,6 +53,7 @@ export interface ReceiptData {
   downPaymentAmount?: number | null;
   addOnTotal?: number | null;      // อุปกรณ์เสริมจ่ายสดวันนี้ในบิลผ่อน เช่น หัวชาร์จ (FIX-090)
   todayDiscountAmount?: number | null; // บิลผ่อน: ส่วนลดหักจากยอดจ่ายวันนี้ (FIX-209)
+  firstInstallmentAmount?: number | null; // บิลผ่อน: งวดแรกจ่ายพร้อมดาวน์ (FIX-226)
   depositAppliedAmount?: number | null; // มัดจำ/จองที่ลูกค้าจ่ายไว้ก่อน หักในบิลนี้ (FIX-214)
   depositNo?: string | null;
   downCash?: number | null;        // เงินดาวน์ส่วนที่จ่ายสด
@@ -242,13 +243,15 @@ export function buildDDMobileReceipt(
     // ผ่อนยังไม่โชว์ราคาเครื่องเต็ม แต่บิลเทิร์นต้องระบุฐาน/เครดิต/ส่วนต่างครบ — FIX-183
     const addOn = data.addOnTotal ?? 0;
     const todayDiscount = data.todayDiscountAmount ?? 0;
-    // FIX-209: ส่วนลดบิลผ่อนหักจากยอดจ่ายวันนี้ (ดาวน์ + อุปกรณ์ − ส่วนลด)
-    const payToday = Math.max(0, (data.downPaymentAmount ?? 0) + addOn - todayDiscount);
+    const firstInst = data.firstInstallmentAmount ?? 0;   // FIX-226: งวดแรกจ่ายพร้อมดาวน์
+    // FIX-209: ส่วนลดบิลผ่อนหักจากยอดจ่ายวันนี้ (ดาวน์ + อุปกรณ์ − ส่วนลด) · + งวดแรก (FIX-226)
+    const payToday = Math.max(0, (data.downPaymentAmount ?? 0) + addOn - todayDiscount) + firstInst;
     if ((data.tradeInValue ?? 0) > 0) {
       const settlement = data.tradeInSettlementAmount ?? payToday;
       const difference = data.tradeInDifferenceAmount
         ?? (settlement - (data.tradeInValue ?? 0));
       b.justify('เงินดาวน์:', fmtTHB(data.downPaymentAmount ?? 0), W);
+      if (firstInst > 0) b.justify('ค่างวด งวดที่ 1:', fmtTHB(firstInst), W);
       if (addOn > 0) b.justify('อุปกรณ์จ่ายวันนี้:', fmtTHB(addOn), W);
       if (todayDiscount > 0) b.justify('ส่วนลด:', '-' + fmtTHB(todayDiscount), W);
       b.justify('ยอดวันนี้ก่อนเทิร์น:', fmtTHB(settlement), W);
@@ -264,10 +267,11 @@ export function buildDDMobileReceipt(
       }
       b.separator('=', W);
     } else {
-      if (todayDiscount > 0) {
+      if (todayDiscount > 0 || firstInst > 0) {
         b.justify('เงินดาวน์:', fmtTHB(data.downPaymentAmount ?? 0), W);
+        if (firstInst > 0) b.justify('ค่างวด งวดที่ 1:', fmtTHB(firstInst), W);
         if (addOn > 0) b.justify('อุปกรณ์จ่ายวันนี้:', fmtTHB(addOn), W);
-        b.justify('ส่วนลด:', '-' + fmtTHB(todayDiscount), W);
+        if (todayDiscount > 0) b.justify('ส่วนลด:', '-' + fmtTHB(todayDiscount), W);
       }
       b.separator('=', W);
       b.size(2, 1).justify('ชำระวันนี้:', fmtTHB(payToday), W / 2).size(1, 1);
@@ -303,6 +307,9 @@ export function buildDDMobileReceipt(
     if ((data.downCash ?? 0) > 0) b.justify('  เงินสด:', fmtTHB(data.downCash!), W);
     if ((data.downTransfer ?? 0) > 0) b.justify('  เงินโอน:', fmtTHB(data.downTransfer!), W);
     b.justify(`ผ่อน ${data.installmentMonths} เดือน:`, `${fmtTHB(data.monthlyAmount ?? 0)} / เดือน`, W);
+    if ((data.firstInstallmentAmount ?? 0) > 0) {
+      b.justify('จ่ายงวดที่ 1 แล้ว:', `เหลือ ${Math.max(0, data.installmentMonths - 1)} งวด`, W);
+    }
   }
 
   // ─── Shipping detail ────────────────────────────
@@ -351,6 +358,7 @@ export function receiptDueBeforeDeposit(data: ReceiptData): number {
   const installment = data.paymentMethod === 'INSTALLMENT';
   const base = installment
     ? Math.max(0, (data.downPaymentAmount ?? 0) + (data.addOnTotal ?? 0) - (data.todayDiscountAmount ?? 0))
+      + (data.firstInstallmentAmount ?? 0)   // FIX-226
     : data.grandTotal;
   if ((data.tradeInValue ?? 0) > 0) {
     return data.tradeInDifferenceAmount ?? ((installment ? (data.tradeInSettlementAmount ?? base) : base) - (data.tradeInValue ?? 0));
