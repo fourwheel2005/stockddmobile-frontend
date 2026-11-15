@@ -2,17 +2,15 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { Receipt, Printer, Undo2, Landmark, CheckCircle2, Clock, XCircle, PackageOpen, PackageCheck, Search, Wrench, FileText, FileMinus2, CalendarClock, Store } from 'lucide-react';
+import { Receipt, Printer, Landmark, CheckCircle2, Clock, XCircle, PackageCheck, Search, Wrench, FileText, FileMinus2, CalendarClock, Store } from 'lucide-react';
 import { posApi } from '@/api/pos';
-import { creditNoteApi } from '@/api/creditNote';
 import { repairApi } from '@/api/repair';
 import { SalesCalendar } from '@/components/SalesCalendar';
 import { extractErrorMessage } from '@/api/client';
 import { useAuthStore } from '@/stores/authStore';
 import { useBranchStore } from '@/stores/branchStore';
 import { ReceiptPrintView } from '@/components/ReceiptPrintView';
-import { RefundMethodModal } from '@/components/RefundMethodModal';
-import { ReturnDeviceModal } from '@/components/ReturnDeviceModal';
+import { BillRefundButtons, useBillRefundFlow } from '@/components/sales/BillRefundFlow';
 import { TaxInvoiceModal } from '@/components/TaxInvoiceModal';
 import { ShippingLabelModal } from '@/components/ShippingLabelModal';
 import { SecurityCodeModal } from '@/components/SecurityCodeModal';
@@ -21,7 +19,7 @@ import { usePrinter } from '@/hooks/usePrinter';
 import { printAndConfirmReceipt } from '@/lib/printer/browserPrintConfirmation';
 import { formatTHB, formatDateTime } from '@/lib/format';
 import { shopDayKey } from '@/lib/datetime';
-import type { FinancePayoutStatus, RefundMethod, RepairStatus, RepairTicket, SalesOrderResponse, SalesOrderStatus } from '@/types/api';
+import type { FinancePayoutStatus, RepairStatus, RepairTicket, SalesOrderResponse, SalesOrderStatus } from '@/types/api';
 import { FINANCE_PARTNER_LABEL } from '@/types/api';
 
 // ─── งานซ่อม (รวมเข้าประวัติการขาย FIX-084) ────────────────────────────
@@ -68,6 +66,9 @@ function FinanceBadge({ order }: { order: SalesOrderResponse }) {
   );
 }
 
+/** ช่องปุ่มท้ายแถว: ติดขอบขวาเวลาเลื่อนตาราง + เงาแบ่งจากคอลัมน์ที่ไหลอยู่ข้างใต้ */
+const ACTION_CELL = 'sticky right-0 z-[1] px-3 shadow-[-8px_0_8px_-8px_rgba(15,23,42,0.25)]';
+
 const STATUS_BADGE: Record<SalesOrderStatus, string> = {
   DRAFT: 'badge-slate',
   PAID: 'badge-green',
@@ -96,22 +97,14 @@ export function SalesHistoryPage() {
     order: SalesOrderResponse;
     duplicate: boolean;
   } | null>(null);
-  const [refundOrder, setRefundOrder] = useState<SalesOrderResponse | null>(null);
-  const [creditNoteOrder, setCreditNoteOrder] = useState<SalesOrderResponse | null>(null);
-  const [returnOrder, setReturnOrder] = useState<SalesOrderResponse | null>(null);
   // FIX-150: ออกใบกำกับภาษีเต็มรูปแบบ (บิล PAID)
   const [taxInvoiceFor, setTaxInvoiceFor] = useState<SalesOrderResponse | null>(null);
   const [shippingLabelFor, setShippingLabelFor] = useState<SalesOrderResponse | null>(null);
   const [dateEditOrder, setDateEditOrder] = useState<SalesOrderResponse | null>(null);
   const [pendingDateEdit, setPendingDateEdit] =
     useState<{ order: SalesOrderResponse; saleDate: string; reason: string } | null>(null);
-  // ขั้นยืนยันด้วยรหัสความปลอดภัย — เก็บสิ่งที่จะทำไว้ระหว่างรอรหัส (FIX-103)
-  const [pendingRefund, setPendingRefund] =
-    useState<{ order: SalesOrderResponse; reason: string; refundMethod: RefundMethod } | null>(null);
-  const [pendingCreditNote, setPendingCreditNote] =
-    useState<{ order: SalesOrderResponse; reason: string; refundMethod: RefundMethod } | null>(null);
-  const [pendingReturn, setPendingReturn] =
-    useState<{ order: SalesOrderResponse; refundAmount: number; reason: string; refundMethod: RefundMethod } | null>(null);
+  // ยกเลิกบิล/คืนเงิน/ใบลดหนี้/รับเครื่องคืน — ขั้นตอนเดียวกับหน้ารายละเอียดบิล (FIX-228)
+  const refundFlow = useBillRefundFlow();
 
   // debounce คำค้น (เลขบิล/ลูกค้า)
   useEffect(() => {
@@ -152,54 +145,6 @@ export function SalesHistoryPage() {
   ].sort((a, b) => b.date.localeCompare(a.date));
 
   const printer = usePrinter();
-
-  const refund = useMutation({
-    mutationFn: ({ id, reason, securityCode, refundMethod }:
-      { id: string; reason: string; securityCode: string; refundMethod: RefundMethod }) =>
-      posApi.refund(id, securityCode, reason, refundMethod),
-    onSuccess: (order) => {
-      toast.success(`คืนเงินบิล ${order.billNo} สำเร็จ`);
-      qc.invalidateQueries({ queryKey: ['sales-orders'] });
-      qc.invalidateQueries({ queryKey: ['inventory'] });
-      qc.invalidateQueries({ queryKey: ['transactions'] });
-    },
-    onError: (e) => toast.error(extractErrorMessage(e)),
-  });
-
-  const creditNoteRefund = useMutation({
-    mutationFn: ({ id, reason, securityCode, refundMethod }:
-      { id: string; reason: string; securityCode: string; refundMethod: RefundMethod }) =>
-      creditNoteApi.issueAndRefund(id, reason, securityCode, refundMethod),
-    onSuccess: (creditNote, variables) => {
-      toast.success(`ออกใบลดหนี้ ${creditNote.creditNoteNo} และคืนเงินสำเร็จ`);
-      qc.invalidateQueries({ queryKey: ['sales-orders'] });
-      qc.invalidateQueries({ queryKey: ['inventory'] });
-      qc.invalidateQueries({ queryKey: ['transactions'] });
-      qc.invalidateQueries({ queryKey: ['cash-session'] });
-      qc.invalidateQueries({ queryKey: ['cash-register-history'] });
-      qc.invalidateQueries({ queryKey: ['cash-register-summary'] });
-      printer.printCreditNote(variables.id).catch(() => undefined);
-    },
-    onError: (e) => toast.error(extractErrorMessage(e)),
-  });
-
-  const handleRefund = (o: SalesOrderResponse) => {
-    // V31 Q3 — แทน window.prompt ด้วย modal ที่ให้พนักงานเลือก method
-    setRefundOrder(o);
-  };
-
-  const returnDevice = useMutation({
-    mutationFn: ({ id, refundAmount, reason, securityCode, refundMethod }:
-                 { id: string; refundAmount: number; reason: string; securityCode: string; refundMethod: RefundMethod }) =>
-      posApi.returnDevice(id, refundAmount, securityCode, reason, refundMethod),
-    onSuccess: (order) => {
-      toast.success(`รับเครื่องคืนบิล ${order.billNo} สำเร็จ — เครื่องเข้าสต็อกแล้ว`);
-      qc.invalidateQueries({ queryKey: ['sales-orders'] });
-      qc.invalidateQueries({ queryKey: ['inventory'] });
-      qc.invalidateQueries({ queryKey: ['transactions'] });
-    },
-    onError: (e) => toast.error(extractErrorMessage(e)),
-  });
 
   const updateSaleDate = useMutation({
     mutationFn: ({ id, saleDate, reason, securityCode }:
@@ -280,7 +225,8 @@ export function SalesHistoryPage() {
                 <th className="px-5 py-2.5">สถานะ</th>
                 <th className="px-5 py-2.5">ผู้ขาย</th>
                 <th className="px-5 py-2.5">วันที่</th>
-                <th className="px-5 py-2.5"></th>
+                {/* FIX-228: คอลัมน์ปุ่มติดขวาเสมอ — ตารางกว้างกว่าจอ iPad ปุ่มคืนเงินเคยหลุดขอบขวาจนมองไม่เห็น */}
+                <th className={`${ACTION_CELL} bg-slate-50 py-2.5 text-right`}>จัดการ</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -288,7 +234,7 @@ export function SalesHistoryPage() {
                 <tr><td colSpan={9} className="px-5 py-8 text-center text-slate-400">กำลังโหลด...</td></tr>
               )}
               {rows.map((row) => row.kind === 'SALE' ? (
-                <tr key={row.sale.id} className="hover:bg-slate-50">
+                <tr key={row.sale.id} className="group hover:bg-slate-50">
                   <td className="px-5 py-3">
                     <Link to={`/pos/orders/${row.sale.id}`} className="font-mono font-semibold text-brand-700 hover:underline">
                       {row.sale.billNo}
@@ -326,70 +272,48 @@ export function SalesHistoryPage() {
                       )}
                     </div>
                   </td>
-                  <td className="px-5 py-3">
-                    <div className="flex items-center justify-end gap-1">
-                      <button
-                        className="rounded p-1.5 text-slate-600 hover:bg-slate-100"
-                        title="พิมพ์ใบเสร็จ"
-                        onClick={() => handlePrint(row.sale)}>
-                        <Printer className="h-4 w-4" />
-                      </button>
-                      {row.sale.status === 'PAID' && (
+                  <td className={`${ACTION_CELL} bg-white py-3 group-hover:bg-slate-50`}>
+                    <div className="flex flex-col items-end gap-1.5">
+                      <div className="flex items-center justify-end gap-1">
                         <button
-                          className="rounded p-1.5 text-orange-700 hover:bg-orange-50"
-                          title="พิมพ์ป้ายจัดส่ง 10×15 ซม."
-                          onClick={() => setShippingLabelFor(row.sale)}>
-                          <PackageCheck className="h-4 w-4" />
+                          className="rounded p-1.5 text-slate-600 hover:bg-slate-100"
+                          title="พิมพ์ใบเสร็จ" aria-label={`พิมพ์ใบเสร็จ ${row.sale.billNo}`}
+                          onClick={() => handlePrint(row.sale)}>
+                          <Printer className="h-4 w-4" />
                         </button>
-                      )}
-                      {row.sale.status === 'PAID' && (
-                        <button
-                          className="rounded p-1.5 text-brand-700 hover:bg-brand-50"
-                          title={row.sale.taxInvoiceNo
-                            ? `พิมพ์ใบกำกับ ${row.sale.taxInvoiceNo}`
-                            : 'ออกใบกำกับภาษีเต็มรูปแบบ'}
-                          onClick={() => setTaxInvoiceFor(row.sale)}>
-                          <FileText className="h-4 w-4" />
-                        </button>
-                      )}
-                      {canRefund && row.sale.status === 'PAID' && !row.sale.taxInvoiceNo
-                        && row.sale.paymentMethod === 'INSTALLMENT' && (
-                        <button
-                          className="rounded p-1.5 text-amber-700 hover:bg-amber-50"
-                          title="รับเครื่องคืน (ผ่อนไม่ไหว)"
-                          onClick={() => setReturnOrder(row.sale)}>
-                          <PackageOpen className="h-4 w-4" />
-                        </button>
-                      )}
-                      {canRefund && row.sale.status === 'PAID' && !row.sale.taxInvoiceNo && (
-                        <button
-                          className="rounded p-1.5 text-amber-700 hover:bg-amber-50"
-                          title="คืนเงิน"
-                          onClick={() => handleRefund(row.sale)}>
-                          <Undo2 className="h-4 w-4" />
-                        </button>
-                      )}
-                      {canRefund && row.sale.status === 'PAID' && row.sale.taxInvoiceNo && (
-                        <button
-                          className="rounded p-1.5 text-violet-700 hover:bg-violet-50"
-                          title="ออกใบลดหนี้และคืนเงินทั้งบิล"
-                          onClick={() => setCreditNoteOrder(row.sale)}>
-                          <FileMinus2 className="h-4 w-4" />
-                        </button>
-                      )}
-                      {row.sale.status === 'REFUNDED' && row.sale.creditNoteNo && (
-                        <button
-                          className="rounded p-1.5 text-violet-700 hover:bg-violet-50"
-                          title={`พิมพ์ใบลดหนี้ ${row.sale.creditNoteNo}`}
-                          onClick={() => printer.printCreditNote(row.sale.id).catch(() => undefined)}>
-                          <FileMinus2 className="h-4 w-4" />
-                        </button>
-                      )}
+                        {row.sale.status === 'PAID' && (
+                          <button
+                            className="rounded p-1.5 text-orange-700 hover:bg-orange-50"
+                            title="พิมพ์ป้ายจัดส่ง 10×15 ซม." aria-label={`พิมพ์ป้ายจัดส่ง ${row.sale.billNo}`}
+                            onClick={() => setShippingLabelFor(row.sale)}>
+                            <PackageCheck className="h-4 w-4" />
+                          </button>
+                        )}
+                        {row.sale.status === 'PAID' && (
+                          <button
+                            className="rounded p-1.5 text-brand-700 hover:bg-brand-50"
+                            title={row.sale.taxInvoiceNo
+                              ? `พิมพ์ใบกำกับ ${row.sale.taxInvoiceNo}`
+                              : 'ออกใบกำกับภาษีเต็มรูปแบบ'}
+                            onClick={() => setTaxInvoiceFor(row.sale)}>
+                            <FileText className="h-4 w-4" />
+                          </button>
+                        )}
+                        {row.sale.status === 'REFUNDED' && row.sale.creditNoteNo && (
+                          <button
+                            className="rounded p-1.5 text-violet-700 hover:bg-violet-50"
+                            title={`พิมพ์ใบลดหนี้ ${row.sale.creditNoteNo}`}
+                            onClick={() => printer.printCreditNote(row.sale.id).catch(() => undefined)}>
+                            <FileMinus2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                      {canRefund && <BillRefundButtons order={row.sale} onStart={refundFlow.start} />}
                     </div>
                   </td>
                 </tr>
               ) : (
-                <tr key={`r-${row.repair.id}`} className="bg-amber-50/30 hover:bg-amber-50/60">
+                <tr key={`r-${row.repair.id}`} className="group bg-amber-50/30 hover:bg-amber-50/60">
                   <td className="px-5 py-3">
                     <Link to="/repairs" className="font-mono font-semibold text-amber-700 hover:underline">
                       {row.repair.ticketNo}
@@ -416,7 +340,7 @@ export function SalesHistoryPage() {
                   <td className="px-5 py-3"><span className={REPAIR_STATUS[row.repair.status].cls}>{REPAIR_STATUS[row.repair.status].label}</span></td>
                   <td className="px-5 py-3 text-xs">{row.repair.receivedBy}</td>
                   <td className="px-5 py-3 text-xs text-slate-500">{formatDateTime(row.repair.receivedAt)}</td>
-                  <td className="px-5 py-3">
+                  <td className={`${ACTION_CELL} bg-[#fffdf5] py-3 group-hover:bg-amber-50`}>
                     <div className="flex items-center justify-end gap-1">
                       <Link to="/repairs" className="inline-flex rounded p-1.5 text-slate-600 hover:bg-slate-100" title="ไปหน้างานซ่อม">
                         <Wrench className="h-4 w-4" />
@@ -445,63 +369,6 @@ export function SalesHistoryPage() {
 
       {printOrder && (
         <ReceiptPrintView order={printOrder.order} duplicate={printOrder.duplicate} />
-      )}
-
-      {refundOrder && (
-        <RefundMethodModal
-          order={refundOrder}
-          loading={refund.isPending}
-          onClose={() => setRefundOrder(null)}
-          onConfirm={(reason, refundMethod) => {
-            // ขั้นที่ 2 — ต้องผ่านรหัสความปลอดภัยของร้านก่อนเสมอ (FIX-103)
-            setPendingRefund({ order: refundOrder, reason, refundMethod });
-            setRefundOrder(null);
-          }}
-        />
-      )}
-
-      {pendingRefund && (
-        <SecurityCodeModal
-          action={`ยกเลิก/คืนเงินบิล ${pendingRefund.order.billNo}`}
-          warning="เครื่องจะกลับเข้าสต็อกและยอดขายบิลนี้ถูกตัดออก — ย้อนกลับไม่ได้"
-          pending={refund.isPending}
-          onClose={() => setPendingRefund(null)}
-          onConfirm={(securityCode) => {
-            refund.mutate(
-              { id: pendingRefund.order.id, reason: pendingRefund.reason, securityCode,
-                refundMethod: pendingRefund.refundMethod },
-              { onSuccess: () => setPendingRefund(null) },
-            );
-          }}
-        />
-      )}
-
-      {creditNoteOrder && (
-        <RefundMethodModal
-          order={creditNoteOrder}
-          loading={creditNoteRefund.isPending}
-          creditNote
-          onClose={() => setCreditNoteOrder(null)}
-          onConfirm={(reason, refundMethod) => {
-            setPendingCreditNote({ order: creditNoteOrder, reason, refundMethod });
-            setCreditNoteOrder(null);
-          }}
-        />
-      )}
-
-      {pendingCreditNote && (
-        <SecurityCodeModal
-          action={`ออกใบลดหนี้และคืนเงินบิล ${pendingCreditNote.order.billNo}`}
-          warning="ระบบจะออกใบลดหนี้เต็มจำนวน คืนสินค้าเข้าสต๊อก และบันทึกเงินคืน การดำเนินการนี้ย้อนกลับไม่ได้"
-          pending={creditNoteRefund.isPending}
-          onClose={() => setPendingCreditNote(null)}
-          onConfirm={(securityCode) => creditNoteRefund.mutate({
-            id: pendingCreditNote.order.id,
-            reason: pendingCreditNote.reason,
-            securityCode,
-            refundMethod: pendingCreditNote.refundMethod,
-          }, { onSuccess: () => setPendingCreditNote(null) })}
-        />
       )}
 
       {taxInvoiceFor && (
@@ -539,38 +406,7 @@ export function SalesHistoryPage() {
         />
       )}
 
-      {returnOrder && (
-        <ReturnDeviceModal
-          order={returnOrder}
-          loading={returnDevice.isPending}
-          onClose={() => setReturnOrder(null)}
-          onConfirm={(refundAmount, reason, refundMethod) => {
-            setPendingReturn({ order: returnOrder, refundAmount, reason, refundMethod });
-            setReturnOrder(null);
-          }}
-        />
-      )}
-
-      {pendingReturn && (
-        <SecurityCodeModal
-          action={`รับเครื่องคืนบิล ${pendingReturn.order.billNo}`}
-          warning="เครื่องจะกลับเข้าสต็อกและยอดที่ชำระถูกปรับ — ย้อนกลับไม่ได้"
-          pending={returnDevice.isPending}
-          onClose={() => setPendingReturn(null)}
-          onConfirm={(securityCode) => {
-            returnDevice.mutate(
-              {
-                id: pendingReturn.order.id,
-                refundAmount: pendingReturn.refundAmount,
-                reason: pendingReturn.reason,
-                securityCode,
-                refundMethod: pendingReturn.refundMethod,
-              },
-              { onSuccess: () => setPendingReturn(null) },
-            );
-          }}
-        />
-      )}
+      {refundFlow.modals}
     </div>
   );
 }

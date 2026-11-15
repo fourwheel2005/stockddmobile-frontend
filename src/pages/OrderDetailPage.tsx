@@ -6,6 +6,7 @@ import { posApi } from '@/api/pos';
 import { extractErrorMessage } from '@/api/client';
 import { useAuthStore } from '@/stores/authStore';
 import { formatTHB, formatDateTime } from '@/lib/format';
+import { BillRefundButtons, useBillRefundFlow } from '@/components/sales/BillRefundFlow';
 import type { PaymentMethod, SalesOrderStatus } from '@/types/api';
 
 const STATUS_LABEL: Record<SalesOrderStatus, { text: string; cls: string }> = {
@@ -37,6 +38,9 @@ export function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
   const qc = useQueryClient();
   const canEditCost = useAuthStore((s) => s.hasRole('ADMIN', 'MANAGER'));
+  // FIX-228: ยกเลิกบิล/คืนเงินจากหน้าบิลได้ด้วย (เดิมมีแค่ปุ่มไอคอนในตารางประวัติการขาย)
+  const canRefund = useAuthStore((s) => s.hasRole('ADMIN', 'MANAGER', 'STAFF'));
+  const refundFlow = useBillRefundFlow();
   const { data: o, isLoading, isError } = useQuery({
     queryKey: ['order-detail', id],
     queryFn: () => posApi.getOrder(id!),
@@ -100,7 +104,10 @@ export function OrderDetailPage() {
             {formatDateTime(o.createdAt)} · ผู้ขาย {o.createdBy}
           </p>
         </div>
-        <span className={`rounded-full px-3 py-1 text-sm font-semibold ${st.cls}`}>{st.text}</span>
+        <div className="flex flex-col items-end gap-2">
+          <span className={`rounded-full px-3 py-1 text-sm font-semibold ${st.cls}`}>{st.text}</span>
+          {canRefund && <BillRefundButtons order={o} onStart={refundFlow.start} />}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -244,6 +251,7 @@ export function OrderDetailPage() {
           )}
         </div>
       </div>
+      {refundFlow.modals}
     </div>
   );
 }
