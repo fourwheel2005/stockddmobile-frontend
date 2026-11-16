@@ -1119,6 +1119,14 @@ export interface CheckoutRequest {
   clientRequestId?: string;
   /** ขายเครื่องที่ลูกค้าจอง/วางมัดจำไว้ (FIX-214) — backend หักยอดมัดจำคงเหลือของใบนี้ */
   depositId?: string;
+  /** FIX-230: เปลี่ยนเครื่อง — คืนรายการจากบิลเดิม เงินที่ตกลงคืนเป็นเครดิตบิลนี้ (ไม่มีเงินออกเก๊ะ) */
+  exchange?: {
+    orderId: string;
+    lines: ReturnItemLine[];
+    creditAmount: number;
+    reason?: string;
+    batteryHealth?: number;
+  };
   /** เงินสดที่ลูกค้ายื่น (FIX-156) — เฉพาะบิลมีส่วนเงินสด · backend คำนวณทอนเอง */
   tenderedAmount?: number;
   customerId?: string;
@@ -1205,6 +1213,33 @@ export interface SalesOrderItemResponse {
   /** โปรตอนขาย (FIX-217) — ชื่อ + ราคาโปรที่ระบบเสนอ (ก่อนส่วนลดมือ) */
   promotionName?: string | null;
   promoPrice?: number | null;
+  /** FIX-230: เครื่องของบรรทัดนี้ + จำนวนที่ลูกค้าคืนแล้ว */
+  serialItemId?: string | null;
+  returnedQuantity?: number;
+}
+
+/** FIX-230: รับคืนบางรายการ */
+export interface ReturnItemLine { itemId: string; quantity: number }
+export interface ReturnItemsRequest {
+  lines: ReturnItemLine[];
+  refundAmount: number;
+  refundMethod?: RefundMethod;
+  reason?: string;
+  batteryHealth?: number;
+}
+
+/** FIX-230: ประวัติรับคืน/เปลี่ยนเครื่องของบิล */
+export interface SalesReturnRecord {
+  id: string;
+  returnedAt: string;
+  kind: 'RETURN' | 'EXCHANGE';
+  amount: number;
+  refundCash: number | null;
+  refundExternal: number | null;
+  exchangeBillNo: string | null;
+  reason: string | null;
+  performedBy: string | null;
+  lines: Array<{ itemId: string; productName: string; imei: string | null; quantity: number; lineValue: number }>;
 }
 
 export interface SalesOrderResponse {
@@ -1239,6 +1274,13 @@ export interface SalesOrderResponse {
   /** มัดจำ/จองเครื่องที่ลูกค้าจ่ายไว้ก่อน หักในบิลนี้ (FIX-214) · null = ไม่มี */
   depositAppliedAmount?: number | null;
   depositNo?: string | null;
+  /** FIX-230: เงินที่คืนลูกค้าแล้ว (รวมเครดิตที่โอนไปบิลใหม่) · null = ไม่เคยคืน */
+  returnedAmount?: number | null;
+  /** FIX-230: คืนเงินได้อีกสูงสุด = เงินที่ลูกค้าจ่ายจริง − ที่คืนแล้ว (ไม่รวมเครดิตเทิร์น) */
+  refundableAmount?: number | null;
+  /** FIX-230: บิลนี้ใช้เครดิตเปลี่ยนเครื่องจากบิลเดิม */
+  exchangeCreditAmount?: number | null;
+  exchangeFromBillNo?: string | null;
   paymentSlipUrl: string | null;
   shippingPartner: ShippingPartner | null;
   shippingTrackingNo: string | null;

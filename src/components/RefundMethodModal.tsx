@@ -3,11 +3,14 @@ import { X, Undo2, Banknote, ArrowLeftRight, CreditCard, Package, Receipt, Smart
 import { formatTHB } from '@/lib/format';
 import { useModalChrome, backdropCloseHandler } from '@/hooks/useModalChrome';
 import type { RefundMethod, SalesOrderResponse } from '@/types/api';
+import { ReturnBatteryField, parseBattery } from '@/components/sales/ReturnBatteryField';
+import { deviceLines } from '@/lib/pos/billRefund';
 
 interface Props {
   order: SalesOrderResponse;
   onClose: () => void;
-  onConfirm: (reason: string, refundMethod: RefundMethod) => void;
+  /** batteryHealth: % แบตตอนรับคืน (undefined = ไม่แก้) — FIX-229 */
+  onConfirm: (reason: string, refundMethod: RefundMethod, batteryHealth?: number) => void;
   loading?: boolean;
   creditNote?: boolean;
 }
@@ -22,6 +25,10 @@ interface Props {
  */
 export function RefundMethodModal({ order, onClose, onConfirm, loading, creditNote = false }: Props) {
   const [reason, setReason] = useState('');
+  const [batteryText, setBatteryText] = useState('');
+  const battery = parseBattery(batteryText);
+  // ยกเลิกทั้งบิล = เครื่องที่ลูกค้ายังถืออยู่ทั้งหมดกลับเข้าสต็อก
+  const devices = deviceLines(order.items);
   useModalChrome(onClose);
 
   const cash = order.cashAmount ?? 0;
@@ -116,6 +123,9 @@ export function RefundMethodModal({ order, onClose, onConfirm, loading, creditNo
             <Package className="inline h-4 w-4 align-[-2px]" /> สินค้า {order.items.length} รายการจะถูกคืนกลับเข้าสต็อกอัตโนมัติ
           </div>
 
+          <ReturnBatteryField device={devices.length === 1 ? devices[0] : null} deviceCount={devices.length}
+                              value={batteryText} onChange={setBatteryText} />
+
           {creditNote && (
             <div className="rounded-md border border-sky-200 bg-sky-50 p-2.5 text-xs text-sky-800">
               <Receipt className="inline h-4 w-4 align-[-2px]" /> ระบบจะเก็บใบกำกับเดิมไว้ ออกเลขใบลดหนี้ใหม่ และลดมูลค่าทั้งบิลเป็น 0.00 บาท
@@ -140,8 +150,8 @@ export function RefundMethodModal({ order, onClose, onConfirm, loading, creditNo
           <button className="btn-secondary" onClick={onClose}>ยกเลิก</button>
           <button
             className="btn-primary bg-amber-600 hover:bg-amber-700"
-            disabled={loading || reason.trim().length === 0}
-            onClick={() => onConfirm(reason.trim(), refundMethod)}>
+            disabled={loading || reason.trim().length === 0 || !!battery.error}
+            onClick={() => onConfirm(reason.trim(), refundMethod, battery.value)}>
             <Undo2 className="h-4 w-4" />
             {loading ? 'กำลังดำเนินการ...' : creditNote ? 'ออกใบลดหนี้และคืนเงิน' : 'ยืนยันคืนเงิน'}
           </button>

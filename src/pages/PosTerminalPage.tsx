@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { BadgePercent, Bookmark, PackagePlus, ScanLine, Trash2, ShoppingCart, Receipt, Search, ListChecks, UserCircle2, Printer, Upload, X, Wrench, Truck, Globe, Store, Plus, ChevronDown, ChevronUp, ArrowLeftRight, FileText, Banknote, Calculator, Check, CreditCard, Info, Landmark, Star, TriangleAlert, XCircle } from 'lucide-react';
+import { BadgePercent, Bookmark, PackagePlus, ScanLine, Trash2, ShoppingCart, Receipt, Search, ListChecks, UserCircle2, Printer, Upload, X, Wrench, Truck, Globe, Store, Plus, ChevronDown, ChevronUp, ArrowLeftRight, FileText, Banknote, Calculator, Check, CreditCard, Info, Landmark, Repeat, Star, TriangleAlert, XCircle } from 'lucide-react';
 import { posApi } from '@/api/pos';
 import { filesApi } from '@/api/files';
 import { extractErrorMessage } from '@/api/client';
@@ -54,6 +54,8 @@ import { printAndConfirmReceipt } from '@/lib/printer/browserPrintConfirmation';
 import { Link, useSearchParams } from 'react-router-dom';
 import { deviceDepositsApi } from '@/api/deviceDeposits';
 import { OrderDeviceModal, ReserveDeviceModal } from '@/components/deposits/DepositModals';
+import { ReturnItemsModal, type ReturnItemsResult } from '@/components/sales/ReturnItemsModal';
+import { ExchangeBillPicker } from '@/components/sales/ExchangeBillPicker';
 import { useDepositPrinter } from '@/hooks/useDepositPrinter';
 import { depositDue } from '@/lib/pos/deposit';
 
@@ -200,6 +202,10 @@ export function PosTerminalPage() {
   const [cart, setCart] = useState<CartLine[]>([]);
   // FIX-214: ขายเครื่องที่จอง/วางมัดจำไว้ — หักมัดจำคงเหลือของใบนี้จากยอดที่ต้องจ่าย
   const [activeDeposit, setActiveDeposit] = useState<DeviceDeposit | null>(null);
+  // FIX-230: เปลี่ยนเครื่อง — คืนรายการจากบิลเดิม เงินที่ตกลงคืนเป็นเครดิตบิลนี้ (ไม่มีเงินออกเก๊ะ)
+  const [activeExchange, setActiveExchange] = useState<{ order: SalesOrderResponse; result: ReturnItemsResult } | null>(null);
+  const [exchangeChoosing, setExchangeChoosing] = useState<{ order: SalesOrderResponse; preselectSerialId?: string | null } | null>(null);
+  const [showExchangePicker, setShowExchangePicker] = useState(false);
   const [showReserve, setShowReserve] = useState(false);
   const depositPrinter = useDepositPrinter();   // FIX-222: ใบรับเงินมัดจำหลังจอง/มัดจำสั่งเครื่อง
   const [showOrderDeposit, setShowOrderDeposit] = useState(false);
@@ -453,6 +459,29 @@ export function PosTerminalPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [depositParam]);
 
+  // FIX-230: มาจากปุ่ม "เปลี่ยนเครื่อง" (ประวัติการขาย / หน้าบิล / การ์ดสแกน / หน้าคลัง) → /pos?exchange=<orderId>&serial=<id>
+  const exchangeParam = searchParams.get('exchange');
+  const exchangeSerialParam = searchParams.get('serial');
+  useEffect(() => {
+    if (!exchangeParam) return;
+    setSearchParams((prev) => { prev.delete('exchange'); prev.delete('serial'); return prev; }, { replace: true });
+    posApi.getOrder(exchangeParam)
+      .then((order) => setExchangeChoosing({ order, preselectSerialId: exchangeSerialParam }))
+      .catch((e) => toast.error(extractErrorMessage(e)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exchangeParam]);
+
+  const startExchange = (result: ReturnItemsResult, order: SalesOrderResponse) => {
+    setActiveExchange({ order, result });
+    setExchangeChoosing(null);
+    if (!customer && !walkInName.trim() && order.customerName && !order.customerId) {
+      setWalkInName(order.customerName);
+      setWalkInPhone(order.customerPhone ?? '');
+    }
+    toast.success(`เปลี่ยนเครื่องจากบิล ${order.billNo} · เครดิต ${formatTHB(result.amount)} — สแกนเครื่องใหม่เข้าตะกร้าได้เลย`,
+      { duration: 6000 });
+  };
+
   /** เพิ่มรายการที่พิมพ์เอง (ไม่ตัดสต็อก) — FIX-099 */
   function addCustomItemToCart(draft: CustomItemDraft) {
     setCart((prev) => [...prev, {
@@ -539,8 +568,11 @@ export function PosTerminalPage() {
   const netCollect = tradeInSettlement.differenceAmount;
   // FIX-214: มัดจำ/จองที่ลูกค้าจ่ายไว้ก่อน → หักต่อจากเทิร์น (สูตรเดียวกับ backend)
   const depositCredit = activeDeposit ? activeDeposit.balance : 0;
+  // FIX-230: เครดิตเปลี่ยนเครื่องหักแบบเดียวกับมัดจำ (backend รวมกันในสูตรเดียว)
+  const exchangeCredit = activeExchange ? activeExchange.result.amount : 0;
+  const prepaidCredit = r2(depositCredit + exchangeCredit);
   const depositDueInfo = depositDue({
-    isInstallment: isInstallmentSel, grandTotal, payToday, tradeInValue: tradeInValueNum, depositCredit,
+    isInstallment: isInstallmentSel, grandTotal, payToday, tradeInValue: tradeInValueNum, depositCredit: prepaidCredit,
   });
   const collectDue = isInstallmentSel ? netCollect : depositDueInfo.due;   // บิลไม่ผ่อน: ยอดที่ต้องรับจริง
   const depositDeviceMissing = !!activeDeposit && !cart.some((l) => l.serialItemId === activeDeposit.serialItemId);
@@ -548,7 +580,7 @@ export function PosTerminalPage() {
   const payTransferClamped = Math.min(Math.max(0, payTransfer), payToday);
   // FIX-156: ยอดเงินสดที่ต้องรับจริงของบิล (cashDue) แยกตามวิธีจ่าย — สูตรเดียวกับที่ backend ใช้ set cashAmount
   const tenderInstNet = r2(Math.max(0, payToday - (paymentMethod === 'INSTALLMENT' && tradeInActive ? tradeInValueNum : 0)
-    - (paymentMethod === 'INSTALLMENT' ? depositCredit : 0)));
+    - (paymentMethod === 'INSTALLMENT' ? prepaidCredit : 0)));
   const tenderCashDue =
     paymentMethod === 'CASH' ? Math.max(0, r2(collectDue))
     : paymentMethod === 'MIXED' ? r2(mixedSplit.cash || 0)
@@ -616,7 +648,7 @@ export function PosTerminalPage() {
       const isInstallment = paymentMethod === 'INSTALLMENT';
       // เทิร์นดาวน์ (FIX-106): ยอดจ่ายจริงวันนี้ = payToday − มูลค่าเทิร์น (เทิร์นแทนเงินดาวน์)
       const payNetToday = r2(Math.max(0, payToday - (isInstallment && tradeInActive ? tradeInValueNum : 0)
-        - (isInstallment ? depositCredit : 0)));   // FIX-214: หักมัดจำที่จ่ายไว้ก่อน
+        - (isInstallment ? prepaidCredit : 0)));   // FIX-214/230: หักมัดจำ + เครดิตเปลี่ยนเครื่อง
       const effTransfer = r2(Math.min(payTransferClamped, payNetToday));
       const effCash = r2(payNetToday - effTransfer);   // QA FIX-151: กัน float noise ชน @Digits → 400
       // idempotency: gen ครั้งแรกของตะกร้านี้ · retry ใช้ key เดิม (ยังไม่ success จึงยังไม่ถูกเคลียร์)
@@ -624,6 +656,14 @@ export function PosTerminalPage() {
       return posApi.checkout({
         clientRequestId: clientRequestIdRef.current,
         depositId: activeDeposit?.id,   // FIX-214
+        // FIX-230: เปลี่ยนเครื่อง — backend รับคืนจากบิลเดิมใน transaction เดียวกับการปิดบิลนี้
+        exchange: activeExchange ? {
+          orderId: activeExchange.order.id,
+          lines: activeExchange.result.lines,
+          creditAmount: activeExchange.result.amount,
+          reason: activeExchange.result.reason || undefined,
+          batteryHealth: activeExchange.result.batteryHealth,
+        } : undefined,
         customerId: customer?.id,
         branchId: useBranchStore.getState().activeBranchId ?? undefined,  // ขายที่สาขาที่เลือก (Phase 2C)
         cashierProfileId,
@@ -724,6 +764,11 @@ export function PosTerminalPage() {
       setCart([]);
       if (activeDeposit) qc.invalidateQueries({ queryKey: ['device-deposits'] });
       setActiveDeposit(null);   // FIX-214
+      if (activeExchange) {     // FIX-230: บิลเดิมเปลี่ยนสถานะ/สต็อกเครื่องเก่ากลับเข้า
+        qc.invalidateQueries({ queryKey: ['order-detail'] });
+        qc.invalidateQueries({ queryKey: ['scan-detail'] });
+      }
+      setActiveExchange(null);
       setCustomer(null);
       setDiscount(0);
       setTenderText('');   // FIX-156: กันยอดรับเงินค้างข้ามบิล
@@ -805,7 +850,7 @@ export function PosTerminalPage() {
 
   // MIXED — split must equal grandTotal (computed below in JSX scope)
   const mixedError = paymentMethod === 'MIXED'
-    ? validateSplit(mixedSplit, r2(grandTotal - depositCredit))   // FIX-214: หักมัดจำแล้ว
+    ? validateSplit(mixedSplit, r2(grandTotal - prepaidCredit))   // FIX-214/230: หักมัดจำ + เครดิตเปลี่ยนเครื่องแล้ว
     : null;
 
   // ─── Channel + Shipping gating (ตรงกับ PosService validation) ────────
@@ -864,7 +909,9 @@ export function PosTerminalPage() {
     !cashierProfileId ? 'กรุณาเลือกผู้รับเงิน' :
     cart.length === 0 ? 'ยังไม่มีสินค้าในตะกร้า' :
     depositDeviceMissing ? `ใบ ${activeDeposit!.depositNo}: ตะกร้าต้องมีเครื่องที่ลูกค้าจองไว้ (หรือกดยกเลิกการขายใบนี้)` :
-    depositDueInfo.depositOver ? `มัดจำ ${formatTHB(depositCredit)} มากกว่ายอดที่ต้องชำระ (${formatTHB(Math.max(0, depositDueInfo.afterTradeIn))}) — ปรับราคา หรือคืนมัดจำส่วนเกินก่อน` :
+    depositDueInfo.depositOver ? (exchangeCredit > 0
+      ? `เครดิตเปลี่ยนเครื่อง${depositCredit > 0 ? ' + มัดจำ' : ''} ${formatTHB(prepaidCredit)} มากกว่ายอดที่ต้องชำระ (${formatTHB(Math.max(0, depositDueInfo.afterTradeIn))}) — ลดเครดิตเท่ายอดบิลใหม่ แล้วคืนส่วนต่างด้วย "รับคืนสินค้า" ที่บิลเดิม`
+      : `มัดจำ ${formatTHB(depositCredit)} มากกว่ายอดที่ต้องชำระ (${formatTHB(Math.max(0, depositDueInfo.afterTradeIn))}) — ปรับราคา หรือคืนมัดจำส่วนเกินก่อน`) :
     discountExceedsSubtotal ? 'ส่วนลดเกินยอดรวมสินค้า' :
     installmentDiscountOver ? `บิลผ่อน: ส่วนลดหักจากยอดจ่ายวันนี้ ต้องไม่เกินดาวน์ + อุปกรณ์เสริม (${formatTHB(r2(downAmount + addOnToday))})` :
     shippingSplitOver ? 'ค่าส่งของตา+ยาย เกินค่าส่งรวม' :
@@ -937,6 +984,10 @@ export function PosTerminalPage() {
           <Link to="/deposits" className="btn-secondary">
             <ListChecks className="h-4 w-4" /> รายการจอง/มัดจำ
           </Link>
+          {/* FIX-230: เปลี่ยนเครื่อง — คืนของจากบิลเดิมแล้วใช้เป็นเครดิตบิลนี้ */}
+          <button className="btn-secondary text-brand-700" onClick={() => setShowExchangePicker(true)}>
+            <Repeat className="h-4 w-4" /> เปลี่ยนเครื่อง
+          </button>
           <button className="btn-secondary" onClick={() => setShowCustomerPicker(true)}>
             <UserCircle2 className="h-4 w-4" />
             {customer ? customer.name : 'เลือกลูกค้า'}
@@ -1467,6 +1518,23 @@ export function PosTerminalPage() {
           <ShoppingCart className="h-5 w-5" />
           <span>สรุปรายการสินค้าในบิล ({cart.length} รายการ)</span>
         </div>
+        {activeExchange && (
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-brand-200 bg-brand-50 px-4 py-2.5 text-sm">
+            <div>
+              <span className="font-semibold text-brand-900"><Repeat className="inline h-4 w-4 align-[-2px]" /> เปลี่ยนเครื่องจากบิล {activeExchange.order.billNo}</span>
+              <span className="text-brand-800"> · ลูกค้าคืน {activeExchange.result.lines.map((l) => {
+                const it = activeExchange.order.items.find((i) => i.id === l.itemId);
+                return `${it?.productName ?? ''}${it?.imei ? ` ${it.imei}` : ''}${l.quantity > 1 ? ` ×${l.quantity}` : ''}`;
+              }).join(', ')} · เครดิต <strong>{formatTHB(exchangeCredit)}</strong></span>
+            </div>
+            <div className="flex gap-3">
+              <button type="button" className="text-xs font-semibold text-brand-700 hover:underline"
+                      onClick={() => setExchangeChoosing({ order: activeExchange.order })}>แก้ไข</button>
+              <button type="button" className="text-xs font-semibold text-rose-700 hover:underline"
+                      onClick={() => setActiveExchange(null)}>ยกเลิกการเปลี่ยนเครื่อง</button>
+            </div>
+          </div>
+        )}
         {activeDeposit && (
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-sky-200 bg-sky-50 px-4 py-2.5 text-sm">
             <div>
@@ -1680,7 +1748,7 @@ export function PosTerminalPage() {
                      value={tradeInColor} onChange={(e) => setTradeInColor(e.target.value)} />
               <input className="input" maxLength={20} placeholder="ความจุ เช่น 256GB"
                      value={tradeInStorage} onChange={(e) => setTradeInStorage(e.target.value)} />
-              <ImeiInput placeholder="IMEI ใหม่ (ต้องไม่เคยมีในระบบ)"
+              <ImeiInput placeholder="IMEI เครื่องลูกค้า (ใหม่ หรือที่ร้านเคยขายไป)"
                          value={tradeInImei} onChange={setTradeInImei} />
               <input className="input font-mono" maxLength={30} placeholder="Serial (ถ้ามี)"
                      value={tradeInSerial} onChange={(e) => setTradeInSerial(e.target.value)} />
@@ -1806,7 +1874,7 @@ export function PosTerminalPage() {
                 const monthlyShow = installmentMonthly > 0
                   ? installmentMonthly
                   : (installmentMonths > 0 ? Math.ceil(Math.max(0, grandTotal - salePayToday) / installmentMonths) : 0);
-                const payNetView = Math.max(0, r2((tradeInActive ? tradeInSettlement.customerPays : payToday) - depositCredit));
+                const payNetView = Math.max(0, r2((tradeInActive ? tradeInSettlement.customerPays : payToday) - prepaidCredit));
                 const payoutView = tradeInActive ? tradeInSettlement.storePays : 0;
                 const transferView = Math.min(payTransferClamped, payNetView);
                 const cashView = payNetView - transferView;
@@ -1827,6 +1895,11 @@ export function PosTerminalPage() {
                     {depositCredit > 0 && (
                       <div className="flex justify-between text-xs text-sky-700">
                         <span>หักมัดจำ ({activeDeposit?.depositNo})</span><span>- {formatTHB(depositCredit)}</span>
+                      </div>
+                    )}
+                    {exchangeCredit > 0 && (
+                      <div className="flex justify-between text-xs text-brand-700">
+                        <span>หักเครดิตเปลี่ยนเครื่อง ({activeExchange?.order.billNo})</span><span>- {formatTHB(exchangeCredit)}</span>
                       </div>
                     )}
                     {/* แยกเงินสด/เงินโอน ของยอดรับวันนี้ (FIX-097) */}
@@ -1869,7 +1942,7 @@ export function PosTerminalPage() {
               })()
             ) : (
               <>
-                {(tradeInActive || depositCredit > 0) && (
+                {(tradeInActive || prepaidCredit > 0) && (
                   <div className="space-y-1 text-sm">
                     <div className="flex justify-between">
                       <span className="text-slate-500">ยอดขาย</span><span>{formatTHB(grandTotal)}</span>
@@ -1884,14 +1957,19 @@ export function PosTerminalPage() {
                         <span>หักมัดจำที่จ่ายไว้แล้ว ({activeDeposit?.depositNo})</span><span>- {formatTHB(depositCredit)}</span>
                       </div>
                     )}
+                    {exchangeCredit > 0 && (
+                      <div className="flex justify-between text-brand-700">
+                        <span>หักเครดิตเปลี่ยนเครื่อง (บิล {activeExchange?.order.billNo})</span><span>- {formatTHB(exchangeCredit)}</span>
+                      </div>
+                    )}
                   </div>
                 )}
                 <div className="text-xs uppercase text-amber-700 font-semibold">
-                  {depositCredit > 0 ? 'ยอดคงเหลือที่ต้องชำระ'
+                  {prepaidCredit > 0 ? 'ยอดคงเหลือที่ต้องชำระ'
                     : tradeInActive ? (netCollect >= 0 ? 'รับสุทธิจากลูกค้า' : 'จ่ายคืนลูกค้า') : 'ยอดสุทธิที่ต้องชำระ (Net Total)'}
                 </div>
                 <div className="rounded-md bg-slate-900 px-4 py-6 text-right text-4xl font-bold text-amber-300">
-                  {formatTHB(depositCredit > 0 ? Math.max(0, collectDue) : tradeInActive ? Math.abs(netCollect) : grandTotal)}
+                  {formatTHB(prepaidCredit > 0 ? Math.max(0, collectDue) : tradeInActive ? Math.abs(netCollect) : grandTotal)}
                 </div>
               </>
             )}
@@ -1995,6 +2073,21 @@ export function PosTerminalPage() {
         />
       )}
       {showLookup && <DeviceLookupModal onClose={() => setShowLookup(false)} />}
+      {showExchangePicker && (
+        <ExchangeBillPicker
+          onClose={() => setShowExchangePicker(false)}
+          onPick={(order) => { setShowExchangePicker(false); setExchangeChoosing({ order }); }}
+        />
+      )}
+      {exchangeChoosing && (
+        <ReturnItemsModal
+          order={exchangeChoosing.order}
+          mode="EXCHANGE"
+          preselectSerialId={exchangeChoosing.preselectSerialId}
+          onClose={() => setExchangeChoosing(null)}
+          onConfirm={(result) => startExchange(result, exchangeChoosing.order)}
+        />
+      )}
       {showReserve && <ReserveDeviceModal onClose={() => setShowReserve(false)} onDone={depositPrinter.print} />}
       {showOrderDeposit && <OrderDeviceModal onClose={() => setShowOrderDeposit(false)} onDone={depositPrinter.print} />}
       {showRepair && (

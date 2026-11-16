@@ -189,6 +189,16 @@ describe('buildDDMobileReceipt', () => {
     expect(text).toContain('25,000.00');
   });
 
+  it('prints the exchange credit from the old bill and only the difference as paid today (FIX-230)', () => {
+    const text = String.fromCharCode(...buildDDMobileReceipt(makeReceipt({
+      grandTotal: 16900, subtotal: 16900, paidAmount: 16900,
+      exchangeCreditAmount: 13900, exchangeFromBillNo: 'INV-OLD-001',
+    })));
+    expect(text).toContain('INV-OLD-001');
+    expect(text).toContain('-13,900.00');
+    expect(text).toContain('3,000.00');
+  });
+
   it('installment with deposit: today = down − deposit (FIX-214)', () => {
     const text = String.fromCharCode(...buildDDMobileReceipt(makeReceipt({
       paymentMethod: 'INSTALLMENT', installmentMonths: 10, downPaymentAmount: 8000,

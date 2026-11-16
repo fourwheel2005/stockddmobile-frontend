@@ -20,6 +20,7 @@ const valid = {
 describe('POS trade-in state', () => {
   it('states the new-only and pending-intake business policy', () => {
     expect(TRADE_IN_INTAKE_POLICY.newIdentifierOnly).toContain('ไม่เคยอยู่ในระบบ');
+    expect(TRADE_IN_INTAKE_POLICY.newIdentifierOnly).toContain('ร้านเคยขายไปแล้ว');   // FIX-230
     expect(TRADE_IN_INTAKE_POLICY.modelSource).toContain('ไม่ได้เลือกหรือตัดเครื่องใน Stock');
     expect(TRADE_IN_INTAKE_POLICY.destination).toContain('รอลงสต็อก');
     expect(TRADE_IN_INTAKE_POLICY.destination).toContain('ยังขายไม่ได้');

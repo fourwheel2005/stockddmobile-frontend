@@ -1,39 +1,104 @@
 import { describe, expect, it } from 'vitest';
-import { billRefundOptions, fullRefundBlockedReason } from '../billRefund';
+import {
+  billRefundOptions, defaultRefund, defaultSelection, fullRefundBlockedReason, refundCap, remainingQty,
+  returnFormError, selectionValue, singleSelectedDevice,
+} from '../billRefund';
+
+const phone = (id: string, imei: string, extra: Record<string, unknown> = {}) => ({
+  id, imei, serialNumber: `SN-${imei}`, custom: false, quantity: 1, sellPrice: 13900,
+  serialItemId: `serial-${id}`, returnedQuantity: 0, ...extra,
+});
+const charger = (extra: Record<string, unknown> = {}) => ({
+  id: 'acc', imei: null, serialNumber: null, custom: false, quantity: 2, sellPrice: 250, returnedQuantity: 0, ...extra,
+});
 
 const paid = {
   status: 'PAID' as const, paymentMethod: 'CASH' as const, taxInvoiceNo: null,
   tradeInValue: null, depositAppliedAmount: null, depositNo: null,
+  cashAmount: 13900, transferAmount: 0, cardAmount: 0, qrAmount: 0,
+  items: [phone('a', '350596482527747')],
 };
 
-describe('billRefundOptions (FIX-228)', () => {
-  it('cash bill can be cancelled and refunded', () => {
-    expect(billRefundOptions(paid)).toEqual([
-      { action: 'REFUND', label: 'ยกเลิกบิล / คืนเงิน', blockedReason: null },
+describe('billRefundOptions (FIX-228 → FIX-230)', () => {
+  it('cash bill: cancel, return items or exchange', () => {
+    expect(billRefundOptions(paid).map((o) => [o.action, o.label, o.blockedReason])).toEqual([
+      ['REFUND', 'ยกเลิกบิล / คืนเงิน', null],
+      ['RETURN_ITEMS', 'รับคืนสินค้า', null],
+      ['EXCHANGE', 'เปลี่ยนเครื่อง', null],
     ]);
   });
 
-  it('installment bill offers refund and taking the device back', () => {
-    expect(billRefundOptions({ ...paid, paymentMethod: 'INSTALLMENT' }).map((o) => o.action))
-      .toEqual(['REFUND', 'RETURN_DEVICE']);
+  it('accessory-only bills can be returned too (ข้อ 3)', () => {
+    const acc = { ...paid, items: [charger()] };
+    expect(billRefundOptions(acc).map((o) => o.action)).toEqual(['REFUND', 'RETURN_ITEMS', 'EXCHANGE']);
+  });
+
+  it('installment bill labels the return as "ผ่อนไม่ไหว"', () => {
+    const opts = billRefundOptions({ ...paid, paymentMethod: 'INSTALLMENT' });
+    expect(opts.find((o) => o.action === 'RETURN_ITEMS')?.label).toBe('รับเครื่องคืน (ผ่อนไม่ไหว)');
   });
 
   it('tax-invoiced bill refunds through a credit note only', () => {
-    const opts = billRefundOptions({ ...paid, paymentMethod: 'INSTALLMENT', taxInvoiceNo: 'TIV-1' });
+    const opts = billRefundOptions({ ...paid, taxInvoiceNo: 'TIV-1' });
     expect(opts.map((o) => o.action)).toEqual(['CREDIT_NOTE']);
   });
 
-  it('refunded or cancelled bills show nothing', () => {
+  it('refunded bills or bills with nothing left show nothing to return', () => {
     expect(billRefundOptions({ ...paid, status: 'REFUNDED' })).toEqual([]);
-    expect(billRefundOptions({ ...paid, status: 'CANCELLED' })).toEqual([]);
+    const allBack = { ...paid, items: [phone('a', '1', { returnedQuantity: 1 })], returnedAmount: 13000 };
+    expect(billRefundOptions(allBack).map((o) => o.action)).toEqual(['REFUND']);
   });
 
-  it('trade-in and deposit bills explain why before asking for the shop code', () => {
+  it('explains why a whole-bill cancel is blocked before asking for the shop code', () => {
     expect(fullRefundBlockedReason({ ...paid, tradeInValue: 4000 })).toContain('เทิร์น');
-    const deposit = billRefundOptions({ ...paid, depositAppliedAmount: 4000, depositNo: 'DP-1' })[0];
-    expect(deposit.blockedReason).toContain('DP-1');
-    // รับเครื่องคืน (ผ่อน) ยังทำได้แม้มีเทิร์น — backend จำกัดเงินคืนเอง
-    const inst = billRefundOptions({ ...paid, paymentMethod: 'INSTALLMENT', tradeInValue: 3000 });
-    expect(inst.find((o) => o.action === 'RETURN_DEVICE')?.blockedReason).toBeNull();
+    expect(fullRefundBlockedReason({ ...paid, depositAppliedAmount: 4000, depositNo: 'DP-1' })).toContain('DP-1');
+    expect(fullRefundBlockedReason({ ...paid, returnedAmount: 500 })).toContain('รับคืนบางรายการไปแล้ว');
+    expect(fullRefundBlockedReason({ ...paid, exchangeCreditAmount: 13900, exchangeFromBillNo: 'INV-OLD' }))
+      .toContain('INV-OLD');
+    // รับคืนยังทำได้ทุกกรณีข้างบน
+    const tradeIn = billRefundOptions({ ...paid, tradeInValue: 3000 });
+    expect(tradeIn.find((o) => o.action === 'RETURN_ITEMS')?.blockedReason).toBeNull();
+  });
+});
+
+describe('return form (FIX-230)', () => {
+  const twoPhones = { ...paid, cashAmount: 28300, items: [phone('a', '1'), phone('b', '2'), charger()] };
+
+  it('cap = money actually received incl. first installment, deposit and exchange credit − already returned', () => {
+    expect(refundCap({ ...paid, cashAmount: 4500, paymentMethod: 'INSTALLMENT' })).toBe(4500);   // ดาวน์ 3,000 + งวดแรก 1,500
+    expect(refundCap({ ...paid, cashAmount: 9000, depositAppliedAmount: 4000, exchangeCreditAmount: 900 })).toBe(13900);
+    expect(refundCap({ ...paid, returnedAmount: 13000 })).toBe(900);
+    expect(refundCap({ ...paid, refundableAmount: 1234 })).toBe(1234);   // backend ส่งมาแล้วใช้ค่านั้น
+  });
+
+  it('scanned device is preselected; installment preselects every device', () => {
+    expect(defaultSelection(twoPhones, 'serial-b')).toEqual({ b: 1 });
+    expect(defaultSelection({ ...twoPhones, paymentMethod: 'INSTALLMENT' })).toEqual({ a: 1, b: 1 });
+    expect(defaultSelection(twoPhones)).toEqual({});
+    expect(defaultSelection({ ...paid, items: [charger()] })).toEqual({ acc: 2 });
+  });
+
+  it('default amount follows the selection, installment returns start at 0', () => {
+    expect(selectionValue(twoPhones, { b: 1, acc: 1 })).toBe(14150);
+    expect(defaultRefund(twoPhones, { b: 1 }, 'RETURN')).toBe(13900);
+    expect(defaultRefund({ ...twoPhones, paymentMethod: 'INSTALLMENT' }, { a: 1 }, 'RETURN')).toBe(0);
+    expect(defaultRefund({ ...twoPhones, paymentMethod: 'INSTALLMENT' }, { a: 1 }, 'EXCHANGE')).toBe(13900);
+    expect(defaultRefund({ ...paid, refundableAmount: 5000 }, { a: 1 }, 'RETURN')).toBe(5000);
+  });
+
+  it('battery is asked only when exactly one device comes back', () => {
+    expect(singleSelectedDevice(twoPhones.items, { b: 1, acc: 1 })?.id).toBe('b');
+    expect(singleSelectedDevice(twoPhones.items, { a: 1, b: 1 })).toBeNull();
+    expect(singleSelectedDevice(twoPhones.items, { acc: 1 })).toBeNull();
+  });
+
+  it('validates selection, quantity, amount cap and reason', () => {
+    expect(returnFormError(twoPhones, {}, '0', 'x')).toContain('เลือกรายการ');
+    expect(returnFormError(twoPhones, { acc: 3 }, '0', 'x')).toContain('เกินที่ลูกค้าถืออยู่');
+    expect(returnFormError(twoPhones, { a: 1 }, '', 'x')).toContain('กรอกจำนวนเงิน');
+    expect(returnFormError(twoPhones, { a: 1 }, '30000', 'x')).toContain('คืนได้สูงสุด');
+    expect(returnFormError(twoPhones, { a: 1 }, '12000', ' ')).toContain('เหตุผล');
+    expect(returnFormError(twoPhones, { a: 1 }, '12000', 'คืนเครื่อง')).toBeNull();
+    expect(remainingQty(charger({ returnedQuantity: 1 }))).toBe(1);
   });
 });

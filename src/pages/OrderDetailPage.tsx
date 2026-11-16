@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Receipt, Smartphone, Pencil, CreditCard, Package, User } from 'lucide-react';
+import { ArrowLeft, Receipt, Smartphone, Pencil, CreditCard, Package, User, Undo2, Repeat } from 'lucide-react';
 import { posApi } from '@/api/pos';
 import { extractErrorMessage } from '@/api/client';
 import { useAuthStore } from '@/stores/authStore';
@@ -41,6 +41,12 @@ export function OrderDetailPage() {
   // FIX-228: ยกเลิกบิล/คืนเงินจากหน้าบิลได้ด้วย (เดิมมีแค่ปุ่มไอคอนในตารางประวัติการขาย)
   const canRefund = useAuthStore((s) => s.hasRole('ADMIN', 'MANAGER', 'STAFF'));
   const refundFlow = useBillRefundFlow();
+  // FIX-230: ประวัติรับคืน/เปลี่ยนเครื่องของบิลนี้
+  const returns = useQuery({
+    queryKey: ['order-returns', id],
+    queryFn: () => posApi.returnsOf(id!),
+    enabled: !!id,
+  });
   const { data: o, isLoading, isError } = useQuery({
     queryKey: ['order-detail', id],
     queryFn: () => posApi.getOrder(id!),
@@ -131,7 +137,17 @@ export function OrderDetailPage() {
               {(o.depositAppliedAmount ?? 0) > 0 && (
                 <Row label={`มัดจำที่จ่ายไว้ก่อน${o.depositNo ? ` (${o.depositNo})` : ''}`} value={formatTHB(o.depositAppliedAmount ?? 0)} />
               )}
+              {(o.exchangeCreditAmount ?? 0) > 0 && (
+                <Row label={`เครดิตเปลี่ยนเครื่อง${o.exchangeFromBillNo ? ` (จากบิล ${o.exchangeFromBillNo})` : ''}`}
+                     value={formatTHB(o.exchangeCreditAmount ?? 0)} />
+              )}
               <Row label="ยอดที่จ่ายแล้ว" value={formatTHB(o.paidAmount + firstInstallment)} strong />
+              {(o.returnedAmount ?? 0) > 0 && (
+                <Row label="คืนเงินลูกค้าแล้ว (รับคืน/เปลี่ยนเครื่อง)" value={`- ${formatTHB(o.returnedAmount ?? 0)}`} />
+              )}
+              {o.status === 'PAID' && o.refundableAmount != null && (o.returnedAmount ?? 0) > 0 && (
+                <Row label="คืนเงินได้อีกสูงสุด" value={formatTHB(o.refundableAmount)} />
+              )}
 
               {isInstallment && (
                 <div className="mt-3 rounded-md bg-purple-50 p-3">
@@ -196,6 +212,11 @@ export function OrderDetailPage() {
                         ) : (
                           <div className="font-mono text-xs text-slate-400">{it.sku}</div>
                         )}
+                        {(it.returnedQuantity ?? 0) > 0 && (
+                          <div className="mt-0.5 inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold text-amber-800">
+                            <Undo2 className="h-3 w-3" /> ลูกค้าคืนแล้ว {it.returnedQuantity}{it.quantity > 1 ? `/${it.quantity}` : ''}
+                          </div>
+                        )}
                         {it.promotionName && (
                           <div className="mt-0.5 text-xs font-medium text-rose-600"
                                title="โปรที่ระบบเสนอตอนขาย (FIX-217) — ราคาที่ขายจริงอยู่ช่องราคา">
@@ -241,6 +262,37 @@ export function OrderDetailPage() {
               )}
             </div>
           </div>
+
+          {(returns.data?.length ?? 0) > 0 && (
+            <div className="card">
+              <div className="card-header"><Undo2 className="inline h-4 w-4 align-[-2px]" /> ประวัติรับคืน / เปลี่ยนเครื่อง</div>
+              <ul className="divide-y divide-slate-100">
+                {returns.data!.map((r) => (
+                  <li key={r.id} className="space-y-0.5 px-4 py-2.5 text-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-semibold">
+                        {r.kind === 'EXCHANGE'
+                          ? <><Repeat className="inline h-4 w-4 align-[-2px] text-brand-600" /> เปลี่ยนเครื่อง → บิล {r.exchangeBillNo}</>
+                          : <><Undo2 className="inline h-4 w-4 align-[-2px] text-amber-600" /> รับคืน</>}
+                      </span>
+                      <span className="tabular-nums font-semibold">
+                        {r.kind === 'EXCHANGE' ? 'เครดิต ' : 'คืนเงิน '}{formatTHB(r.amount)}
+                      </span>
+                    </div>
+                    <div className="text-xs text-slate-600">
+                      {r.lines.map((l) => `${l.productName}${l.imei ? ` ${l.imei}` : ''} ×${l.quantity}`).join(', ')}
+                    </div>
+                    <div className="text-xs text-slate-400">
+                      {formatDateTime(r.returnedAt)} · {r.performedBy ?? '-'}
+                      {r.kind !== 'EXCHANGE' && (r.refundCash ?? 0) > 0 && ` · เงินสด ${formatTHB(r.refundCash ?? 0)}`}
+                      {r.kind !== 'EXCHANGE' && (r.refundExternal ?? 0) > 0 && ` · โอน ${formatTHB(r.refundExternal ?? 0)}`}
+                      {r.reason ? ` · ${r.reason}` : ''}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {o.note && (
             <div className="card">

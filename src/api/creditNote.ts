@@ -30,9 +30,10 @@ export interface CreditNoteData {
 }
 
 export const creditNoteApi = {
-  issueAndRefund: (orderId: string, reason: string, securityCode: string, refundMethod?: RefundMethod) =>
+  issueAndRefund: (orderId: string, reason: string, securityCode: string, refundMethod?: RefundMethod,
+                   batteryHealth?: number) =>
     api.post<CreditNoteData>(`/pos/orders/${orderId}/credit-note-refund`,
-      { reason, refundMethod: refundMethod ?? null }, { headers: { 'X-Security-Code': securityCode } }).then((r) => r.data),
+      { reason, refundMethod: refundMethod ?? null, batteryHealth: batteryHealth ?? null }, { headers: { 'X-Security-Code': securityCode } }).then((r) => r.data),
   get: (orderId: string) =>
     api.get<CreditNoteData>(`/pos/orders/${orderId}/credit-note`).then((r) => r.data),
 };

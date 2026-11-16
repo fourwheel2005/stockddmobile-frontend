@@ -56,6 +56,8 @@ export interface ReceiptData {
   firstInstallmentAmount?: number | null; // บิลผ่อน: งวดแรกจ่ายพร้อมดาวน์ (FIX-226)
   depositAppliedAmount?: number | null; // มัดจำ/จองที่ลูกค้าจ่ายไว้ก่อน หักในบิลนี้ (FIX-214)
   depositNo?: string | null;
+  exchangeCreditAmount?: number | null; // FIX-230: เครดิตเปลี่ยนเครื่องจากบิลเดิม
+  exchangeFromBillNo?: string | null;
   downCash?: number | null;        // เงินดาวน์ส่วนที่จ่ายสด
   downTransfer?: number | null;    // เงินดาวน์ส่วนที่โอน
   monthlyAmount?: number | null;
@@ -280,10 +282,19 @@ export function buildDDMobileReceipt(
   }
 
   // FIX-214: มัดจำ/จองเครื่องที่ลูกค้าจ่ายไว้ก่อน → หักออก แล้วบอกยอดที่จ่ายวันนี้จริง
+  // FIX-230: เครดิตเปลี่ยนเครื่องจากบิลเดิม หักแบบเดียวกัน
   const depositApplied = data.depositAppliedAmount ?? 0;
-  if (depositApplied > 0) {
-    b.justify(`หักมัดจำ${data.depositNo ? ` (${data.depositNo})` : ''}:`, '-' + fmtTHB(depositApplied), W);
-    b.size(2, 1).justify('ชำระวันนี้:', fmtTHB(Math.max(0, receiptDueBeforeDeposit(data) - depositApplied)), W / 2).size(1, 1);
+  const exchangeCredit = data.exchangeCreditAmount ?? 0;
+  if (depositApplied > 0 || exchangeCredit > 0) {
+    if (depositApplied > 0) {
+      b.justify(`หักมัดจำ${data.depositNo ? ` (${data.depositNo})` : ''}:`, '-' + fmtTHB(depositApplied), W);
+    }
+    if (exchangeCredit > 0) {
+      b.justify(`เครดิตเปลี่ยนเครื่อง${data.exchangeFromBillNo ? ` (${data.exchangeFromBillNo})` : ''}:`,
+        '-' + fmtTHB(exchangeCredit), W);
+    }
+    b.size(2, 1).justify('ชำระวันนี้:',
+      fmtTHB(Math.max(0, receiptDueBeforeDeposit(data) - depositApplied - exchangeCredit)), W / 2).size(1, 1);
     b.separator('=', W);
   }
 

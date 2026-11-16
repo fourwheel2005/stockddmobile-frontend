@@ -12,14 +12,14 @@ import { useDeviceLabelPrinter } from '@/hooks/useDeviceLabelPrinter';
 import { formatDate, formatDateTime, formatTHB } from '@/lib/format';
 import { acqLabel, ACQ_ORDER, ACQ_INFO } from '@/lib/acquisition';
 import { RepairIntakeModal } from '@/components/RepairIntakeModal';
-import { ReturnDeviceModal } from '@/components/ReturnDeviceModal';
-import { SecurityCodeModal } from '@/components/SecurityCodeModal';
+import { useBillRefundFlow } from '@/components/sales/BillRefundFlow';
+import { billRefundOptions } from '@/lib/pos/billRefund';
 import { ImageEditor } from '@/components/MultiImageUpload';
 import { ImeiInput } from '@/components/ImeiInput';
 import { imeiProblem } from '@/lib/imei';
 import { DeviceCheckFields } from '@/components/inventory/DeviceCheckFields';
 import { checkFormFrom, checkRequest } from '@/lib/deviceCheck';
-import type { SerializedStatus, ServiceState, SerializedItemResponse, SerializedCondition, AcquisitionType, DeviceServiceType, VariantResponse, SalesOrderResponse, RefundMethod } from '@/types/api';
+import type { SerializedStatus, ServiceState, SerializedItemResponse, SerializedCondition, AcquisitionType, DeviceServiceType, VariantResponse } from '@/types/api';
 
 interface Props {
   variantId: string;
@@ -130,26 +130,25 @@ export function SerialsModal({ variantId, productName, sku, onClose, highlightId
     onError: (e) => toast.error(extractErrorMessage(e)),
   });
 
-  // FIX-143: รับเครื่องคืน (ผ่อนไม่ไหว) จากหน้าเครื่องในคลัง — เครื่อง SOLD ที่มีบิลผ่อน
+  // FIX-229: เครื่องที่ขายแล้ว → บิลล่าสุดทุกวิธีจ่าย (เดิมหาแค่บิลผ่อน → เครื่องขายสด "ไม่พบบิลผ่อน")
   const canReturn = useAuthStore((s) => s.hasRole('ADMIN', 'MANAGER', 'STAFF'));
-  const [returnOrder, setReturnOrder] = useState<SalesOrderResponse | null>(null);
-  const [pendingReturn, setPendingReturn] = useState<{ order: SalesOrderResponse; refundAmount: number; reason: string; refundMethod: RefundMethod } | null>(null);
-  const loadReturn = useMutation({
-    mutationFn: (serialId: string) => posApi.findInstallmentBySerial(serialId),
-    onSuccess: (order) => {
-      if (!order) { toast.error('ไม่พบบิลผ่อนของเครื่องนี้ (อาจไม่ได้ขายแบบผ่อน)'); return; }
-      setReturnOrder(order);
-    },
-    onError: (e) => toast.error(extractErrorMessage(e)),
+  const refundFlow = useBillRefundFlow({
+    onDone: () => qc.invalidateQueries({ queryKey: ['serials', variantId] }),
   });
-  const returnDevice = useMutation({
-    mutationFn: ({ id, refundAmount, reason, securityCode, refundMethod }:
-                 { id: string; refundAmount: number; reason: string; securityCode: string; refundMethod: RefundMethod }) =>
-      posApi.returnDevice(id, refundAmount, securityCode, reason, refundMethod),
-    onSuccess: (order) => {
-      toast.success(`รับเครื่องคืนบิล ${order.billNo} สำเร็จ — เครื่องเข้าสต็อกแล้ว`);
-      qc.invalidateQueries({ queryKey: ['serials', variantId] });
-      qc.invalidateQueries({ queryKey: ['inventory'] });
+  const loadReturn = useMutation({
+    mutationFn: (serialId: string) => posApi.latestOrderBySerial(serialId),
+    onSuccess: (order, serialId) => {
+      if (!order) {
+        toast.error('ไม่พบบิลที่ยังคืนได้ของเครื่องนี้ (คืนเงินไปแล้ว หรือตัดออกโดยไม่ผ่าน POS)');
+        return;
+      }
+      const opts = billRefundOptions(order);
+      const pick = opts.find((o) => o.action === 'RETURN_ITEMS') ?? opts.find((o) => !o.blockedReason);
+      if (!pick) {
+        toast.error(opts[0]?.blockedReason ?? `บิล ${order.billNo} คืนอัตโนมัติไม่ได้`, { duration: 9000 });
+        return;
+      }
+      refundFlow.start(order, pick.action, { preselectSerialId: serialId });
     },
     onError: (e) => toast.error(extractErrorMessage(e)),
   });
@@ -332,7 +331,7 @@ export function SerialsModal({ variantId, productName, sku, onClose, highlightId
                       )}
                       {s.status === 'SOLD' && canReturn && (
                         <button className="rounded p-1.5 text-amber-700 hover:bg-amber-50 disabled:opacity-40"
-                                title="รับเครื่องคืน (ผ่อนไม่ไหว)"
+                                title="รับเครื่องคืน / คืนเงิน (บิลล่าสุดของเครื่อง)"
                                 disabled={loadReturn.isPending}
                                 onClick={() => loadReturn.mutate(s.id)}>
                           <PackageOpen className="h-4 w-4" />
@@ -361,7 +360,7 @@ export function SerialsModal({ variantId, productName, sku, onClose, highlightId
           <span><Wrench className="inline h-4 w-4 align-[-2px]" /> ส่งซ่อม</span>
           <span><ShieldCheck className="inline h-4 w-4 align-[-2px]" /> ส่งเคลม</span>
           <span>↩️ คืนเข้าสต็อกหลังตรวจผ่าน</span>
-          <span><Package className="inline h-4 w-4 align-[-2px]" /> เครื่องขายแล้ว (ผ่อน) = รับเครื่องคืน · <Wrench className="inline h-4 w-4 align-[-2px]" /> เปิดใบรับซ่อมลูกค้า</span>
+          <span><Package className="inline h-4 w-4 align-[-2px]" /> เครื่องขายแล้ว = รับเครื่องคืน / คืนเงิน · <Wrench className="inline h-4 w-4 align-[-2px]" /> เปิดใบรับซ่อมลูกค้า</span>
         </div>
       </div>
     </div>
@@ -412,33 +411,8 @@ export function SerialsModal({ variantId, productName, sku, onClose, highlightId
       />
     )}
 
-    {/* FIX-143: รับเครื่องคืน (ผ่อนไม่ไหว) — flow เดียวกับหน้าประวัติบิล */}
-    {returnOrder && (
-      <ReturnDeviceModal
-        order={returnOrder}
-        loading={returnDevice.isPending}
-        onClose={() => setReturnOrder(null)}
-        onConfirm={(refundAmount, reason, refundMethod) => {
-          setPendingReturn({ order: returnOrder, refundAmount, reason, refundMethod });
-          setReturnOrder(null);
-        }}
-      />
-    )}
-    {pendingReturn && (
-      <SecurityCodeModal
-        action={`รับเครื่องคืนบิล ${pendingReturn.order.billNo}`}
-        warning="เครื่องจะกลับเข้าสต็อกและยอดที่ชำระถูกปรับ — ย้อนกลับไม่ได้"
-        pending={returnDevice.isPending}
-        onClose={() => setPendingReturn(null)}
-        onConfirm={(securityCode) => {
-          returnDevice.mutate(
-            { id: pendingReturn.order.id, refundAmount: pendingReturn.refundAmount, reason: pendingReturn.reason, securityCode,
-              refundMethod: pendingReturn.refundMethod },
-            { onSuccess: () => setPendingReturn(null) },
-          );
-        }}
-      />
-    )}
+    {/* FIX-229: รับเครื่องคืน/คืนเงิน — flow เดียวกับหน้าประวัติบิล */}
+    {refundFlow.modals}
     </>,
     document.body,
   );

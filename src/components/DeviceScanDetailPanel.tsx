@@ -1,16 +1,13 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
-import { X, Smartphone, BatteryMedium, Wrench, ShieldCheck, History, PackageOpen } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
+import { X, Smartphone, BatteryMedium, Wrench, ShieldCheck, History, Receipt } from 'lucide-react';
 import { inventoryApi } from '@/api/inventory';
 import { repairApi } from '@/api/repair';
 import { posApi } from '@/api/pos';
-import { extractErrorMessage } from '@/api/client';
 import { formatTHB, formatDate } from '@/lib/format';
 import { formatInShopZone } from '@/lib/datetime';
-import type { RefundMethod, RepairStatus, SalesOrderResponse } from '@/types/api';
-import { ReturnDeviceModal } from '@/components/ReturnDeviceModal';
-import { SecurityCodeModal } from '@/components/SecurityCodeModal';
+import type { RepairStatus } from '@/types/api';
+import { BillRefundButtons, useBillRefundFlow } from '@/components/sales/BillRefundFlow';
 import { useAuthStore } from '@/stores/authStore';
 
 const CONDITION_TH: Record<string, string> = {
@@ -75,30 +72,15 @@ export function DeviceScanDetailPanel({ device, onClose }: { device: ScannedDevi
   const spec = d ? [d.deviceColor, d.deviceStorage].filter(Boolean).join(' / ') : '';
   const st = d ? STATUS_TH[d.status] : null;
 
-  // FIX-143: "รับเครื่องคืน (ผ่อนไม่ไหว)" จากหน้า device — หาบิลผ่อนของเครื่อง (เฉพาะเครื่องที่ SOLD)
-  const qc = useQueryClient();
+  // FIX-229: เครื่องที่ขายแล้ว → บิลล่าสุดของเครื่อง "ทุกวิธีจ่าย" (เดิมหาเฉพาะบิลผ่อน → ขายสดคืนไม่ได้)
   const canReturn = useAuthStore((s) => s.hasRole('ADMIN', 'MANAGER', 'STAFF'));
   const serialId = d?.id ?? device.serialItemId ?? null;
-  const instOrder = useQuery({
-    queryKey: ['device-installment-order', serialId],
-    queryFn: () => posApi.findInstallmentBySerial(serialId!),
+  const saleOrder = useQuery({
+    queryKey: ['device-latest-order', serialId],
+    queryFn: () => posApi.latestOrderBySerial(serialId!),
     enabled: !!serialId && d?.status === 'SOLD',
   });
-  const [returnOrder, setReturnOrder] = useState<SalesOrderResponse | null>(null);
-  const [pendingReturn, setPendingReturn] = useState<{ order: SalesOrderResponse; refundAmount: number; reason: string; refundMethod: RefundMethod } | null>(null);
-  const returnDevice = useMutation({
-    mutationFn: ({ id, refundAmount, reason, securityCode, refundMethod }:
-                 { id: string; refundAmount: number; reason: string; securityCode: string; refundMethod: RefundMethod }) =>
-      posApi.returnDevice(id, refundAmount, securityCode, reason, refundMethod),
-    onSuccess: (order) => {
-      toast.success(`รับเครื่องคืนบิล ${order.billNo} สำเร็จ — เครื่องเข้าสต็อกแล้ว`);
-      qc.invalidateQueries({ queryKey: ['scan-detail'] });
-      qc.invalidateQueries({ queryKey: ['inventory'] });
-      qc.invalidateQueries({ queryKey: ['device-installment-order'] });
-      onClose();
-    },
-    onError: (e) => toast.error(extractErrorMessage(e)),
-  });
+  const refundFlow = useBillRefundFlow({ onDone: onClose });
 
   return (
     <div className="rounded-lg border border-brand-200 bg-white shadow-sm">
@@ -234,43 +216,27 @@ export function DeviceScanDetailPanel({ device, onClose }: { device: ScannedDevi
         </div>
       )}
 
-      {/* FIX-143: รับเครื่องคืน (ผ่อนไม่ไหว) — โชว์เมื่อเครื่องขายแล้วและมีบิลผ่อน (ทำงานเหมือนหน้าประวัติบิล) */}
-      {canReturn && instOrder.data && (
-        <div className="border-t border-slate-100 px-4 py-2.5">
-          <button
-            onClick={() => setReturnOrder(instOrder.data!)}
-            className="inline-flex w-full items-center justify-center gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-100">
-            <PackageOpen className="h-4 w-4" /> รับเครื่องคืน (ผ่อนไม่ไหว) — บิล {instOrder.data.billNo}
-          </button>
+      {/* FIX-229: เครื่องที่ขายแล้ว — รับเครื่องคืน / ยกเลิกบิลคืนเงิน จากบิลล่าสุดของเครื่อง (ทุกวิธีจ่าย) */}
+      {d?.status === 'SOLD' && canReturn && (
+        <div className="space-y-2 border-t border-slate-100 bg-amber-50/40 px-4 py-2.5">
+          {saleOrder.isLoading ? <Muted text="กำลังหาบิลที่ขายเครื่องนี้…" />
+            : saleOrder.data ? (
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="text-xs text-slate-600">
+                  <Receipt className="inline h-4 w-4 align-[-2px]" /> ขายในบิล{' '}
+                  <Link to={`/pos/orders/${saleOrder.data.id}`} className="font-mono font-semibold text-brand-700 hover:underline">
+                    {saleOrder.data.billNo}
+                  </Link>
+                  {' '}· {saleOrder.data.paymentMethod ?? '-'} · {formatTHB(saleOrder.data.grandTotal)}
+                  {saleOrder.data.customerName ? ` · ${saleOrder.data.customerName}` : ''}
+                </div>
+                <BillRefundButtons order={saleOrder.data} onStart={refundFlow.start} preselectSerialId={serialId} />
+              </div>
+            )
+            : <Muted text="ไม่พบบิลที่ยังคืนได้ (บิลถูกคืนเงินไปแล้ว หรือเครื่องตัดออกโดยไม่ผ่าน POS) — ถ้าลูกค้าขายเครื่องคืน ให้รับเข้าที่ สินค้า + คลัง ตามปกติ" />}
         </div>
       )}
-
-      {returnOrder && (
-        <ReturnDeviceModal
-          order={returnOrder}
-          loading={returnDevice.isPending}
-          onClose={() => setReturnOrder(null)}
-          onConfirm={(refundAmount, reason, refundMethod) => {
-            setPendingReturn({ order: returnOrder, refundAmount, reason, refundMethod });
-            setReturnOrder(null);
-          }}
-        />
-      )}
-      {pendingReturn && (
-        <SecurityCodeModal
-          action={`รับเครื่องคืนบิล ${pendingReturn.order.billNo}`}
-          warning="เครื่องจะกลับเข้าสต็อกและยอดที่ชำระถูกปรับ — ย้อนกลับไม่ได้"
-          pending={returnDevice.isPending}
-          onClose={() => setPendingReturn(null)}
-          onConfirm={(securityCode) => {
-            returnDevice.mutate(
-              { id: pendingReturn.order.id, refundAmount: pendingReturn.refundAmount, reason: pendingReturn.reason, securityCode,
-                refundMethod: pendingReturn.refundMethod },
-              { onSuccess: () => setPendingReturn(null) },
-            );
-          }}
-        />
-      )}
+      {refundFlow.modals}
     </div>
   );
 }

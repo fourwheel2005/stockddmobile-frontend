@@ -13,6 +13,8 @@ import type {
   ShippingAddressInput,
   TradeInProductResponse,
   RefundMethod,
+  ReturnItemsRequest,
+  SalesReturnRecord,
 } from '@/types/api';
 
 export const posApi = {
@@ -80,10 +82,11 @@ export const posApi = {
       { saleDate, reason }, { headers: { 'X-Security-Code': securityCode } }).then((r) => r.data),
 
   /** ยกเลิก/คืนเงินบิลที่ขายไปแล้ว — ต้องมีรหัสความปลอดภัยของร้านทุก role (FIX-103) */
-  refund: (id: string, securityCode: string, reason?: string, refundMethod?: RefundMethod) =>
+  refund: (id: string, securityCode: string, reason?: string, refundMethod?: RefundMethod, batteryHealth?: number) =>
     api.post<SalesOrderResponse>(`/pos/orders/${id}/refund`,
       null, {
-        params: { ...(reason ? { reason } : {}), ...(refundMethod ? { refundMethod } : {}) },
+        params: { ...(reason ? { reason } : {}), ...(refundMethod ? { refundMethod } : {}),
+                  ...(batteryHealth != null ? { batteryHealth } : {}) },
         headers: { 'X-Security-Code': securityCode },
       }).then((r) => r.data),
 
@@ -96,11 +99,26 @@ export const posApi = {
   findInstallmentBySerial: (serialItemId: string) =>
     api.get<SalesOrderResponse | null>(`/pos/orders/by-serial/${serialItemId}/installment`).then((r) => r.data),
 
-  /** รับเครื่องคืนจากลูกค้าผ่อน (ผ่อนไม่ไหว) — เครื่องเข้าสต็อก + คืนเงินตามที่ระบุ (0 = ไม่คืน) */
-  returnDevice: (id: string, refundAmount: number, securityCode: string, reason?: string, refundMethod?: RefundMethod) =>
+  /** FIX-229: บิล PAID ล่าสุดของเครื่องนี้ ทุกวิธีจ่าย — null = ไม่มีบิลที่ยังคืนได้ */
+  latestOrderBySerial: (serialItemId: string) =>
+    api.get<SalesOrderResponse | ''>(`/pos/orders/by-serial/${serialItemId}/latest`).then((r) => r.data || null),
+
+  /** FIX-230: รับคืนบางรายการ (เลือกเครื่อง/อุปกรณ์ + จำนวน) — ต้องมีรหัสความปลอดภัยของร้าน */
+  returnItems: (id: string, body: ReturnItemsRequest, securityCode: string) =>
+    api.post<SalesOrderResponse>(`/pos/orders/${id}/return-items`, body,
+      { headers: { 'X-Security-Code': securityCode } }).then((r) => r.data),
+
+  /** FIX-230: ประวัติรับคืน/เปลี่ยนเครื่องของบิล */
+  returnsOf: (id: string) =>
+    api.get<SalesReturnRecord[]>(`/pos/orders/${id}/returns`).then((r) => r.data),
+
+  /** รับเครื่องคืน (บิลผ่อน + บิลขายสด FIX-229) — เครื่องเข้าสต็อก + คืนเงินตามที่ระบุ (0 = ไม่คืน) */
+  returnDevice: (id: string, refundAmount: number, securityCode: string, reason?: string, refundMethod?: RefundMethod,
+                 batteryHealth?: number) =>
     api.post<SalesOrderResponse>(`/pos/orders/${id}/return-device`,
       null, {
-        params: { refundAmount, ...(reason ? { reason } : {}), ...(refundMethod ? { refundMethod } : {}) },
+        params: { refundAmount, ...(reason ? { reason } : {}), ...(refundMethod ? { refundMethod } : {}),
+                  ...(batteryHealth != null ? { batteryHealth } : {}) },
         headers: { 'X-Security-Code': securityCode },
       }).then((r) => r.data),
 

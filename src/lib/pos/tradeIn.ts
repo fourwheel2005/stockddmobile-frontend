@@ -2,7 +2,8 @@ import type { PaymentMethod } from '@/types/api';
 import { imeiProblem } from '@/lib/imei';
 
 export const TRADE_IN_INTAKE_POLICY = {
-  newIdentifierOnly: 'รับเฉพาะเครื่องที่ IMEI/Serial ไม่เคยอยู่ในระบบ',
+  // FIX-230: เครื่องที่ร้านเคยขายไปแล้วรับเทิร์นได้ (ใช้รหัสเครื่องเดิม) · เครื่องที่ยังอยู่ในร้านห้ามซ้ำ
+  newIdentifierOnly: 'รับเครื่องที่ IMEI/Serial ไม่เคยอยู่ในระบบ หรือเครื่องที่ร้านเคยขายไปแล้ว — เครื่องที่ยังอยู่ในร้านรับซ้ำไม่ได้',
   modelSource: 'เลือกรุ่นของเครื่องลูกค้าจากแคตตาล็อก ไม่ได้เลือกหรือตัดเครื่องใน Stock',
   destination: 'หลังปิดบิล เครื่องจะไปหมวดรอลงสต็อกและยังขายไม่ได้จนกว่าจะตรวจรับ',
 } as const;
