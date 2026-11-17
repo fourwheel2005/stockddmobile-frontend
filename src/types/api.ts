@@ -1219,11 +1219,20 @@ export interface SalesOrderItemResponse {
 }
 
 /** FIX-230: รับคืนบางรายการ */
-export interface ReturnItemLine { itemId: string; quantity: number }
+export interface ReturnItemLine {
+  itemId: string;
+  quantity: number;
+  /** FIX-232: ราคาที่ร้านรับซื้อคืน = ทุนใหม่ของเครื่อง (บังคับบิลขายสด · บิลผ่อนว่าง = ทุนเดิม) — ไม่ใช่เงินออกเก๊ะ */
+  buybackCost?: number;
+}
 export interface ReturnItemsRequest {
   lines: ReturnItemLine[];
-  refundAmount: number;
-  refundMethod?: RefundMethod;
+  /** FIX-231: ต้องเป็น 0 — รับคืน/ขายคืนร้านไม่มีเงินออกจากเก๊ะ (backend ปฏิเสธถ้ามีค่า) */
+  refundAmount: 0;
+  /** FIX-232: ที่มาของเครื่องรอบใหม่ (ค่าเริ่ม RETURN_CREDIT) */
+  acquisitionType?: 'RETURN_CREDIT' | 'BALLOON_BUYBACK';
+  /** FIX-232: สาขาที่รับเครื่องคืนจริง (ไม่ส่ง = สาขาของบิล) */
+  branchId?: string;
   reason?: string;
   batteryHealth?: number;
 }

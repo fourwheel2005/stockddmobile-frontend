@@ -7,13 +7,14 @@ import { extractErrorMessage } from '@/api/client';
 import { useAuthStore } from '@/stores/authStore';
 import { formatTHB, formatDateTime } from '@/lib/format';
 import { BillRefundButtons, useBillRefundFlow } from '@/components/sales/BillRefundFlow';
+import { returnBadge } from '@/lib/pos/billRefund';
 import type { PaymentMethod, SalesOrderStatus } from '@/types/api';
 
 const STATUS_LABEL: Record<SalesOrderStatus, { text: string; cls: string }> = {
   DRAFT: { text: 'ยังไม่ปิดบิล', cls: 'bg-slate-200 text-slate-600' },
   PAID: { text: 'จ่ายแล้ว', cls: 'bg-emerald-100 text-emerald-800' },
   CANCELLED: { text: 'ยกเลิก', cls: 'bg-red-100 text-red-700' },
-  REFUNDED: { text: 'คืนเงินแล้ว', cls: 'bg-amber-100 text-amber-800' },
+  REFUNDED: { text: 'ยกเลิกบิลแล้ว', cls: 'bg-amber-100 text-amber-800' },   // FIX-232
 };
 
 const PAYMENT_LABEL: Record<PaymentMethod, string> = {
@@ -111,7 +112,12 @@ export function OrderDetailPage() {
           </p>
         </div>
         <div className="flex flex-col items-end gap-2">
-          <span className={`rounded-full px-3 py-1 text-sm font-semibold ${st.cls}`}>{st.text}</span>
+          <div className="flex items-center gap-1.5">
+            {returnBadge(o) && (
+              <span className="rounded-full bg-amber-100 px-3 py-1 text-sm font-semibold text-amber-800">{returnBadge(o)}</span>
+            )}
+            <span className={`rounded-full px-3 py-1 text-sm font-semibold ${st.cls}`}>{st.text}</span>
+          </div>
           {canRefund && <BillRefundButtons order={o} onStart={refundFlow.start} />}
         </div>
       </div>
@@ -143,10 +149,7 @@ export function OrderDetailPage() {
               )}
               <Row label="ยอดที่จ่ายแล้ว" value={formatTHB(o.paidAmount + firstInstallment)} strong />
               {(o.returnedAmount ?? 0) > 0 && (
-                <Row label="คืนเงินลูกค้าแล้ว (รับคืน/เปลี่ยนเครื่อง)" value={`- ${formatTHB(o.returnedAmount ?? 0)}`} />
-              )}
-              {o.status === 'PAID' && o.refundableAmount != null && (o.returnedAmount ?? 0) > 0 && (
-                <Row label="คืนเงินได้อีกสูงสุด" value={formatTHB(o.refundableAmount)} />
+                <Row label="ย้ายเป็นเครดิตเปลี่ยนเครื่อง / คืนเงินแล้ว" value={`- ${formatTHB(o.returnedAmount ?? 0)}`} />
               )}
 
               {isInstallment && (
@@ -276,7 +279,9 @@ export function OrderDetailPage() {
                           : <><Undo2 className="inline h-4 w-4 align-[-2px] text-amber-600" /> รับคืน</>}
                       </span>
                       <span className="tabular-nums font-semibold">
-                        {r.kind === 'EXCHANGE' ? 'เครดิต ' : 'คืนเงิน '}{formatTHB(r.amount)}
+                        {r.kind === 'EXCHANGE' ? `เครดิต ${formatTHB(r.amount)}`
+                          : r.amount > 0 ? `คืนเงิน ${formatTHB(r.amount)}`   // ข้อมูลก่อน FIX-231
+                            : <span className="text-emerald-700">เข้าสต็อก · ไม่มีเงินออกเก๊ะ</span>}
                       </span>
                     </div>
                     <div className="text-xs text-slate-600">

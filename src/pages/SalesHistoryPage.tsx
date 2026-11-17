@@ -18,6 +18,7 @@ import { EditSaleDateModal } from '@/components/EditSaleDateModal';
 import { usePrinter } from '@/hooks/usePrinter';
 import { printAndConfirmReceipt } from '@/lib/printer/browserPrintConfirmation';
 import { formatTHB, formatDateTime } from '@/lib/format';
+import { returnBadge } from '@/lib/pos/billRefund';
 import { shopDayKey } from '@/lib/datetime';
 import type { FinancePayoutStatus, RepairStatus, RepairTicket, SalesOrderResponse, SalesOrderStatus } from '@/types/api';
 import { FINANCE_PARTNER_LABEL } from '@/types/api';
@@ -80,7 +81,7 @@ const STATUS_LABEL: Record<SalesOrderStatus, string> = {
   DRAFT: 'ยังไม่ปิดบิล',
   PAID: 'จ่ายแล้ว',
   CANCELLED: 'ยกเลิก',
-  REFUNDED: 'คืนเงินแล้ว',
+  REFUNDED: 'ยกเลิกบิลแล้ว',   // FIX-232: ยกเลิก/ใบลดหนี้/ผ่อนคืนเครื่อง — ไม่มีเงินคืนในระบบแล้ว
 };
 
 export function SalesHistoryPage() {
@@ -205,7 +206,7 @@ export function SalesHistoryPage() {
                   onChange={(e) => { setStatus(e.target.value as SalesOrderStatus | ''); setPage(0); }}>
             <option value="">ทุกสถานะ</option>
             <option value="PAID">จ่ายแล้ว</option>
-            <option value="REFUNDED">คืนเงินแล้ว</option>
+            <option value="REFUNDED">ยกเลิกบิลแล้ว</option>
             <option value="DRAFT">ยังไม่ปิด</option>
             <option value="CANCELLED">ยกเลิก</option>
           </select>
@@ -258,7 +259,10 @@ export function SalesHistoryPage() {
                   <td className="px-5 py-3 text-right">{row.sale.items.length}</td>
                   <td className="px-5 py-3 text-right font-bold">{formatTHB(row.sale.grandTotal)}</td>
                   <td className="px-5 py-3 text-xs">{row.sale.paymentMethod ?? '-'}</td>
-                  <td className="px-5 py-3"><span className={STATUS_BADGE[row.sale.status]}>{STATUS_LABEL[row.sale.status]}</span></td>
+                  <td className="px-5 py-3">
+                    <span className={STATUS_BADGE[row.sale.status]}>{STATUS_LABEL[row.sale.status]}</span>
+                    {returnBadge(row.sale) && <span className="badge-amber ml-1 whitespace-nowrap">{returnBadge(row.sale)}</span>}
+                  </td>
                   <td className="px-5 py-3 text-xs">{row.sale.createdBy}</td>
                   <td className="px-5 py-3 text-xs text-slate-500">
                     <div className="flex items-center gap-1">

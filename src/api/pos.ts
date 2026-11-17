@@ -81,12 +81,14 @@ export const posApi = {
     api.patch<SalesOrderResponse>(`/pos/orders/${id}/sale-date`,
       { saleDate, reason }, { headers: { 'X-Security-Code': securityCode } }).then((r) => r.data),
 
-  /** ยกเลิก/คืนเงินบิลที่ขายไปแล้ว — ต้องมีรหัสความปลอดภัยของร้านทุก role (FIX-103) */
-  refund: (id: string, securityCode: string, reason?: string, refundMethod?: RefundMethod, batteryHealth?: number) =>
+  /**
+   * ยกเลิกบิลที่ขายไปแล้ว — ต้องมีรหัสความปลอดภัยของร้านทุก role (FIX-103)
+   * FIX-232: ไม่มีเงินออกจากเก๊ะ (เงินคืนลูกค้าทำนอกระบบ) — ไม่ส่งวิธีคืนเงินแล้ว
+   */
+  refund: (id: string, securityCode: string, reason?: string, batteryHealth?: number) =>
     api.post<SalesOrderResponse>(`/pos/orders/${id}/refund`,
       null, {
-        params: { ...(reason ? { reason } : {}), ...(refundMethod ? { refundMethod } : {}),
-                  ...(batteryHealth != null ? { batteryHealth } : {}) },
+        params: { ...(reason ? { reason } : {}), ...(batteryHealth != null ? { batteryHealth } : {}) },
         headers: { 'X-Security-Code': securityCode },
       }).then((r) => r.data),
 
@@ -111,16 +113,6 @@ export const posApi = {
   /** FIX-230: ประวัติรับคืน/เปลี่ยนเครื่องของบิล */
   returnsOf: (id: string) =>
     api.get<SalesReturnRecord[]>(`/pos/orders/${id}/returns`).then((r) => r.data),
-
-  /** รับเครื่องคืน (บิลผ่อน + บิลขายสด FIX-229) — เครื่องเข้าสต็อก + คืนเงินตามที่ระบุ (0 = ไม่คืน) */
-  returnDevice: (id: string, refundAmount: number, securityCode: string, reason?: string, refundMethod?: RefundMethod,
-                 batteryHealth?: number) =>
-    api.post<SalesOrderResponse>(`/pos/orders/${id}/return-device`,
-      null, {
-        params: { refundAmount, ...(reason ? { reason } : {}), ...(refundMethod ? { refundMethod } : {}),
-                  ...(batteryHealth != null ? { batteryHealth } : {}) },
-        headers: { 'X-Security-Code': securityCode },
-      }).then((r) => r.data),
 
   inStockItems: (params: { variantId?: string; q?: string; page?: number; size?: number } = {}) =>
     api.get<PageResponse<InStockItem>>('/pos/in-stock-items', { params }).then((r) => r.data),

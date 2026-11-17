@@ -2,21 +2,19 @@ import { useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { FileMinus2, PackageOpen, Repeat, Undo2 } from 'lucide-react';
+import { Ban, FileMinus2, PackageOpen, Repeat } from 'lucide-react';
 import { posApi } from '@/api/pos';
 import { creditNoteApi } from '@/api/creditNote';
 import { extractErrorMessage } from '@/api/client';
-import { RefundMethodModal } from '@/components/RefundMethodModal';
+import { CancelBillModal } from '@/components/sales/CancelBillModal';
 import { SecurityCodeModal } from '@/components/SecurityCodeModal';
 import { ReturnItemsModal, type ReturnItemsResult } from '@/components/sales/ReturnItemsModal';
 import { usePrinter } from '@/hooks/usePrinter';
 import { billRefundOptions, type BillRefundAction } from '@/lib/pos/billRefund';
-import { formatTHB } from '@/lib/format';
-import type { RefundMethod, SalesOrderResponse } from '@/types/api';
+import type { SalesOrderResponse } from '@/types/api';
 
 type Pending =
-  | { kind: 'REFUND' | 'CREDIT_NOTE'; order: SalesOrderResponse; reason: string; refundMethod: RefundMethod;
-      batteryHealth?: number }
+  | { kind: 'REFUND' | 'CREDIT_NOTE'; order: SalesOrderResponse; reason: string; batteryHealth?: number }
   | { kind: 'RETURN_ITEMS'; order: SalesOrderResponse; result: ReturnItemsResult };
 
 export interface StartOptions {
@@ -30,9 +28,10 @@ export function exchangeUrl(orderId: string, serialId?: string | null) {
 }
 
 /**
- * ขั้นตอนยกเลิกบิล/คืนเงิน/รับคืน/เปลี่ยนเครื่อง (FIX-228 → FIX-230) — ใช้ร่วม ประวัติการขาย ·
+ * ขั้นตอนยกเลิกบิล/รับคืน/เปลี่ยนเครื่อง (FIX-228 → FIX-232) — ใช้ร่วม ประวัติการขาย ·
  * หน้ารายละเอียดบิล · การ์ดสแกนที่ POS · รายการเครื่องหน้าคลัง
- * เลือก → รหัสความปลอดภัยของร้าน (FIX-103) → backend คืนสต็อก + บันทึกเงินคืนในเก๊ะ
+ * เลือก → รหัสความปลอดภัยของร้าน (FIX-103) → backend คืนสต็อก
+ * ทุกทางไม่มีเงินออกจากเก๊ะ (FIX-231 รับคืน · FIX-232 ยกเลิกบิล) — เงินที่ต้องคืน/ซื้อคืนทำนอกระบบ POS
  */
 export function useBillRefundFlow({ onDone }: { onDone?: (order: SalesOrderResponse) => void } = {}) {
   const qc = useQueryClient();
@@ -56,30 +55,31 @@ export function useBillRefundFlow({ onDone }: { onDone?: (order: SalesOrderRespo
       if (p.kind === 'RETURN_ITEMS') {
         const o = await posApi.returnItems(p.order.id, {
           lines: p.result.lines,
-          refundAmount: p.result.amount,
-          refundMethod: p.result.refundMethod,
+          refundAmount: 0,   // FIX-231: รับคืน/ขายคืนร้านไม่มีเงินออกจากเก๊ะ
           reason: p.result.reason,
           batteryHealth: p.result.batteryHealth,
+          acquisitionType: p.result.acquisitionType,   // FIX-232
+          branchId: p.result.branchId,
         }, securityCode);
         return { billNo: o.billNo, status: o.status };
       }
       if (p.kind === 'CREDIT_NOTE') {
-        const cn = await creditNoteApi.issueAndRefund(p.order.id, p.reason, securityCode, p.refundMethod,
-          p.batteryHealth);
+        const cn = await creditNoteApi.issueAndRefund(p.order.id, p.reason, securityCode, p.batteryHealth);
         return { billNo: p.order.billNo, creditNoteNo: cn.creditNoteNo };
       }
-      return { billNo: (await posApi.refund(p.order.id, securityCode, p.reason, p.refundMethod,
-        p.batteryHealth)).billNo };
+      return { billNo: (await posApi.refund(p.order.id, securityCode, p.reason, p.batteryHealth)).billNo };
     },
     onSuccess: (res, { p }) => {
-      if (p.kind === 'REFUND') toast.success(`ยกเลิกบิล ${res.billNo} และคืนเงินแล้ว — สินค้ากลับเข้าสต็อก`);
+      if (p.kind === 'REFUND') {
+        toast.success(`ยกเลิกบิล ${res.billNo} แล้ว — สินค้ากลับเข้าสต็อก · ไม่มีเงินออกจากเก๊ะ`, { duration: 6000 });
+      }
       if (p.kind === 'CREDIT_NOTE') {
-        toast.success(`ออกใบลดหนี้ ${res.creditNoteNo ?? ''} และคืนเงินบิล ${res.billNo} แล้ว`);
+        toast.success(`ออกใบลดหนี้ ${res.creditNoteNo ?? ''} ยกเลิกบิล ${res.billNo} แล้ว · ไม่มีเงินออกจากเก๊ะ`,
+          { duration: 6000 });
         printer.printCreditNote(p.order.id).catch(() => undefined);
       }
       if (p.kind === 'RETURN_ITEMS') {
-        toast.success(`รับคืนบิล ${res.billNo} แล้ว — สินค้าเข้าสต็อก · คืนเงิน ${formatTHB(p.result.amount)}`
-          + (res.status === 'PAID' ? ' (บิลยังมีรายการที่ลูกค้าเก็บไว้)' : ''), { duration: 6000 });
+        toast.success(`รับคืนบิล ${res.billNo} แล้ว — สินค้าเข้าสต็อก · ไม่มีเงินออกจากเก๊ะ`, { duration: 6000 });
       }
       onDone?.(p.order);
       setPending(null);
@@ -97,22 +97,22 @@ export function useBillRefundFlow({ onDone }: { onDone?: (order: SalesOrderRespo
   };
 
   const securityAction = (p: Pending) => p.kind === 'RETURN_ITEMS'
-    ? `รับคืนสินค้าบิล ${p.order.billNo} · คืนเงิน ${formatTHB(p.result.amount)}`
-    : p.kind === 'CREDIT_NOTE' ? `ออกใบลดหนี้และคืนเงินบิล ${p.order.billNo}` : `ยกเลิก/คืนเงินบิล ${p.order.billNo}`;
+    ? `รับคืนสินค้าเข้าสต็อก บิล ${p.order.billNo}`
+    : p.kind === 'CREDIT_NOTE' ? `ออกใบลดหนี้ยกเลิกบิล ${p.order.billNo}` : `ยกเลิกบิล ${p.order.billNo}`;
   const securityWarning = (p: Pending) => p.kind === 'REFUND'
-    ? 'สินค้ากลับเข้าสต็อก ยอดขายบิลนี้ถูกตัดออก และบันทึกเงินคืนในเก๊ะ — ย้อนกลับไม่ได้'
-    : p.kind === 'CREDIT_NOTE' ? 'ระบบจะออกใบลดหนี้เต็มจำนวน คืนสินค้าเข้าสต๊อก และบันทึกเงินคืน — ย้อนกลับไม่ได้'
-      : 'รายการที่เลือกกลับเข้าสต็อก และบันทึกเงินคืนในเก๊ะ (ถ้ามี) — ย้อนกลับไม่ได้';
+    ? 'สินค้ากลับเข้าสต็อก ยอดขายบิลนี้ถูกตัดออก · ไม่มีเงินออกจากเก๊ะ — ย้อนกลับไม่ได้'
+    : p.kind === 'CREDIT_NOTE' ? 'ระบบจะออกใบลดหนี้เต็มจำนวน คืนสินค้าเข้าสต๊อก · ไม่มีเงินออกจากเก๊ะ — ย้อนกลับไม่ได้'
+      : 'รายการที่เลือกกลับเข้าสต็อก (ไม่มีเงินออกจากเก๊ะ) — ย้อนกลับไม่ได้';
 
   const modals: ReactNode = (
     <>
       {choosing && (choosing.action === 'REFUND' || choosing.action === 'CREDIT_NOTE') && (
-        <RefundMethodModal
+        <CancelBillModal
           order={choosing.order}
           creditNote={choosing.action === 'CREDIT_NOTE'}
           onClose={() => setChoosing(null)}
-          onConfirm={(reason, refundMethod, batteryHealth) => {
-            setPending({ kind: choosing.action as 'REFUND' | 'CREDIT_NOTE', order: choosing.order, reason, refundMethod,
+          onConfirm={(reason, batteryHealth) => {
+            setPending({ kind: choosing.action as 'REFUND' | 'CREDIT_NOTE', order: choosing.order, reason,
               batteryHealth });
             setChoosing(null);
           }}
@@ -152,8 +152,8 @@ const TONE: Record<BillRefundAction, string> = {
   EXCHANGE: 'border-brand-200 text-brand-700 hover:bg-brand-50',
 };
 
-const ICON: Record<BillRefundAction, typeof Undo2> = {
-  REFUND: Undo2,
+const ICON: Record<BillRefundAction, typeof Ban> = {
+  REFUND: Ban,
   CREDIT_NOTE: FileMinus2,
   RETURN_ITEMS: PackageOpen,
   EXCHANGE: Repeat,
