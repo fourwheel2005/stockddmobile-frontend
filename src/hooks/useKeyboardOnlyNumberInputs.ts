@@ -1,8 +1,5 @@
 import { useEffect } from 'react';
 
-/** class บน <body> ขณะเปิดหน้า POS — CSS ใน index.css ซ่อนลูกศรขึ้น/ลงของช่องตัวเลข */
-export const KEYBOARD_ONLY_NUMBER_CLASS = 'pos-keyboard-only-numbers';
-
 const STEP_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown']);
 
 export function isNumberInput(target: EventTarget | null): target is HTMLInputElement {
@@ -30,18 +27,17 @@ export function handleNumberStepKey(event: Pick<KeyboardEvent, 'target' | 'key' 
 }
 
 /**
- * หน้า POS: ช่องตัวเลขรับเฉพาะการพิมพ์ (FIX-206) — ซ่อนลูกศร, กันล้อเมาส์และปุ่มลูกศรเปลี่ยนราคาโดยไม่ตั้งใจ.
- * ผูกที่ document + class บน body เพื่อครอบ modal ที่ render ผ่าน portal ด้วย · ถอดออกเมื่อออกจากหน้า.
+ * ทั้งระบบ: ช่องตัวเลขรับเฉพาะการพิมพ์ — กันล้อเมาส์และปุ่มลูกศรเปลี่ยนยอดโดยไม่ตั้งใจ
+ * (FIX-206 เริ่มที่หน้า POS · FIX-233 ขยายทุกหน้า รวมเปิด/ปิดเก๊ะ). ลูกศรขึ้น/ลงซ่อนด้วย CSS ใน index.css.
+ * เรียกครั้งเดียวที่ App — ผูกที่ document จึงครอบ modal ที่ render ผ่าน portal ด้วย.
  */
 export function useKeyboardOnlyNumberInputs(): void {
   useEffect(() => {
-    document.body.classList.add(KEYBOARD_ONLY_NUMBER_CLASS);
     const onWheel = (event: WheelEvent) => { handleNumberWheel(event); };
     const onKeyDown = (event: KeyboardEvent) => { handleNumberStepKey(event); };
     document.addEventListener('wheel', onWheel, { capture: true, passive: true });
     document.addEventListener('keydown', onKeyDown, true);
     return () => {
-      document.body.classList.remove(KEYBOARD_ONLY_NUMBER_CLASS);
       document.removeEventListener('wheel', onWheel, { capture: true });
       document.removeEventListener('keydown', onKeyDown, true);
     };

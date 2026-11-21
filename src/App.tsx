@@ -36,6 +36,7 @@ import { UsersPage } from '@/pages/UsersPage';
 import { AuditTrailPage } from '@/pages/AuditTrailPage';
 import { StoreProfilePage } from '@/pages/StoreProfilePage';
 import { useAuthStore } from '@/stores/authStore';
+import { useKeyboardOnlyNumberInputs } from '@/hooks/useKeyboardOnlyNumberInputs';
 
 /** หน้าแรกต่างกันตาม role — STAFF ไม่มี Dashboard แล้ว (FIX-102) */
 function HomeRedirect() {
@@ -44,6 +45,7 @@ function HomeRedirect() {
 }
 
 export default function App() {
+  useKeyboardOnlyNumberInputs();   // FIX-233: ทุกหน้า — ช่องตัวเลขไม่มีลูกศร/ล้อเมาส์เปลี่ยนยอด
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />

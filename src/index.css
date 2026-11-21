@@ -107,13 +107,13 @@ body {
   @page { size: A4 portrait; margin: 8mm; }
 }
 
-/* FIX-206 — หน้า POS: ช่องตัวเลขพิมพ์เท่านั้น ไม่มีลูกศรขึ้น/ลง (กันกด/เลื่อนแล้วราคาเพี้ยน) */
-body.pos-keyboard-only-numbers input[type='number']::-webkit-outer-spin-button,
-body.pos-keyboard-only-numbers input[type='number']::-webkit-inner-spin-button {
+/* FIX-206/FIX-233 — ทั้งระบบ: ช่องตัวเลขพิมพ์เท่านั้น ไม่มีลูกศรขึ้น/ลง (กันกด/เลื่อนแล้วยอดเพี้ยน) */
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
-body.pos-keyboard-only-numbers input[type='number'] {
+input[type='number'] {
   -moz-appearance: textfield;
   appearance: textfield;
 }
