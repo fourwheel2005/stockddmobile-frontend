@@ -38,6 +38,7 @@ import { StoreProfilePage } from '@/pages/StoreProfilePage';
 import { useAuthStore } from '@/stores/authStore';
 import { FRONT_COUNTER_ROLES, REPAIR_ROLES, homePathFor } from '@/lib/auth/homePath';
 import { TechStockPage } from '@/pages/TechStockPage';
+import { RepairPartsPage } from '@/pages/RepairPartsPage';
 import { useKeyboardOnlyNumberInputs } from '@/hooks/useKeyboardOnlyNumberInputs';
 
 /** หน้าแรกต่างกันตาม role — STAFF ไม่มี Dashboard (FIX-102) · ช่างเริ่มที่งานซ่อม (FIX-234) */
@@ -68,6 +69,8 @@ export default function App() {
       <Route element={<ProtectedRoute roles={REPAIR_ROLES} />}>
         <Route element={<AppShell />}>
           <Route path="/repairs" element={<RepairListPage />} />
+          {/* อะไหล่ซ่อม/ค่าแรง (FIX-235) — ช่าง/ADMIN/MANAGER แก้ได้ · หน้าร้านดูราคา */}
+          <Route path="/repair-parts" element={<RepairPartsPage />} />
         </Route>
       </Route>
 

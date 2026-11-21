@@ -17,7 +17,7 @@ describe('technician role routing (FIX-234)', () => {
   it('keeps the technician out of selling and cash pages', () => {
     expect(FRONT_COUNTER_ROLES).not.toContain('TECHNICIAN');
     const techMenu = navItems.filter((n) => (n.roles as readonly string[]).includes('TECHNICIAN')).map((n) => n.to);
-    expect(techMenu.sort()).toEqual(['/repairs', '/tech-stock']);
+    expect(techMenu.sort()).toEqual(['/repair-parts', '/repairs', '/tech-stock']);
   });
 
   it('guards the selling, cash and bill routes with the front-counter roles', () => {

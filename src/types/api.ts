@@ -1540,6 +1540,9 @@ export interface RepairTicket {
   warranty?: 'NONE' | 'M1' | 'M3' | 'M6' | 'Y1' | null;
   warrantyLabel?: string | null;
   warrantyUntil?: string | null;
+  /** อะไหล่ที่ใช้ในงานนี้ (FIX-235) — unitCost = null สำหรับพนักงานหน้าร้าน */
+  parts?: RepairTicketPart[];
+  partsTotal?: number;
 }
 
 export interface CreateRepairRequest {
@@ -1573,6 +1576,8 @@ export interface UpdateRepairStatusRequest {
   paymentMethod?: PaymentMethod;
   /** CANCELLED: true = ร้านเก็บมัดจำ (นับเป็นรายได้) · false = คืนลูกค้า (FIX-207) */
   keepDeposit?: boolean;
+  /** DONE (FIX-235): อะไหล่ที่ใช้ทั้งหมด — ตั้งรายการใหม่ทั้งชุด (ตัด/คืนสต็อกตามส่วนต่าง) · ไม่ส่ง = ไม่แตะรายการเดิม */
+  parts?: RepairPartLine[];
 }
 
 /** แก้ไข/เพิ่มข้อมูลใบซ่อมระหว่างทาง (partial) */
@@ -1776,4 +1781,78 @@ export interface DepositArrivalRequest {
   note?: string;
   /** ผลตรวจสภาพมือสอง (FIX-220) — ชุดเดียวกับหน้ารับเข้า */
   check?: DeviceCheck;
+}
+
+
+// ─── อะไหล่ซ่อม / ค่าแรง (FIX-235) ─────────────────────────────────────────
+/** cost/profit = null สำหรับพนักงานหน้าร้าน (backend ตัดให้) */
+export interface RepairPart {
+  id: string;
+  groupId: string;
+  name: string;
+  grade: string | null;
+  cost: number | null;
+  partPrice: number;
+  laborPrice: number;
+  /** ราคาเปลี่ยนรวม = ราคาอะไหล่ + ค่าแรง (ราคาที่บอกลูกค้า) */
+  replacePrice: number;
+  profit: number | null;
+  quantity: number;
+  note: string | null;
+  sortOrder: number;
+}
+
+export interface RepairPartGroup {
+  id: string;
+  name: string;
+  general: boolean;
+  note: string | null;
+  parts: RepairPart[];
+}
+
+export type RepairPartMovementType = 'RECEIVE' | 'ADJUST' | 'USE' | 'RETURN';
+
+export interface RepairPartMovement {
+  id: string;
+  type: RepairPartMovementType;
+  quantityChange: number;
+  quantityAfter: number;
+  unitCost: number | null;
+  ticketNo: string | null;
+  note: string | null;
+  createdBy: string | null;
+  createdAt: string;
+}
+
+export interface RepairTicketPart {
+  partId: string;
+  partName: string;
+  quantity: number;
+  unitReplacePrice: number;
+  lineTotal: number;
+  unitCost: number | null;
+}
+
+export interface RepairPartLine {
+  partId: string;
+  quantity: number;
+}
+
+export interface CreateRepairPartGroupRequest {
+  name: string;
+  general: boolean;
+  note?: string;
+  withStandardParts: boolean;
+  copyFromGroupId?: string;
+}
+
+export interface RepairPartRequest {
+  groupId: string;
+  name: string;
+  grade?: string;
+  cost: number;
+  partPrice: number;
+  laborPrice: number;
+  note?: string;
+  initialQuantity?: number;
 }

@@ -6,7 +6,10 @@ import { cancelRequest, depositDelta, repairPickupSettlement, REPAIR_MONEY_METHO
 import { useAuthStore } from '@/stores/authStore';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { Wrench, Printer, Play, CheckCircle2, HandCoins, Ban, X, Pencil, ReceiptText, Calendar } from 'lucide-react';
+import { Wrench, Printer, Play, CheckCircle2, HandCoins, Ban, X, Pencil, ReceiptText, Calendar, Cog } from 'lucide-react';
+import { RepairPartsPicker, linesFromTicket } from '@/components/repair/RepairPartsPicker';
+import { REPAIR_PARTS_KEY } from '@/components/repair/RepairPartModals';
+import { repairPartsApi } from '@/api/repairParts';
 import { repairApi } from '@/api/repair';
 import { extractErrorMessage } from '@/api/client';
 import { formatTHB, formatDateTime } from '@/lib/format';
@@ -14,7 +17,7 @@ import { shopDayKey, formatInShopZone } from '@/lib/datetime';
 import { RepairBillPrintView } from '@/components/RepairBillPrintView';
 import { printOrchestrator } from '@/lib/printer/PrintOrchestrator';
 import { buildRepairSlip, type RepairSlipMode } from '@/lib/escpos/repairEscpos';
-import type { PaymentMethod, RepairStatus, RepairTicket, UpdateRepairRequest } from '@/types/api';
+import type { PaymentMethod, RepairPartLine, RepairStatus, RepairTicket, UpdateRepairRequest } from '@/types/api';
 import { ImeiInput } from '@/components/ImeiInput';
 import { imeiProblem } from '@/lib/imei';
 
@@ -57,6 +60,7 @@ export function RepairListPage() {
   const [doneTarget, setDoneTarget] = useState<RepairTicket | null>(null);
   const [pickupTarget, setPickupTarget] = useState<RepairTicket | null>(null);
   const [editTarget, setEditTarget] = useState<RepairTicket | null>(null);
+  const [partsTarget, setPartsTarget] = useState<RepairTicket | null>(null);   // FIX-235
   const [printView, setPrintView] = useState<{ ticket: RepairTicket; mode: RepairSlipMode } | null>(null);
 
   const { data, isLoading } = useQuery({
@@ -87,9 +91,21 @@ export function RepairListPage() {
       qc.invalidateQueries({ queryKey: ['repair-tickets'] });
       // FIX-194: เงินค่าซ่อมลงเก๊ะแล้ว → รีเฟรชยอดเก๊ะ/สรุปที่เปิดค้างอยู่
       qc.invalidateQueries({ queryKey: ['cash-session'] });
+      qc.invalidateQueries({ queryKey: REPAIR_PARTS_KEY });   // FIX-235: ซ่อมเสร็จ/ยกเลิก → สต็อกอะไหล่เปลี่ยน
       qc.invalidateQueries({ queryKey: ['cash-register-summary'] });
       setDoneTarget(null);
       setPickupTarget(null);
+    },
+    onError: (e) => toast.error(extractErrorMessage(e)),
+  });
+
+  const saveParts = useMutation({
+    mutationFn: ({ id, parts }: { id: string; parts: RepairPartLine[] }) => repairPartsApi.setTicketParts(id, parts),
+    onSuccess: () => {
+      toast.success('บันทึกอะไหล่ที่ใช้แล้ว — สต็อกปรับตามแล้ว');
+      qc.invalidateQueries({ queryKey: ['repair-tickets'] });
+      qc.invalidateQueries({ queryKey: REPAIR_PARTS_KEY });
+      setPartsTarget(null);
     },
     onError: (e) => toast.error(extractErrorMessage(e)),
   });
@@ -210,6 +226,11 @@ export function RepairListPage() {
                         ส่งช่าง{t.technicianName ? `: ${t.technicianName}` : ''}
                       </div>
                     )}
+                    {(t.parts?.length ?? 0) > 0 && (
+                      <div className="mt-0.5 text-[11px] text-slate-600">
+                        <Cog className="inline h-3 w-3 align-[-1px]" /> อะไหล่: {t.parts!.map((p) => `${p.partName} ×${p.quantity}`).join(', ')}
+                      </div>
+                    )}
                     {repairWarrantyText(t) && (
                       <div className={`mt-0.5 text-[11px] ${t.warranty === 'NONE' ? 'text-slate-400' : 'text-emerald-700'}`}>
                         {repairWarrantyText(t)}
@@ -241,6 +262,10 @@ export function RepairListPage() {
                       {!isTechnician && t.status === 'DONE' && (
                         <button className="rounded p-1.5 text-emerald-700 hover:bg-emerald-50" title="รับเครื่องคืน / จ่ายเงิน"
                                 onClick={() => setPickupTarget(t)}><HandCoins className="h-4 w-4" /></button>
+                      )}
+                      {t.status !== 'PICKED_UP' && t.status !== 'CANCELLED' && (
+                        <button className="rounded p-1.5 text-slate-700 hover:bg-slate-100" title="อะไหล่ที่ใช้ (ตัดสต็อก)"
+                                onClick={() => setPartsTarget(t)}><Cog className="h-4 w-4" /></button>
                       )}
                       {t.status !== 'PICKED_UP' && t.status !== 'CANCELLED' && (
                         <button className="rounded p-1.5 text-blue-600 hover:bg-blue-50" title="แก้ไข/เพิ่มอาการ"
@@ -279,8 +304,18 @@ export function RepairListPage() {
           technician={isTechnician}
           pending={update.isPending}
           onClose={() => setDoneTarget(null)}
-          onConfirm={(repairCost, workDescription) =>
-            update.mutate({ id: doneTarget.id, body: { status: 'DONE', repairCost, workDescription } })}
+          onConfirm={(repairCost, workDescription, parts) =>
+            update.mutate({ id: doneTarget.id, body: { status: 'DONE', repairCost, workDescription, parts } })}
+        />
+      )}
+
+      {/* อะไหล่ที่ใช้ในงาน — ตัด/คืนสต็อกตามส่วนต่าง (FIX-235) */}
+      {partsTarget && (
+        <PartsDialog
+          ticket={partsTarget}
+          pending={saveParts.isPending}
+          onClose={() => setPartsTarget(null)}
+          onSave={(parts) => saveParts.mutate({ id: partsTarget.id, parts })}
         />
       )}
 
@@ -328,15 +363,33 @@ export function RepairListPage() {
 
 function DoneDialog({ ticket, technician, pending, onClose, onConfirm }: {
   ticket: RepairTicket; technician: boolean; pending: boolean;
-  onClose: () => void; onConfirm: (cost: number, work: string) => void;
+  onClose: () => void; onConfirm: (cost: number, work: string, parts: RepairPartLine[]) => void;
 }) {
+  const original = linesFromTicket(ticket.parts);
+  const [parts, setParts] = useState<RepairPartLine[]>(original);
+  const [partsTotal, setPartsTotal] = useState<number>(ticket.partsTotal ?? 0);
   const [cost, setCost] = useState<number>(ticket.repairCost || ticket.estimatedCost || 0);
-  const [work, setWork] = useState('');
+  const [costTouched, setCostTouched] = useState(false);
+  const [work, setWork] = useState(ticket.workDescription ?? '');
+  // FIX-235: ค่าซ่อมตามอะไหล่อัตโนมัติจนกว่าจะพิมพ์เอง
+  const onPartsChange = (lines: RepairPartLine[], total: number) => {
+    setParts(lines);
+    setPartsTotal(total);
+    if (!costTouched && total > 0) setCost(total);
+  };
   return (
     <Dialog title={`ปิดงานซ่อม — ${ticket.ticketNo}`} onClose={onClose}>
-      <label className="mb-1 block text-sm font-medium">ค่าซ่อมจริง (บาท)</label>
+      <label className="mb-1 block text-sm font-medium">อะไหล่ที่ใช้</label>
+      <RepairPartsPicker deviceText={[ticket.deviceBrand, ticket.deviceModel].filter(Boolean).join(' ')}
+                         value={parts} original={original} onChange={onPartsChange} />
+      <label className="mb-1 mt-3 block text-sm font-medium">ค่าซ่อมจริง (บาท)</label>
       <input type="number" min={0} step="0.01" className="input"
-             value={cost} onChange={(e) => setCost(Number(e.target.value) || 0)} />
+             value={cost} onChange={(e) => { setCostTouched(true); setCost(Number(e.target.value) || 0); }} />
+      <p className="mt-1 text-xs text-slate-500">
+        {partsTotal > 0 ? <>ราคาเปลี่ยนรวมของอะไหล่ {formatTHB(partsTotal)} — ค่าซ่อมเติมให้ตามนี้ แก้ได้ (เช่น ลดให้ลูกค้า)
+          {costTouched && cost !== partsTotal && <button type="button" className="ml-1 text-brand-700 underline" onClick={() => { setCost(partsTotal); setCostTouched(false); }}>ใช้ยอดอะไหล่</button>}</>
+          : 'ไม่ได้ใช้อะไหล่ — ใส่ค่าซ่อม/ค่าแรงเอง'}
+      </p>
       <label className="mb-1 mt-3 block text-sm font-medium">งานที่ซ่อม / อะไหล่</label>
       <textarea className="input" rows={3} placeholder="เช่น เปลี่ยนจอแท้, เปลี่ยนแบต..."
                 value={work} onChange={(e) => setWork(e.target.value)} />
@@ -347,9 +400,35 @@ function DoneDialog({ ticket, technician, pending, onClose, onConfirm }: {
       )}
       <div className="mt-4 flex justify-end gap-2">
         <button className="btn-secondary" onClick={onClose}>ยกเลิก</button>
-        <button className="btn-primary" disabled={pending} onClick={() => onConfirm(cost, work)}>
+        <button className="btn-primary" disabled={pending} onClick={() => onConfirm(cost, work, parts)}>
           ยืนยันซ่อมเสร็จ
         </button>
+      </div>
+    </Dialog>
+  );
+}
+
+// ─── อะไหล่ที่ใช้ (FIX-235) ───────────────────────────────────────────────────
+
+function PartsDialog({ ticket, pending, onClose, onSave }: {
+  ticket: RepairTicket; pending: boolean; onClose: () => void; onSave: (parts: RepairPartLine[]) => void;
+}) {
+  const original = linesFromTicket(ticket.parts);
+  const [parts, setParts] = useState<RepairPartLine[]>(original);
+  const [total, setTotal] = useState<number>(ticket.partsTotal ?? 0);
+  return (
+    <Dialog title={`อะไหล่ที่ใช้ — ${ticket.ticketNo}`} onClose={onClose}>
+      <p className="mb-2 text-xs text-slate-500">
+        เลือกอะไหล่ที่ใช้กับเครื่องนี้ — กดบันทึกแล้วสต็อกลด/คืนตามส่วนต่างทันที · ค่าซ่อมไม่เปลี่ยนเอง (ตั้งตอนกด "ซ่อมเสร็จ" หรือ "แก้ไข")
+      </p>
+      <RepairPartsPicker deviceText={[ticket.deviceBrand, ticket.deviceModel].filter(Boolean).join(' ')}
+                         value={parts} original={original} onChange={(lines, t) => { setParts(lines); setTotal(t); }} />
+      {total > 0 && ticket.repairCost > 0 && ticket.repairCost !== total && (
+        <p className="mt-2 text-xs text-amber-700">ค่าซ่อมในใบงาน {formatTHB(ticket.repairCost)} ไม่เท่ากับราคาอะไหล่ {formatTHB(total)} — แก้ได้ที่ปุ่มแก้ไข</p>
+      )}
+      <div className="mt-4 flex justify-end gap-2">
+        <button className="btn-secondary" onClick={onClose}>ยกเลิก</button>
+        <button className="btn-primary" disabled={pending} onClick={() => onSave(parts)}>{pending ? 'กำลังบันทึก…' : 'บันทึกอะไหล่'}</button>
       </div>
     </Dialog>
   );
@@ -574,8 +653,8 @@ function Dialog({ title, onClose, children }: {
   title: string; onClose: () => void; children: React.ReactNode;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-md rounded-lg bg-white shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-[5vh]">
+      <div className="w-full max-w-lg rounded-lg bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b px-5 py-3">
           <h3 className="font-semibold">{title}</h3>
           <button onClick={onClose} className="rounded p-1 hover:bg-slate-100"><X className="h-4 w-4" /></button>
