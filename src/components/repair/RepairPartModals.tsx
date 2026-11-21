@@ -8,6 +8,7 @@ import { backdropCloseHandler, useModalChrome } from '@/hooks/useModalChrome';
 import { Hint } from '@/components/ui/Hint';
 import { formatDateTime, formatTHB } from '@/lib/format';
 import { MOVEMENT_LABEL, partLabel, profitOf, replacePriceOf } from '@/lib/repairParts';
+import { IPHONE_MODEL_SERIES, hasModel } from '@/lib/iphoneModels';
 import type { RepairPart, RepairPartGroup } from '@/types/api';
 
 /** หน้าต่างของหน้า "อะไหล่ซ่อม / ค่าแรง" (FIX-235) — ทุกช่องมีคำอธิบายใต้ช่อง */
@@ -71,6 +72,7 @@ export function GroupModal({ group, groups, onClose }: { group?: RepairPartGroup
   const [note, setNote] = useState(group?.note ?? '');
   const [startWith, setStartWith] = useState<StartWith>('STANDARD');
   const models = groups.filter((g) => !g.general);
+  const existingNames = groups.filter((g) => g.id !== group?.id).map((g) => g.name);
   const [copyFrom, setCopyFrom] = useState(models[0]?.id ?? '');
 
   const save = useSave(
@@ -89,12 +91,34 @@ export function GroupModal({ group, groups, onClose }: { group?: RepairPartGroup
     <Modal title={editing ? `แก้ไขรุ่น — ${group.name}` : 'เพิ่มรุ่น / หมวดอะไหล่'} onClose={onClose}
            footer={<>
              <button className="btn-secondary" onClick={onClose}>ยกเลิก</button>
-             <button className="btn-primary" disabled={!name.trim() || save.isPending} onClick={() => save.mutate()}>
+             <button className="btn-primary" disabled={!name.trim() || hasModel(existingNames, name) || save.isPending} onClick={() => save.mutate()}>
                {save.isPending ? 'กำลังบันทึก…' : 'บันทึก'}
              </button>
            </>}>
+      {!editing && !general && (
+        <Field label="เลือกรุ่น iPhone" hint="รุ่นที่มีในตารางแล้วเลือกซ้ำไม่ได้ · ไม่ใช่ iPhone (iPad, Android) พิมพ์ชื่อเองในช่องด้านล่าง">
+          <select className="input" value="" onChange={(e) => { if (e.target.value) setName(e.target.value); }}>
+            <option value="">— เลือกจากรายการ iPhone ทุกรุ่น —</option>
+            {IPHONE_MODEL_SERIES.map((s) => (
+              <optgroup key={s.series} label={`ปี ${s.series}`}>
+                {s.models.map((m) => {
+                  const taken = hasModel(existingNames, m);
+                  return <option key={m} value={m} disabled={taken}>{m}{taken ? ' (มีแล้ว)' : ''}</option>;
+                })}
+              </optgroup>
+            ))}
+          </select>
+        </Field>
+      )}
       <Field label="ชื่อรุ่น / หมวด *" hint="ใช้ชื่อเดียวกับที่หน้าร้านพิมพ์ในใบงานซ่อม เช่น iPhone 13 Pro Max — ระบบจะเลือกรุ่นให้อัตโนมัติตอนช่างเลือกอะไหล่">
-        <input className="input" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="เช่น iPhone 13" />
+        <input className="input" autoFocus value={name} onChange={(e) => setName(e.target.value)}
+               placeholder="เลือกด้านบน หรือพิมพ์เอง เช่น iPad Air 5" list={editing || general ? undefined : 'iphone-model-options'} />
+        {!editing && !general && (
+          <datalist id="iphone-model-options">
+            {IPHONE_MODEL_SERIES.flatMap((s) => s.models).filter((m) => !hasModel(existingNames, m)).map((m) => <option key={m} value={m} />)}
+          </datalist>
+        )}
+        {!editing && name.trim() && hasModel(existingNames, name) && <Hint tone="warning">มีรุ่นนี้ในตารางแล้ว — แก้ราคาที่รุ่นเดิมได้เลย</Hint>}
       </Field>
       {!editing && (
         <label className="flex items-start gap-2 text-sm">
