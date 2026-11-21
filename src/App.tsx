@@ -36,12 +36,14 @@ import { UsersPage } from '@/pages/UsersPage';
 import { AuditTrailPage } from '@/pages/AuditTrailPage';
 import { StoreProfilePage } from '@/pages/StoreProfilePage';
 import { useAuthStore } from '@/stores/authStore';
+import { FRONT_COUNTER_ROLES, REPAIR_ROLES, homePathFor } from '@/lib/auth/homePath';
+import { TechStockPage } from '@/pages/TechStockPage';
 import { useKeyboardOnlyNumberInputs } from '@/hooks/useKeyboardOnlyNumberInputs';
 
-/** หน้าแรกต่างกันตาม role — STAFF ไม่มี Dashboard แล้ว (FIX-102) */
+/** หน้าแรกต่างกันตาม role — STAFF ไม่มี Dashboard (FIX-102) · ช่างเริ่มที่งานซ่อม (FIX-234) */
 function HomeRedirect() {
   const role = useAuthStore((s) => s.user?.role);
-  return <Navigate to={role === 'STAFF' ? '/pos' : '/'} replace />;
+  return <Navigate to={homePathFor(role)} replace />;
 }
 
 export default function App() {
@@ -50,16 +52,29 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
 
-      {/* ─── STAFF เข้าได้: POS + พิมพ์ใบจัดส่ง + เก๊ะ + งานซ่อม + ประวัติบิลทั้งร้าน ─── */}
-      <Route element={<ProtectedRoute />}>
+      {/* ─── หน้าร้าน (STAFF ขึ้นไป): POS + พิมพ์ใบจัดส่ง + เก๊ะ + มัดจำ + ประวัติบิลทั้งร้าน — ช่างไม่เข้า (FIX-234) ─── */}
+      <Route element={<ProtectedRoute roles={FRONT_COUNTER_ROLES} />}>
         <Route element={<AppShell />}>
           <Route path="/pos" element={<PosTerminalPage />} />
           <Route path="/shipping-labels" element={<ShippingLabelsPage />} />
           <Route path="/cash-register" element={<CashRegisterPage />} />
-          <Route path="/repairs" element={<RepairListPage />} />
           <Route path="/deposits" element={<DeviceDepositsPage />} />
           <Route path="/sales" element={<SalesHistoryPage />} />
           <Route path="/pos/orders/:id" element={<OrderDetailPage />} />
+        </Route>
+      </Route>
+
+      {/* ─── งานซ่อม: หน้าร้าน + ช่าง (FIX-234) ─── */}
+      <Route element={<ProtectedRoute roles={REPAIR_ROLES} />}>
+        <Route element={<AppShell />}>
+          <Route path="/repairs" element={<RepairListPage />} />
+        </Route>
+      </Route>
+
+      {/* ─── ช่าง: ดูเครื่องในสต็อก (IMEI/แบต/สภาพ) ไม่มีราคา (FIX-234) ─── */}
+      <Route element={<ProtectedRoute roles={['TECHNICIAN']} />}>
+        <Route element={<AppShell />}>
+          <Route path="/tech-stock" element={<TechStockPage />} />
         </Route>
       </Route>
 

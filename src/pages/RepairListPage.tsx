@@ -2,7 +2,8 @@ import { Fragment, useMemo, useState } from 'react';
 import { RepairWarrantyPicker } from '@/components/RepairWarrantyPicker';
 import { repairWarrantyText } from '@/lib/repairWarranty';
 import type { RepairWarranty } from '@/lib/repairWarranty';
-import { cancelRequest, depositDelta, repairPickupSettlement, REPAIR_MONEY_METHODS, type CancelDepositChoice } from '@/lib/repairMoney';
+import { cancelRequest, depositDelta, repairPickupSettlement, REPAIR_MONEY_METHODS, technicianEditBody, type CancelDepositChoice } from '@/lib/repairMoney';
+import { useAuthStore } from '@/stores/authStore';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { Wrench, Printer, Play, CheckCircle2, HandCoins, Ban, X, Pencil, ReceiptText, Calendar } from 'lucide-react';
@@ -50,6 +51,8 @@ const FILTERS: { value: RepairStatus | ''; label: string }[] = [
 
 export function RepairListPage() {
   const qc = useQueryClient();
+  // ช่าง (FIX-234): เริ่มซ่อม/ซ่อมเสร็จ/แก้รายละเอียด/ค่าซ่อม — ไม่เห็นมัดจำ ยอดค้าง ค่าช่างนอก ไม่รับคืน/ยกเลิก/พิมพ์
+  const isTechnician = useAuthStore((s) => s.user?.role === 'TECHNICIAN');
   const [statusFilter, setStatusFilter] = useState<RepairStatus | ''>('');
   const [doneTarget, setDoneTarget] = useState<RepairTicket | null>(null);
   const [pickupTarget, setPickupTarget] = useState<RepairTicket | null>(null);
@@ -136,7 +139,11 @@ export function RepairListPage() {
         <h1 className="flex items-center gap-2 page-title">
           <Wrench className="h-6 w-6 text-amber-600" /> งานซ่อม / เคลม (Repair Tickets)
         </h1>
-        <p className="text-sm text-slate-500">ติดตามงานรับซ่อมเครื่องของลูกค้า</p>
+        <p className="text-sm text-slate-500">
+          {isTechnician
+            ? 'กด "เริ่มซ่อม" เมื่อลงมือ และ "ซ่อมเสร็จ" พร้อมค่าซ่อม — รับเครื่องคืน/รับเงินให้หน้าร้านทำ'
+            : 'ติดตามงานรับซ่อมเครื่องของลูกค้า'}
+        </p>
       </div>
 
       {/* Filter */}
@@ -161,7 +168,7 @@ export function RepairListPage() {
               <tr>
                 <th className="px-4 py-3">เลขใบ / ลูกค้า</th>
                 <th className="px-4 py-3">เครื่อง / อาการ</th>
-                <th className="px-4 py-3 text-right">ค่าซ่อม / มัดจำ</th>
+                <th className="px-4 py-3 text-right">{isTechnician ? 'ค่าซ่อม' : 'ค่าซ่อม / มัดจำ'}</th>
                 <th className="px-4 py-3">สถานะ</th>
                 <th className="px-4 py-3">รับเข้า</th>
                 <th className="px-4 py-3 text-right">จัดการ</th>
@@ -195,6 +202,8 @@ export function RepairListPage() {
                       {[t.deviceBrand, t.deviceModel, t.deviceColor].filter(Boolean).join(' ')}
                     </div>
                     {t.imei && <div className="text-xs text-slate-500 font-mono">IMEI: {t.imei}</div>}
+                    {isTechnician && t.serialNumber && <div className="text-xs text-slate-500 font-mono">SN: {t.serialNumber}</div>}
+                    {isTechnician && t.screenCode && <div className="text-xs font-mono text-slate-700">รหัสหน้าจอ: {t.screenCode}</div>}
                     <div className="text-xs text-slate-600"><Wrench className="inline h-4 w-4 align-[-2px]" /> {t.reportedSymptom}</div>
                     {t.outsourced && (
                       <div className="mt-0.5 inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
@@ -209,11 +218,11 @@ export function RepairListPage() {
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="font-semibold">{formatTHB(t.repairCost)}</div>
-                    {t.depositAmount > 0 && <div className="text-xs text-slate-500">มัดจำ {formatTHB(t.depositAmount)}</div>}
-                    {t.outsourced && (t.outsourceCost ?? 0) > 0 && (
+                    {!isTechnician && t.depositAmount > 0 && <div className="text-xs text-slate-500">มัดจำ {formatTHB(t.depositAmount)}</div>}
+                    {!isTechnician && t.outsourced && (t.outsourceCost ?? 0) > 0 && (
                       <div className="text-xs text-slate-400">จ่ายช่าง {formatTHB(t.outsourceCost!)}</div>
                     )}
-                    {t.status === 'DONE' && <div className="text-xs text-amber-700">ค้าง {formatTHB(t.balanceDue)}</div>}
+                    {!isTechnician && t.status === 'DONE' && <div className="text-xs text-amber-700">ค้าง {formatTHB(t.balanceDue)}</div>}
                   </td>
                   <td className="px-4 py-3">
                     <span className={STATUS_BADGE[t.status]}>{STATUS_TH[t.status]}</span>
@@ -229,7 +238,7 @@ export function RepairListPage() {
                         <button className="rounded p-1.5 text-emerald-700 hover:bg-emerald-50" title="ซ่อมเสร็จ"
                                 onClick={() => setDoneTarget(t)}><CheckCircle2 className="h-4 w-4" /></button>
                       )}
-                      {t.status === 'DONE' && (
+                      {!isTechnician && t.status === 'DONE' && (
                         <button className="rounded p-1.5 text-emerald-700 hover:bg-emerald-50" title="รับเครื่องคืน / จ่ายเงิน"
                                 onClick={() => setPickupTarget(t)}><HandCoins className="h-4 w-4" /></button>
                       )}
@@ -237,13 +246,15 @@ export function RepairListPage() {
                         <button className="rounded p-1.5 text-blue-600 hover:bg-blue-50" title="แก้ไข/เพิ่มอาการ"
                                 onClick={() => setEditTarget(t)}><Pencil className="h-4 w-4" /></button>
                       )}
-                      <button className="rounded p-1.5 text-slate-600 hover:bg-slate-100" title="พิมพ์ใบรับซ่อม"
-                              onClick={() => printRepair(t, 'INTAKE')}><Printer className="h-4 w-4" /></button>
-                      {(t.status === 'DONE' || t.status === 'PICKED_UP') && (
+                      {!isTechnician && (
+                        <button className="rounded p-1.5 text-slate-600 hover:bg-slate-100" title="พิมพ์ใบรับซ่อม"
+                                onClick={() => printRepair(t, 'INTAKE')}><Printer className="h-4 w-4" /></button>
+                      )}
+                      {!isTechnician && (t.status === 'DONE' || t.status === 'PICKED_UP') && (
                         <button className="rounded p-1.5 text-emerald-700 hover:bg-emerald-50" title="พิมพ์ใบเสร็จค่าซ่อม"
                                 onClick={() => printRepair(t, 'RECEIPT')}><ReceiptText className="h-4 w-4" /></button>
                       )}
-                      {t.status !== 'PICKED_UP' && t.status !== 'CANCELLED' && (
+                      {!isTechnician && t.status !== 'PICKED_UP' && t.status !== 'CANCELLED' && (
                         <button className="rounded p-1.5 text-red-600 hover:bg-red-50" title="ยกเลิก"
                                 onClick={() => cancel(t)}><Ban className="h-4 w-4" /></button>
                       )}
@@ -265,6 +276,7 @@ export function RepairListPage() {
       {doneTarget && (
         <DoneDialog
           ticket={doneTarget}
+          technician={isTechnician}
           pending={update.isPending}
           onClose={() => setDoneTarget(null)}
           onConfirm={(repairCost, workDescription) =>
@@ -299,9 +311,10 @@ export function RepairListPage() {
       {editTarget && (
         <EditRepairDialog
           ticket={editTarget}
+          technician={isTechnician}
           pending={updateDetails.isPending}
           onClose={() => setEditTarget(null)}
-          onSave={(body) => updateDetails.mutate({ id: editTarget.id, body })}
+          onSave={(body) => updateDetails.mutate({ id: editTarget.id, body: isTechnician ? technicianEditBody(body) : body })}
         />
       )}
 
@@ -313,8 +326,8 @@ export function RepairListPage() {
 
 // ─── Done dialog ────────────────────────────────────────────────────────────
 
-function DoneDialog({ ticket, pending, onClose, onConfirm }: {
-  ticket: RepairTicket; pending: boolean;
+function DoneDialog({ ticket, technician, pending, onClose, onConfirm }: {
+  ticket: RepairTicket; technician: boolean; pending: boolean;
   onClose: () => void; onConfirm: (cost: number, work: string) => void;
 }) {
   const [cost, setCost] = useState<number>(ticket.repairCost || ticket.estimatedCost || 0);
@@ -327,7 +340,7 @@ function DoneDialog({ ticket, pending, onClose, onConfirm }: {
       <label className="mb-1 mt-3 block text-sm font-medium">งานที่ซ่อม / อะไหล่</label>
       <textarea className="input" rows={3} placeholder="เช่น เปลี่ยนจอแท้, เปลี่ยนแบต..."
                 value={work} onChange={(e) => setWork(e.target.value)} />
-      {ticket.depositAmount > 0 && (
+      {!technician && ticket.depositAmount > 0 && (
         <p className="mt-2 text-xs text-slate-500">
           มัดจำแล้ว {formatTHB(ticket.depositAmount)} · ค้างชำระ {formatTHB(Math.max(0, cost - ticket.depositAmount))}
         </p>
@@ -392,8 +405,8 @@ function PickupDialog({ ticket, pending, onClose, onConfirm }: {
 }
 
 // ─── แก้ไข/เพิ่มอาการ ระหว่างทาง ──────────────────────────────────────────────
-function EditRepairDialog({ ticket, pending, onClose, onSave }: {
-  ticket: RepairTicket; pending: boolean;
+function EditRepairDialog({ ticket, technician, pending, onClose, onSave }: {
+  ticket: RepairTicket; technician: boolean; pending: boolean;
   onClose: () => void; onSave: (body: UpdateRepairRequest) => void;
 }) {
   const [f, setF] = useState({
@@ -432,7 +445,7 @@ function EditRepairDialog({ ticket, pending, onClose, onSave }: {
             <textarea className="input" rows={3} placeholder="เช่น เจอบอร์ดช็อตเพิ่ม, เปลี่ยนจอ+แบต"
                       value={f.workDescription} onChange={(e) => set({ workDescription: e.target.value })} />
           </div>
-          <div className="grid grid-cols-3 gap-2">
+          <div className={`grid gap-2 ${technician ? 'grid-cols-2' : 'grid-cols-3'}`}>
             <div>
               <label className="mb-1 block text-xs font-medium">ประเมินค่าซ่อม</label>
               <input type="number" min={0} className="input text-sm" value={f.estimatedCost}
@@ -443,7 +456,7 @@ function EditRepairDialog({ ticket, pending, onClose, onSave }: {
               <input type="number" min={0} className="input text-sm" value={f.repairCost}
                      onChange={(e) => set({ repairCost: Number(e.target.value) || 0 })} />
             </div>
-            <div>
+            {!technician && <div>
               <label className="mb-1 block text-xs font-medium">มัดจำ</label>
               <input type="number" min={0} className="input text-sm" value={f.depositAmount}
                      onChange={(e) => set({ depositAmount: Number(e.target.value) || 0 })} />
@@ -456,7 +469,7 @@ function EditRepairDialog({ ticket, pending, onClose, onSave }: {
                   </select>
                 </div>
               )}
-            </div>
+            </div>}
           </div>
           <div className="grid grid-cols-3 gap-2">
             <input className="input text-sm" placeholder="ยี่ห้อ" value={f.deviceBrand} onChange={(e) => set({ deviceBrand: e.target.value })} />
@@ -479,8 +492,10 @@ function EditRepairDialog({ ticket, pending, onClose, onSave }: {
               <div className="mt-2 grid grid-cols-2 gap-2">
                 <input className="input text-sm" placeholder="ชื่อช่าง" value={f.technicianName}
                        onChange={(e) => set({ technicianName: e.target.value })} />
-                <input type="number" min={0} className="input text-sm" placeholder="ราคาส่งซ่อม (จ่ายช่าง)"
-                       value={f.outsourceCost} onChange={(e) => set({ outsourceCost: e.target.value === '' ? '' : Number(e.target.value) || 0 })} />
+                {!technician && (
+                  <input type="number" min={0} className="input text-sm" placeholder="ราคาส่งซ่อม (จ่ายช่าง)"
+                         value={f.outsourceCost} onChange={(e) => set({ outsourceCost: e.target.value === '' ? '' : Number(e.target.value) || 0 })} />
+                )}
               </div>
             )}
           </div>

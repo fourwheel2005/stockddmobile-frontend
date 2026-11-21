@@ -1,6 +1,7 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import type { Role } from '@/types/api';
+import { homePathFor } from '@/lib/auth/homePath';
 
 interface Props {
   roles?: Role[];
@@ -17,8 +18,8 @@ export function ProtectedRoute({ roles }: Props) {
 
   // FIX-159: FREEDOM (เจ้าของ) ผ่านทุกหน้า
   if (roles && roles.length > 0 && userRole !== 'FREEDOM' && (!userRole || !roles.includes(userRole))) {
-    // STAFF ไม่มีสิทธิ์หน้า Dashboard แล้ว (FIX-102) → ส่งกลับหน้าขาย ไม่งั้นจะเด้งวน
-    return <Navigate to={userRole === 'STAFF' ? '/pos' : '/'} replace />;
+    // ส่งกลับหน้าแรกของ role (STAFF → POS, ช่าง → งานซ่อม) ไม่งั้นจะเด้งวน (FIX-102, FIX-234)
+    return <Navigate to={homePathFor(userRole)} replace />;
   }
 
   return <Outlet />;

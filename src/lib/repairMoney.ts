@@ -1,4 +1,4 @@
-import type { PaymentMethod, UpdateRepairStatusRequest } from '@/types/api';
+import type { PaymentMethod, UpdateRepairRequest, UpdateRepairStatusRequest } from '@/types/api';
 
 /** สูตรเดียวกับ backend RepairService (FIX-207) — ใช้แสดงในหน้าต่างก่อนกดยืนยัน */
 export interface RepairSettlement {
@@ -37,3 +37,12 @@ export const REPAIR_MONEY_METHODS: { value: PaymentMethod; label: string }[] = [
   { value: 'TRANSFER', label: 'โอนเงิน / QR' },
   { value: 'CARD', label: 'บัตรเครดิต/เดบิต' },
 ];
+
+/**
+ * ช่าง (FIX-234) แก้ใบซ่อมได้ แต่ไม่แตะเงิน — ตัดมัดจำ/วิธีจ่าย/ค่าช่างนอกออกก่อนส่ง
+ * (backend ปฏิเสธการแก้มัดจำจากช่าง และไม่รับค่าช่างนอก)
+ */
+export function technicianEditBody(body: UpdateRepairRequest): UpdateRepairRequest {
+  const { depositAmount: _deposit, depositPaymentMethod: _method, outsourceCost: _outsource, ...rest } = body;
+  return rest;
+}

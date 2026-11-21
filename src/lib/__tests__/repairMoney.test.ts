@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cancelRequest, depositDelta, repairPickupSettlement } from '@/lib/repairMoney';
+import { cancelRequest, depositDelta, repairPickupSettlement, technicianEditBody } from '@/lib/repairMoney';
 
 describe('repair money (FIX-207)', () => {
   it('pickup: customer pays the remainder, or the shop returns an oversized deposit', () => {
@@ -19,5 +19,15 @@ describe('repair money (FIX-207)', () => {
     expect(depositDelta(1000, 1500)).toBe(500);
     expect(depositDelta(1500, 600)).toBe(-900);
     expect(depositDelta(500, 500)).toBe(0);
+  });
+});
+
+describe('technician edits never carry money (FIX-234)', () => {
+  it('drops deposit, its payment method and the outside-technician cost', () => {
+    const body = technicianEditBody({
+      workDescription: 'เปลี่ยนจอ', repairCost: 2800, estimatedCost: 2500, screenCode: '1234',
+      depositAmount: 0, depositPaymentMethod: 'CASH', outsourceCost: 0, outsourced: false,
+    });
+    expect(body).toEqual({ workDescription: 'เปลี่ยนจอ', repairCost: 2800, estimatedCost: 2500, screenCode: '1234', outsourced: false });
   });
 });

@@ -9,6 +9,7 @@ import {
 import { authApi } from '@/api/auth';
 import { extractErrorMessage } from '@/api/client';
 import { useAuthStore } from '@/stores/authStore';
+import { homePathFor } from '@/lib/auth/homePath';
 
 interface FormValues {
   username: string;
@@ -35,7 +36,7 @@ export function LoginPage() {
     defaultValues: { username: '', password: '' },
   });
 
-  const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname ?? '/';
+  const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname;
 
   const detectCaps = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (typeof e.getModifierState === 'function') setCapsOn(e.getModifierState('CapsLock'));
@@ -47,7 +48,7 @@ export function LoginPage() {
       const res = await authApi.login(data);
       setSession({ accessToken: res.accessToken, refreshToken: res.refreshToken, user: res.user });
       toast.success(`สวัสดี ${res.user.fullName}`);
-      navigate(from, { replace: true });
+      navigate(from ?? homePathFor(res.user.role), { replace: true });   // ไม่มีหน้าค้าง → หน้าแรกของ role (FIX-234)
     } catch (err) {
       setShake(true);
       setTimeout(() => setShake(false), 450);

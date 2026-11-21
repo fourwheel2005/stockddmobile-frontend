@@ -13,6 +13,7 @@ const ROLE_INFO: Record<Role, { label: string; hint: string; cls: string }> = {
   ADMIN:   { label: 'เจ้าของ (ADMIN)',   hint: 'เห็นทุกอย่าง + จัดการพนักงาน', cls: 'badge-red' },
   MANAGER: { label: 'ผู้จัดการ',          hint: 'เห็นต้นทุน/รายงาน/สต็อก',      cls: 'badge-blue' },
   STAFF:   { label: 'พนักงานขาย (STAFF)', hint: 'ขายหน้าร้านอย่างเดียว',        cls: 'badge-slate' },
+  TECHNICIAN: { label: 'ช่าง', hint: 'งานซ่อม + ดูข้อมูลเครื่องในสต็อก (ไม่เห็นราคา/เงิน ไม่เข้า POS/เก๊ะ)', cls: 'badge-green' },
 };
 
 const EMPTY_FORM: CreateUserRequest = {

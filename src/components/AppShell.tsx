@@ -13,7 +13,7 @@ import {
   LayoutDashboard, Boxes, Package, ArrowUpFromLine,
   History, BellRing, LogOut, SlidersHorizontal, ScanLine, Users, Layers, Receipt,
   BarChart3, ShieldCheck, Tag, Wrench, Menu, X, Wallet, Landmark, Building2, ArrowLeftRight, UserCog,
-  CreditCard, PackageOpen, PackageCheck, Bookmark, BadgePercent, StickyNote } from 'lucide-react';
+  CreditCard, PackageOpen, PackageCheck, Bookmark, BadgePercent, StickyNote, Smartphone } from 'lucide-react';
 
 /**
  * สิทธิ์เมนู (FIX-102) — STAFF = "ขายหน้าร้านอย่างเดียว"
@@ -22,13 +22,17 @@ import {
  */
 const ALL_ROLES = ['ADMIN', 'MANAGER', 'STAFF'] as const;
 const BACK_OFFICE = ['ADMIN', 'MANAGER'] as const;
+/** ช่าง (FIX-234): งานซ่อม + ดูเครื่องในสต็อกเท่านั้น */
+const REPAIR = ['ADMIN', 'MANAGER', 'STAFF', 'TECHNICIAN'] as const;
+const TECHNICIAN_ONLY = ['TECHNICIAN'] as const;
 
 export const navItems = [
   { to: '/',             label: 'Dashboard',     icon: LayoutDashboard,   roles: BACK_OFFICE },
   { to: '/pos',          label: 'POS ขายหน้าร้าน', icon: ScanLine,          roles: ALL_ROLES },
   { to: '/shipping-labels', label: 'พิมพ์ใบจัดส่ง', icon: PackageCheck,      roles: ALL_ROLES },
   { to: '/cash-register', label: 'เก๊ะเงินสด',      icon: Wallet,            roles: ALL_ROLES },
-  { to: '/repairs',      label: 'งานซ่อม',        icon: Wrench,            roles: ALL_ROLES },
+  { to: '/repairs',      label: 'งานซ่อม',        icon: Wrench,            roles: REPAIR },
+  { to: '/tech-stock',   label: 'สต็อกเครื่อง',    icon: Smartphone,        roles: TECHNICIAN_ONLY },   // FIX-234
   { to: '/deposits',     label: 'มัดจำ/จองเครื่อง', icon: Bookmark,          roles: ALL_ROLES },   // FIX-214
   { to: '/inventory',    label: 'คลังสต็อก',     icon: Boxes,             roles: BACK_OFFICE },
   { to: '/pending-intake', label: 'รอลงสต็อก',   icon: PackageOpen,       roles: BACK_OFFICE },
@@ -134,7 +138,7 @@ export function AppShell() {
           </button>
         </div>
 
-        <CashDrawerIndicator />
+        {user?.role !== 'TECHNICIAN' && <CashDrawerIndicator />}
         <BranchSelector />
 
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
@@ -174,7 +178,7 @@ export function AppShell() {
               <WsStatusIndicator />
             </div>
             <div className="text-xs text-slate-500">@{user?.username}</div>
-            <span className="badge-blue mt-1.5">{user?.role}</span>
+            <span className="badge-blue mt-1.5">{user?.role === 'TECHNICIAN' ? 'ช่าง' : user?.role}</span>
           </div>
           <button onClick={handleLogout} className="btn-ghost w-full justify-start">
             <LogOut className="h-4 w-4" />
