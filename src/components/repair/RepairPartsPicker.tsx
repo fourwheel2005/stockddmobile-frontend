@@ -74,7 +74,7 @@ export function RepairPartsPicker({ deviceText, value, onChange, original }: {
             <div key={p.id} className="flex items-center justify-between gap-2 px-3 py-1.5 text-sm">
               <div className="min-w-0">
                 <div className="truncate font-medium">{partLabel(p)}</div>
-                <div className="text-xs text-slate-500">{p.replacePrice > 0 ? formatTHB(p.replacePrice) : 'ยังไม่ตั้งราคา'} · {left > 0 ? `เหลือ ${left}` : <span className="text-red-600">หมด</span>}</div>
+                <div className="text-xs text-slate-500">{p.replacePrice > 0 ? formatTHB(p.replacePrice) : 'ยังไม่ตั้งราคา'}{p.warranty ? ` · ประกัน ${p.warranty}` : ''} · {left > 0 ? `เหลือ ${left}` : <span className="text-red-600">หมด</span>}</div>
               </div>
               <button type="button" className="btn-secondary shrink-0 px-2 py-1 text-xs" disabled={left <= 0}
                       title={left <= 0 ? 'ของหมด — รับเข้าสต็อกก่อน' : 'เพิ่มชิ้นนี้'}
@@ -102,7 +102,7 @@ export function RepairPartsPicker({ deviceText, value, onChange, original }: {
         );
       })}
       {value.length > 0 && (
-        <div className="flex justify-between border-t pt-1.5 text-sm font-semibold"><span>รวมราคาเปลี่ยน (อะไหล่ + ค่าแรง)</span><span className="tabular-nums">{formatTHB(total)}</span></div>
+        <div className="flex justify-between border-t pt-1.5 text-sm font-semibold"><span>ยอดรวมอะไหล่ที่ใช้</span><span className="tabular-nums">{formatTHB(total)}</span></div>
       )}
       {short.length > 0 && <Hint tone="warning">อะไหล่ไม่พอ — รับเข้าสต็อกที่เมนู "อะไหล่ / ราคาซ่อม" ก่อน</Hint>}
     </div>

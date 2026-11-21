@@ -386,7 +386,7 @@ function DoneDialog({ ticket, technician, pending, onClose, onConfirm }: {
       <input type="number" min={0} step="0.01" className="input"
              value={cost} onChange={(e) => { setCostTouched(true); setCost(Number(e.target.value) || 0); }} />
       <p className="mt-1 text-xs text-slate-500">
-        {partsTotal > 0 ? <>ราคาเปลี่ยนรวมของอะไหล่ {formatTHB(partsTotal)} — ค่าซ่อมเติมให้ตามนี้ แก้ได้ (เช่น ลดให้ลูกค้า)
+        {partsTotal > 0 ? <>ยอดรวมของอะไหล่ {formatTHB(partsTotal)} — ค่าซ่อมเติมให้ตามนี้ แก้ได้ (เช่น ลดให้ลูกค้า)
           {costTouched && cost !== partsTotal && <button type="button" className="ml-1 text-brand-700 underline" onClick={() => { setCost(partsTotal); setCostTouched(false); }}>ใช้ยอดอะไหล่</button>}</>
           : 'ไม่ได้ใช้อะไหล่ — ใส่ค่าซ่อม/ค่าแรงเอง'}
       </p>

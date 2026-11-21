@@ -73,3 +73,15 @@ export function setLineQty(lines: RepairPartLine[], partId: string, qty: number)
     ? lines.map((l) => (l.partId === partId ? { partId, quantity: qty } : l))
     : [...lines, { partId, quantity: qty }];
 }
+
+/**
+ * FIX-237: ช่างกรอก "ยอดรวม" (ราคาเปลี่ยนที่บอกลูกค้า) แทนค่าแรง — ระบบคิดค่าแรงให้ = ยอดรวม − ราคาอะไหล่
+ * คืน null ถ้ายอดรวมน้อยกว่าราคาอะไหล่ (ค่าแรงติดลบ = กรอกผิด)
+ */
+export function laborFromTotal(total: number, partPrice: number): number | null {
+  const labor = Math.round(((Number(total) || 0) - (Number(partPrice) || 0)) * 100) / 100;
+  return labor < 0 ? null : labor;
+}
+
+/** ตัวเลือกด่วนช่องรับประกัน — พิมพ์เองได้เสมอ */
+export const WARRANTY_PRESETS = ['ไม่มีประกัน', '1 เดือน', '3 เดือน', '6 เดือน', '1 ปี', '2 ปี'];

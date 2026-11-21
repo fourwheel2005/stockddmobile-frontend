@@ -7,7 +7,7 @@ import { extractErrorMessage } from '@/api/client';
 import { backdropCloseHandler, useModalChrome } from '@/hooks/useModalChrome';
 import { Hint } from '@/components/ui/Hint';
 import { formatDateTime, formatTHB } from '@/lib/format';
-import { MOVEMENT_LABEL, partLabel, profitOf, replacePriceOf } from '@/lib/repairParts';
+import { MOVEMENT_LABEL, WARRANTY_PRESETS, laborFromTotal, partLabel, profitOf } from '@/lib/repairParts';
 import { IPHONE_MODEL_SERIES, hasModel } from '@/lib/iphoneModels';
 import type { RepairPart, RepairPartGroup } from '@/types/api';
 
@@ -157,17 +157,22 @@ export function PartModal({ part, group, onClose }: { part?: RepairPart; group: 
   const [f, setF] = useState({
     name: part?.name ?? '', grade: part?.grade ?? '', note: part?.note ?? '',
     cost: part?.cost != null ? String(part.cost) : '', partPrice: part ? String(part.partPrice) : '',
-    laborPrice: part ? String(part.laborPrice) : '', initialQuantity: '',
+    // FIX-237: ช่างกรอกยอดรวม (ราคาเปลี่ยน) — ค่าแรงคิดให้เอง = ยอดรวม − ราคาอะไหล่
+    total: part && part.replacePrice > 0 ? String(part.replacePrice) : '',
+    warranty: part?.warranty ?? '', initialQuantity: '',
   });
   const set = (p: Partial<typeof f>) => setF((s) => ({ ...s, ...p }));
-  const moneyOk = validMoney(f.cost) && validMoney(f.partPrice) && validMoney(f.laborPrice);
+  const labor = laborFromTotal(num(f.total), num(f.partPrice));
+  const moneyOk = validMoney(f.cost) && validMoney(f.partPrice) && validMoney(f.total);
+  const totalOk = labor !== null;
   const qtyOk = f.initialQuantity.trim() === '' || (Number.isInteger(Number(f.initialQuantity)) && Number(f.initialQuantity) >= 0);
-  const replace = replacePriceOf(num(f.partPrice), num(f.laborPrice));
-  const profit = profitOf(num(f.partPrice), num(f.laborPrice), num(f.cost));
+  const total = num(f.total);
+  const profit = profitOf(num(f.partPrice), labor ?? 0, num(f.cost));
 
   const body = () => ({
     groupId: group.id, name: f.name.trim(), grade: f.grade.trim() || undefined, note: f.note.trim() || undefined,
-    cost: num(f.cost), partPrice: num(f.partPrice), laborPrice: num(f.laborPrice),
+    cost: num(f.cost), partPrice: num(f.partPrice), laborPrice: labor ?? 0,
+    warranty: f.warranty.trim() || undefined,
     initialQuantity: editing || f.initialQuantity.trim() === '' ? undefined : Number(f.initialQuantity),
   });
   const save = useSave(
@@ -179,7 +184,7 @@ export function PartModal({ part, group, onClose }: { part?: RepairPart; group: 
     <Modal title={`${editing ? 'แก้ไข' : 'เพิ่ม'}อะไหล่ — ${group.name}`} onClose={onClose}
            footer={<>
              <button className="btn-secondary" onClick={onClose}>ยกเลิก</button>
-             <button className="btn-primary" disabled={!f.name.trim() || !moneyOk || !qtyOk || save.isPending} onClick={() => save.mutate()}>
+             <button className="btn-primary" disabled={!f.name.trim() || !moneyOk || !totalOk || !qtyOk || save.isPending} onClick={() => save.mutate()}>
                {save.isPending ? 'กำลังบันทึก…' : 'บันทึก'}
              </button>
            </>}>
@@ -195,21 +200,31 @@ export function PartModal({ part, group, onClose }: { part?: RepairPart; group: 
         <Field label="ต้นทุน (บาท)" hint="ราคาที่ร้านซื้ออะไหล่มา ต่อ 1 ชิ้น — พนักงานหน้าร้านไม่เห็น">
           <input className="input text-right" inputMode="decimal" value={f.cost} onChange={(e) => set({ cost: e.target.value })} placeholder="0" />
         </Field>
-        <Field label="ราคาอะไหล่ (บาท)" hint="ค่าตัวอะไหล่ที่คิดลูกค้า">
+        <Field label="ราคาอะไหล่ (บาท)" hint="ค่าตัวอะไหล่ที่คิดลูกค้า — ไม่แยกก็เว้นว่างได้">
           <input className="input text-right" inputMode="decimal" value={f.partPrice} onChange={(e) => set({ partPrice: e.target.value })} placeholder="0" />
         </Field>
-        <Field label="ค่าแรง (บาท)" hint="ค่าช่างเปลี่ยน/ติดตั้ง">
-          <input className="input text-right" inputMode="decimal" value={f.laborPrice} onChange={(e) => set({ laborPrice: e.target.value })} placeholder="0" />
+        <Field label="ยอดรวม (บาท)" hint="ราคาเปลี่ยนทั้งหมดที่บอกลูกค้า (รวมค่าช่างแล้ว)">
+          <input className="input text-right font-semibold" inputMode="decimal" value={f.total} onChange={(e) => set({ total: e.target.value })} placeholder="0" />
         </Field>
       </div>
       {!moneyOk && <Hint tone="warning">ราคาต้องเป็นตัวเลข 0 ขึ้นไป</Hint>}
+      {moneyOk && !totalOk && <Hint tone="warning">ยอดรวมต้องไม่น้อยกว่าราคาอะไหล่ ({formatTHB(num(f.partPrice))})</Hint>}
       <div className="grid grid-cols-2 gap-2 rounded-lg bg-slate-50 p-3 text-sm">
-        <div>ราคาเปลี่ยนรวม (บอกลูกค้า)<div className="text-lg font-bold text-brand-700">{formatTHB(replace)}</div>
-          <div className="text-xs text-slate-500">= ราคาอะไหล่ + ค่าแรง</div></div>
+        <div>ราคาที่บอกลูกค้า<div className="text-lg font-bold text-brand-700">{formatTHB(total)}</div>
+          <div className="text-xs text-slate-500">= ยอดรวมที่กรอก</div></div>
         <div>กำไรต่อชิ้น<div className={`text-lg font-bold ${profit < 0 ? 'text-red-600' : 'text-emerald-700'}`}>{formatTHB(profit)}</div>
-          <div className="text-xs text-slate-500">= ราคาเปลี่ยนรวม − ต้นทุน</div></div>
+          <div className="text-xs text-slate-500">= ยอดรวม − ต้นทุน (คำนวณให้อัตโนมัติ)</div></div>
       </div>
-      {replace === 0 && <Hint tone="warning">ยังไม่ได้ตั้งราคา — หน้าร้านจะเห็นป้าย "ยังไม่ตั้งราคา" แทนตัวเลข</Hint>}
+      {total === 0 && <Hint tone="warning">ยังไม่ได้ตั้งราคา — หน้าร้านจะเห็นป้าย "ยังไม่ตั้งราคา" แทนตัวเลข</Hint>}
+      <Field label="รับประกัน" hint="พิมพ์เองได้เลย เช่น 3 เดือน, 1 ปี, 2 ปี — พนักงานหน้าร้านเห็นเพื่อแจ้งลูกค้า · เว้นว่าง = ไม่ระบุ">
+        <div className="mb-2 flex flex-wrap gap-1.5">
+          {WARRANTY_PRESETS.map((w) => (
+            <button key={w} type="button" onClick={() => set({ warranty: w })}
+                    className={`rounded-full border px-2.5 py-0.5 text-xs ${f.warranty === w ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-slate-200 hover:bg-slate-50'}`}>{w}</button>
+          ))}
+        </div>
+        <input className="input" maxLength={60} value={f.warranty} onChange={(e) => set({ warranty: e.target.value })} placeholder="เช่น 1 ปี" />
+      </Field>
       {!editing && (
         <Field label="จำนวนที่มีอยู่ตอนนี้" hint="ไม่บังคับ — บันทึกเป็น 'รับเข้า' ด้วยต้นทุนด้านบน · ภายหลังใช้ปุ่ม รับเข้า / ปรับยอด">
           <input className="input w-32 text-right" inputMode="numeric" value={f.initialQuantity} onChange={(e) => set({ initialQuantity: e.target.value })} placeholder="0" />

@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { filterCatalog, linesTotal, setLineQty, partLabel, profitOf, replacePriceOf, stockStatus, suggestGroupId } from '@/lib/repairParts';
+import { filterCatalog, laborFromTotal, linesTotal, setLineQty, partLabel, profitOf, replacePriceOf, stockStatus, suggestGroupId } from '@/lib/repairParts';
 import type { RepairPart, RepairPartGroup } from '@/types/api';
 
 const part = (over: Partial<RepairPart>): RepairPart => ({
   id: 'p', groupId: 'g', name: 'จอ', grade: null, cost: 0, partPrice: 0, laborPrice: 0, replacePrice: 0,
-  profit: 0, quantity: 0, note: null, sortOrder: 0, ...over,
+  profit: 0, quantity: 0, note: null, sortOrder: 0, warranty: null, ...over,
 });
 
 const groups: RepairPartGroup[] = [
@@ -58,5 +58,13 @@ describe('repair parts helpers (FIX-235)', () => {
     expect(setLineQty(start, 'a', 3)).toEqual([{ partId: 'a', quantity: 3 }]);
     expect(setLineQty(start, 'a', 0)).toEqual([]);
     expect(start).toEqual([{ partId: 'a', quantity: 1 }]);
+  });
+
+  it('works out labor from the total the technician types (FIX-237)', () => {
+    expect(laborFromTotal(6000, 5500)).toBe(500);
+    expect(laborFromTotal(6000, 0)).toBe(6000);       // ไม่แยกราคาอะไหล่ = ทั้งยอดเป็นค่าแรง
+    expect(laborFromTotal(5500, 5500)).toBe(0);
+    expect(laborFromTotal(1000.3, 999.1)).toBe(1.2);
+    expect(laborFromTotal(5000, 5500)).toBeNull();     // ยอดรวมต่ำกว่าราคาอะไหล่
   });
 });

@@ -55,10 +55,10 @@ export function RepairPartsPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="flex items-center gap-2 page-title"><Wrench className="h-6 w-6 text-amber-600" /> {canEdit ? 'อะไหล่ซ่อม / ค่าแรง' : 'ราคาซ่อม / อะไหล่'}</h1>
+          <h1 className="flex items-center gap-2 page-title"><Wrench className="h-6 w-6 text-amber-600" /> {canEdit ? 'อะไหล่ซ่อม / ราคาซ่อม' : 'ราคาซ่อม / อะไหล่'}</h1>
           <p className="text-sm text-slate-500">
-            {canEdit ? 'ตั้งราคาอะไหล่แต่ละรุ่น + สต็อกอะไหล่ — หน้าร้านเห็นราคาเปลี่ยนรวมเพื่อบอกลูกค้าทันที'
-                     : 'ค้นรุ่นแล้วบอกลูกค้าตาม "ราคาเปลี่ยนรวม" (อะไหล่ + ค่าแรง) — ถ้าของหมดต้องแจ้งลูกค้าว่าต้องสั่ง'}
+            {canEdit ? 'ตั้งราคาอะไหล่แต่ละรุ่น + รับประกัน + สต็อกอะไหล่ — หน้าร้านเห็นยอดรวมเพื่อบอกลูกค้าทันที'
+                     : 'ค้นรุ่นแล้วบอกลูกค้าตาม "ยอดรวม" และระยะรับประกัน — ถ้าของหมดต้องแจ้งลูกค้าว่าต้องสั่ง'}
           </p>
         </div>
         <div className="flex gap-2">
@@ -114,15 +114,15 @@ export function RepairPartsPage() {
             {open && g.note && <div className="border-b bg-amber-50/60 px-4 py-1.5 text-xs text-amber-800">{g.note}</div>}
             {open && (
               <div className="overflow-x-auto">
-                <table className={`w-full text-sm ${canEdit ? 'min-w-[900px]' : 'min-w-[560px]'}`}>
+                <table className={`w-full text-sm ${canEdit ? 'min-w-[960px]' : 'min-w-[600px]'}`}>
                   <thead className="text-left text-xs text-slate-500">
                     <tr className="border-b">
                       <th className="px-4 py-2">อะไหล่ / เกรด</th>
                       {canEdit && <th className="px-3 py-2 text-right">ต้นทุน</th>}
                       <th className="px-3 py-2 text-right">ราคาอะไหล่</th>
-                      <th className="px-3 py-2 text-right">ค่าแรง</th>
-                      <th className="px-3 py-2 text-right text-brand-700">ราคาเปลี่ยนรวม</th>
+                      <th className="px-3 py-2 text-right text-brand-700">ยอดรวม (บอกลูกค้า)</th>
                       {canEdit && <th className="px-3 py-2 text-right">กำไร/ชิ้น</th>}
+                      <th className="px-3 py-2">รับประกัน</th>
                       <th className="px-3 py-2">สต็อก</th>
                       {canEdit && <th className="px-3 py-2 text-right">จัดการ</th>}
                     </tr>
@@ -141,13 +141,13 @@ export function RepairPartsPage() {
                             {p.note && <div className="text-xs text-slate-500">{p.note}</div>}
                           </td>
                           {canEdit && <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">{formatTHB(p.cost)}</td>}
-                          <td className="px-3 py-2.5 text-right tabular-nums">{unpricedPart ? '—' : formatTHB(p.partPrice)}</td>
-                          <td className="px-3 py-2.5 text-right tabular-nums">{unpricedPart ? '—' : formatTHB(p.laborPrice)}</td>
+                          <td className="px-3 py-2.5 text-right tabular-nums">{unpricedPart || p.partPrice <= 0 ? '—' : formatTHB(p.partPrice)}</td>
                           <td className="px-3 py-2.5 text-right">
                             {unpricedPart ? <span className="badge-amber">ยังไม่ตั้งราคา</span>
                               : <span className="text-base font-bold tabular-nums text-brand-700">{formatTHB(p.replacePrice)}</span>}
                           </td>
                           {canEdit && <td className={`px-3 py-2.5 text-right tabular-nums ${(p.profit ?? 0) < 0 ? 'text-red-600' : 'text-emerald-700'}`}>{unpricedPart ? '—' : formatTHB(p.profit)}</td>}
+                          <td className="px-3 py-2.5 text-xs">{p.warranty ? <span className="badge-green">{p.warranty}</span> : <span className="text-slate-400">ไม่ระบุ</span>}</td>
                           <td className="px-3 py-2.5"><span className={stock.cls}>{stock.text}</span></td>
                           {canEdit && (
                             <td className="px-3 py-2.5">
@@ -192,10 +192,10 @@ function HelpCard({ canEdit }: { canEdit: boolean }) {
       <div className="font-semibold text-slate-800">ความหมายของแต่ละช่อง</div>
       <ul className="grid gap-1.5 sm:grid-cols-2">
         {canEdit && <li><b>ต้นทุน</b> — ราคาที่ร้านซื้ออะไหล่มา ต่อ 1 ชิ้น (อัปเดตเป็นราคาล่าสุดตอน "รับเข้า") · พนักงานหน้าร้านไม่เห็น</li>}
-        <li><b>ราคาอะไหล่</b> — ค่าตัวอะไหล่ที่คิดลูกค้า</li>
-        <li><b>ค่าแรง</b> — ค่าช่างเปลี่ยน/ติดตั้ง</li>
-        <li><b className="text-brand-700">ราคาเปลี่ยนรวม</b> — ราคาอะไหล่ + ค่าแรง = <b>ราคาที่บอกลูกค้า</b></li>
-        {canEdit && <li><b>กำไร/ชิ้น</b> — ราคาเปลี่ยนรวม − ต้นทุน (ติดลบ = ขาดทุน ตัวแดง)</li>}
+        <li><b>ราคาอะไหล่</b> — ค่าตัวอะไหล่ที่คิดลูกค้า (ไม่แยกก็ได้)</li>
+        <li><b className="text-brand-700">ยอดรวม</b> — ราคาเปลี่ยนทั้งหมด รวมค่าช่างแล้ว = <b>ราคาที่บอกลูกค้า</b></li>
+        {canEdit && <li><b>กำไร/ชิ้น</b> — ยอดรวม − ต้นทุน คำนวณให้อัตโนมัติ (ติดลบ = ขาดทุน ตัวแดง)</li>}
+        <li><b>รับประกัน</b> — ระยะประกันหลังเปลี่ยนชิ้นนั้น เช่น 3 เดือน / 1 ปี · แจ้งลูกค้าพร้อมราคา</li>
         <li><b>สต็อก</b> — จำนวนที่มีในร้าน · "หมด · ต้องสั่ง" = ต้องแจ้งลูกค้าว่ารอของ</li>
         <li><b>เกรด</b> — ชิ้นเดียวกันมีหลายเกรดได้ เช่น จอแท้ศูนย์ / จอ OEM แยกราคากันคนละแถว</li>
       </ul>
@@ -204,14 +204,14 @@ function HelpCard({ canEdit }: { canEdit: boolean }) {
           <div className="font-semibold text-slate-800">ขั้นตอนใช้งาน (ช่าง)</div>
           <ol className="list-decimal space-y-1 pl-5">
             <li>กด <b>เพิ่มรุ่น / หมวด</b> → ใส่ชื่อรุ่นให้ตรงกับที่หน้าร้านพิมพ์ในใบงาน (เช่น iPhone 13) → ระบบสร้างรายการ จอ แบต ลำโพง ฯลฯ ให้ หรือคัดลอกราคาจากรุ่นใกล้เคียง</li>
-            <li>กด <Pencil className="inline h-3.5 w-3.5 text-blue-600" /> ที่แต่ละชิ้นเพื่อกรอก ต้นทุน / ราคาอะไหล่ / ค่าแรง · ชิ้นที่ยังไม่กรอกจะขึ้น "ยังไม่ตั้งราคา"</li>
+            <li>กด <Pencil className="inline h-3.5 w-3.5 text-blue-600" /> ที่แต่ละชิ้นเพื่อกรอก ต้นทุน / ราคาอะไหล่ / ยอดรวม / รับประกัน · ชิ้นที่ยังไม่กรอกจะขึ้น "ยังไม่ตั้งราคา"</li>
             <li>ซื้ออะไหล่มา → กด <b>รับเข้า</b> ใส่จำนวนและต้นทุนต่อชิ้น · ของไม่ตรง (นับใหม่/เสีย/หาย) → กด <Scale className="inline h-3.5 w-3.5" /> ปรับยอด พร้อมเหตุผล</li>
-            <li>ตอนซ่อมเสร็จในหน้า <b>งานซ่อม</b> เลือกอะไหล่ที่ใช้ → สต็อกลดเอง และค่าซ่อมเติมให้ตามราคาเปลี่ยนรวม (แก้ได้) · ยกเลิกงาน = อะไหล่คืนสต็อกเอง</li>
+            <li>ตอนซ่อมเสร็จในหน้า <b>งานซ่อม</b> เลือกอะไหล่ที่ใช้ → สต็อกลดเอง และค่าซ่อมเติมให้ตามยอดรวม (แก้ได้) · ยกเลิกงาน = อะไหล่คืนสต็อกเอง</li>
             <li>ทุกการเปลี่ยนจำนวนดูย้อนหลังได้ที่ <History className="inline h-3.5 w-3.5" /> ประวัติ (ใคร เมื่อไหร่ งานไหน)</li>
           </ol>
         </>
       ) : (
-        <p>ลูกค้าถามราคา → พิมพ์รุ่นในช่องค้นหา → บอก <b>ราคาเปลี่ยนรวม</b> ของชิ้นที่ต้องเปลี่ยน · ถ้าขึ้น "ยังไม่ตั้งราคา" ให้ถามช่างก่อนบอกลูกค้า</p>
+        <p>ลูกค้าถามราคา → พิมพ์รุ่นในช่องค้นหา → บอก <b>ยอดรวม</b> และ <b>รับประกัน</b> ของชิ้นที่ต้องเปลี่ยน · ถ้าขึ้น "ยังไม่ตั้งราคา" ให้ถามช่างก่อนบอกลูกค้า</p>
       )}
     </div>
   );

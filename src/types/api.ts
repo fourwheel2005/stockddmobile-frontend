@@ -1800,6 +1800,8 @@ export interface RepairPart {
   quantity: number;
   note: string | null;
   sortOrder: number;
+  /** รับประกันหลังเปลี่ยน เช่น "3 เดือน" — null = ไม่ระบุ (FIX-237) */
+  warranty: string | null;
 }
 
 export interface RepairPartGroup {
@@ -1855,4 +1857,5 @@ export interface RepairPartRequest {
   laborPrice: number;
   note?: string;
   initialQuantity?: number;
+  warranty?: string;
 }
